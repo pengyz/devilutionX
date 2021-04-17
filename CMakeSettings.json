@@ -1,42 +1,48 @@
 {
-	"configurations": [
+  "configurations": [
 		{
 			"name": "x64-Debug",
-			"generator": "Ninja",
+			"generator": "Visual Studio 15 2017 Win64",
 			"configurationType": "Debug",
 			"buildRoot": "${workspaceRoot}\\build\\${name}",
 			"installRoot": "${env.USERPROFILE}\\CMakeBuilds\\${workspaceHash}\\install\\${name}",
 			"inheritEnvironments": [ "msvc_x64" ],
-			"intelliSenseMode": "windows-msvc-x64"
+			"intelliSenseMode": "windows-msvc-x64",
+			"variables": []
 		},
 		{
 			"name": "x64-Release",
-			"generator": "Ninja",
+			"generator": "Visual Studio 15 2017 Win64",
 			"configurationType": "Release",
 			"buildRoot": "${workspaceRoot}\\build\\${name}",
 			"installRoot": "${env.USERPROFILE}\\CMakeBuilds\\${workspaceHash}\\install\\${name}",
 			"cmakeCommandArgs": "-DBINARY_RELEASE=ON",
 			"inheritEnvironments": [ "msvc_x64" ],
-			"intelliSenseMode": "windows-msvc-x64"
+			"intelliSenseMode": "windows-msvc-x64",
+			"variables": []
 		},
 		{
 			"name": "x86-Debug",
-			"generator": "Ninja",
+			"generator": "Visual Studio 15 2017",
 			"configurationType": "Debug",
 			"buildRoot": "${workspaceRoot}\\build\\${name}",
 			"installRoot": "${env.USERPROFILE}\\CMakeBuilds\\${workspaceHash}\\install\\${name}",
+			"cmakeCommandArgs": "-DNONET=ON",
 			"inheritEnvironments": [ "msvc_x86" ],
-			"intelliSenseMode": "windows-msvc-x86"
+			"intelliSenseMode": "windows-msvc-x86",
+			"cmakeToolchain": "D:/workspace/vcpkg/scripts/buildsystems/vcpkg.cmake",
+			"variables": []
 		},
 		{
 			"name": "x86-Release",
-			"generator": "Ninja",
+			"generator": "Visual Studio 15 2017",
 			"configurationType": "Release",
 			"buildRoot": "${workspaceRoot}\\build\\${name}",
 			"installRoot": "${env.USERPROFILE}\\CMakeBuilds\\${workspaceHash}\\install\\${name}",
-			"cmakeCommandArgs": "-DBINARY_RELEASE=ON",
+			"cmakeCommandArgs": "-DBINARY_RELEASE=ON  -DNONET=ON",
 			"inheritEnvironments": [ "msvc_x86" ],
-			"intelliSenseMode": "windows-msvc-x86"
+			"intelliSenseMode": "windows-msvc-x86",
+			"variables": []
 		}
-	]
+  ]
 }
