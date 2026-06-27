@@ -378,6 +378,7 @@ public:
 		uint32_t experience = 0;  // Stored experience value
 	};
 	bool _pSoulWeakened = false;
+	bool _pAdriaRespawnedRecently = false;
 	SoulFragment _soulFragment;
 
 	[[nodiscard]] std::string_view name() const

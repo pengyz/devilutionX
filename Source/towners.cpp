@@ -13,6 +13,7 @@
 #include "inv.h"
 #include "mastermark.h"
 #include "minitext.h"
+#include "plrmsg.h"
 #include "stores.h"
 #include "tables/textdat.h"
 #include "tables/townerdat.hpp"
@@ -257,6 +258,15 @@ void HandleMentorMarks(Player &player, HeroClass mentorClass)
 		if (nextToSwap != MasterMarkId::COUNT)
 			SwapActiveMark(player, nextToSwap);
 	}
+
+	if (newMarkGranted) {
+		std::string markList = "Marks: ";
+		for (int i = 0; i < 4; i++) {
+			if (i > 0) markList += ", ";
+			markList += markDefs[static_cast<size_t>(mentorMarks[classIdx][i])].name;
+		}
+		EventPlrMsg(markList);
+	}
 }
 
 void TalkToBarOwner(Player &player, Towner &barOwner)
@@ -406,6 +416,13 @@ void TalkToWitch(Player &player, Towner & /*witch*/)
 			player._pGold = 0;
 		}
 		RestoreSoul(player);
+		InitQTextMsg(TEXT_ADRIA1);
+		return;
+	}
+
+	// Acknowledge auto-respawn from second death
+	if (player._pAdriaRespawnedRecently) {
+		player._pAdriaRespawnedRecently = false;
 		InitQTextMsg(TEXT_ADRIA1);
 		return;
 	}

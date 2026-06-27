@@ -3018,8 +3018,13 @@ void AdriaRespawn(Player &player)
 	player._pExperience = 0;
 	player._soulFragment.experience = 0;
 
-	// Remove weakness
+	// Remove weakness and undo soul weakness HP reduction
 	player._pSoulWeakened = false;
+	player._pMaxHPBase = player.calculateBaseLife();
+	player._pHPBase = player._pMaxHPBase;
+
+	// Mark for Adria dialogue on next visit
+	player._pAdriaRespawnedRecently = true;
 
 	// Respawn in town
 	RestartTownLvl(player);
@@ -3050,6 +3055,11 @@ void RestoreSoul(Player &player)
 	player._pSoulWeakened = false;
 	player._pExperience = 0;
 	player._soulFragment.experience = 0;
+
+	// Undo soul weakness HP reduction
+	player._pMaxHPBase = player.calculateBaseLife();
+	player._pHPBase = player._pMaxHPBase;
+
 	CalcPlrInv(player, true);
 }
 
