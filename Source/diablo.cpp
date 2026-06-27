@@ -957,7 +957,7 @@ void RunGameLoop(interface_mode uMsg)
 		pfile_write_hero(/*writeGameData=*/false);
 		sfile_write_stash();
 	} else {
-		pfile_write_hero(/*writeGameData=*/true);
+		SaveGame();
 	}
 
 	PaletteFadeOut(8);
