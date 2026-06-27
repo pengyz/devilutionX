@@ -870,6 +870,9 @@ void RunGameLoop(interface_mode uMsg)
 
 	nthread_ignore_mutex(true);
 	StartGame(uMsg);
+	// Ensure player starts in a clean state regardless of saved _pmode/_pInvincible.
+	MyPlayer->_pmode = PM_STAND;
+	MyPlayer->_pInvincible = false;
 	assert(HeadlessMode || ghMainWnd);
 	EventHandler previousHandler = SetEventHandler(GameEventHandler);
 	run_delta_info();
@@ -957,6 +960,8 @@ void RunGameLoop(interface_mode uMsg)
 		pfile_write_hero(/*writeGameData=*/false);
 		sfile_write_stash();
 	} else {
+		MyPlayer->_pmode = PM_STAND;
+		MyPlayer->_pInvincible = false;
 		SaveGame();
 	}
 
