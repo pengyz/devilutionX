@@ -368,7 +368,7 @@ size_t GetNumMonsterSprites();
 // Runtime AI registration (for mod extensions)
 struct Monster;
 using AiFunction = void (*)(Monster &monster);
-extern std::array<AiFunction, 128> AiProc;
+extern DVL_API_FOR_TEST std::array<AiFunction, 128> AiProc;
 void RegisterAiFunction(MonsterAIID id, AiFunction fn);
 
 } // namespace devilution
