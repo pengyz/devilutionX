@@ -11,6 +11,7 @@ add_library(test_main OBJECT test/main.cpp)
 target_link_dependencies(test_main PUBLIC libdevilutionx_so GTest::gtest GTest::gmock)
 
 set(tests
+  ai_registry_test
   animationinfo_test
   appfat_test
   automap_test
@@ -25,12 +26,15 @@ set(tests
   effects_test
   inv_test
   items_test
+  lua_integration_test
   math_test
+  missile_registry_test
   missiles_test
   multi_logging_test
   pack_test
   player_test
   quests_test
+  quest_script_test
   scrollrt_test
   stores_test
   tile_properties_test

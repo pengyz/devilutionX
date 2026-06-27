@@ -7,6 +7,7 @@ namespace devilution {
 
 struct Player;
 struct Monster;
+struct Quest;
 
 namespace lua {
 
@@ -25,6 +26,8 @@ void OnPlayerTakeDamage(const Player *player, int damage, int damageType);
 void LoadModsComplete();
 void GameDrawComplete();
 void GameStart();
+
+std::string OnQuestCheck(std::string_view scriptName, const Quest *quest);
 
 } // namespace lua
 

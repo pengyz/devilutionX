@@ -23,6 +23,7 @@
 #include "levels/gendung.h"
 #include "levels/town.h"
 #include "levels/trigs.h"
+#include "lua/lua_event.hpp"
 #include "minitext.h"
 #include "missiles.h"
 #include "monster.h"
@@ -278,6 +279,20 @@ void CheckQuests()
 {
 	if (gbIsSpawn)
 		return;
+
+	for (auto &quest : Quests) {
+		if (!quest.IsAvailable())
+			continue;
+		auto &questData = QuestsData[static_cast<size_t>(quest._qidx)];
+		if (!questData.scriptName.empty()) {
+			std::string result = lua::OnQuestCheck(questData.scriptName, &quest);
+			if (result == "done") {
+				quest._qactive = QUEST_DONE;
+				quest._qlog = true;
+			} else if (result == "active") {
+			}
+		}
+	}
 
 	auto &quest = Quests[Q_BETRAYER];
 	if (quest.IsAvailable() && UseMultiplayerQuests() && quest._qvar1 == 2) {

@@ -5,6 +5,7 @@
  */
 #pragma once
 
+#include <array>
 #include <cstddef>
 #include <cstdint>
 #include <string>
@@ -18,6 +19,7 @@
 namespace devilution {
 
 class DataFile;
+struct Monster;
 
 enum class MonsterAIID : int8_t {
 	Zombie,
@@ -60,6 +62,7 @@ enum class MonsterAIID : int8_t {
 	Psychorb,
 	Necromorb,
 	BoneDemon,
+	Custom = 55,
 	Invalid = -1,
 };
 
@@ -361,6 +364,12 @@ void LoadMonsterData();
  * Different monsters can use the same sprite with different TRNs, these count as 1.
  */
 size_t GetNumMonsterSprites();
+
+// Runtime AI registration (for mod extensions)
+struct Monster;
+using AiFunction = void (*)(Monster &monster);
+extern std::array<AiFunction, 128> AiProc;
+void RegisterAiFunction(MonsterAIID id, AiFunction fn);
 
 } // namespace devilution
 

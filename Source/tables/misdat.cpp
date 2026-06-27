@@ -178,137 +178,172 @@ tl::expected<MissileDataFlags, std::string> ParseMissileDataFlag(std::string_vie
 	return tl::make_unexpected("Unknown enum value");
 }
 
+} // namespace
+
+std::unordered_map<std::string, MissileData::AddFn> g_addFnRegistry;
+std::unordered_map<std::string, MissileData::ProcessFn> g_processFnRegistry;
+bool g_registriesInitialized = false;
+
+void InitDefaultMissileRegistries()
+{
+	if (g_registriesInitialized)
+		return;
+	g_registriesInitialized = true;
+
+	g_addFnRegistry["AddOpenNest"] = AddOpenNest;
+	g_addFnRegistry["AddRuneOfFire"] = AddRuneOfFire;
+	g_addFnRegistry["AddRuneOfLight"] = AddRuneOfLight;
+	g_addFnRegistry["AddRuneOfNova"] = AddRuneOfNova;
+	g_addFnRegistry["AddRuneOfImmolation"] = AddRuneOfImmolation;
+	g_addFnRegistry["AddRuneOfStone"] = AddRuneOfStone;
+	g_addFnRegistry["AddReflect"] = AddReflect;
+	g_addFnRegistry["AddBerserk"] = AddBerserk;
+	g_addFnRegistry["AddHorkSpawn"] = AddHorkSpawn;
+	g_addFnRegistry["AddJester"] = AddJester;
+	g_addFnRegistry["AddStealPotions"] = AddStealPotions;
+	g_addFnRegistry["AddStealMana"] = AddStealMana;
+	g_addFnRegistry["AddSpectralArrow"] = AddSpectralArrow;
+	g_addFnRegistry["AddWarp"] = AddWarp;
+	g_addFnRegistry["AddLightningWall"] = AddLightningWall;
+	g_addFnRegistry["AddBigExplosion"] = AddBigExplosion;
+	g_addFnRegistry["AddImmolation"] = AddImmolation;
+	g_addFnRegistry["AddLightningBow"] = AddLightningBow;
+	g_addFnRegistry["AddMana"] = AddMana;
+	g_addFnRegistry["AddMagi"] = AddMagi;
+	g_addFnRegistry["AddRingOfFire"] = AddRingOfFire;
+	g_addFnRegistry["AddSearch"] = AddSearch;
+	g_addFnRegistry["AddChargedBoltBow"] = AddChargedBoltBow;
+	g_addFnRegistry["AddElementalArrow"] = AddElementalArrow;
+	g_addFnRegistry["AddArrow"] = AddArrow;
+	g_addFnRegistry["AddPhasing"] = AddPhasing;
+	g_addFnRegistry["AddFirebolt"] = AddFirebolt;
+	g_addFnRegistry["AddMagmaBall"] = AddMagmaBall;
+	g_addFnRegistry["AddTeleport"] = AddTeleport;
+	g_addFnRegistry["AddNovaBall"] = AddNovaBall;
+	g_addFnRegistry["AddFireWall"] = AddFireWall;
+	g_addFnRegistry["AddFireball"] = AddFireball;
+	g_addFnRegistry["AddLightningControl"] = AddLightningControl;
+	g_addFnRegistry["AddLightning"] = AddLightning;
+	g_addFnRegistry["AddMissileExplosion"] = AddMissileExplosion;
+	g_addFnRegistry["AddWeaponExplosion"] = AddWeaponExplosion;
+	g_addFnRegistry["AddTownPortal"] = AddTownPortal;
+	g_addFnRegistry["AddFlashBottom"] = AddFlashBottom;
+	g_addFnRegistry["AddFlashTop"] = AddFlashTop;
+	g_addFnRegistry["AddManaShield"] = AddManaShield;
+	g_addFnRegistry["AddFlameWave"] = AddFlameWave;
+	g_addFnRegistry["AddGuardian"] = AddGuardian;
+	g_addFnRegistry["AddChainLightning"] = AddChainLightning;
+	g_addFnRegistry["AddRhino"] = AddRhino;
+	g_addFnRegistry["AddGenericMagicMissile"] = AddGenericMagicMissile;
+	g_addFnRegistry["AddAcid"] = AddAcid;
+	g_addFnRegistry["AddAcidPuddle"] = AddAcidPuddle;
+	g_addFnRegistry["AddStoneCurse"] = AddStoneCurse;
+	g_addFnRegistry["AddGolem"] = AddGolem;
+	g_addFnRegistry["AddApocalypseBoom"] = AddApocalypseBoom;
+	g_addFnRegistry["AddHealing"] = AddHealing;
+	g_addFnRegistry["AddHealOther"] = AddHealOther;
+	g_addFnRegistry["AddElemental"] = AddElemental;
+	g_addFnRegistry["AddIdentify"] = AddIdentify;
+	g_addFnRegistry["AddWallControl"] = AddWallControl;
+	g_addFnRegistry["AddInfravision"] = AddInfravision;
+	g_addFnRegistry["AddFlameWaveControl"] = AddFlameWaveControl;
+	g_addFnRegistry["AddNova"] = AddNova;
+	g_addFnRegistry["AddRage"] = AddRage;
+	g_addFnRegistry["AddItemRepair"] = AddItemRepair;
+	g_addFnRegistry["AddStaffRecharge"] = AddStaffRecharge;
+	g_addFnRegistry["AddTrapDisarm"] = AddTrapDisarm;
+	g_addFnRegistry["AddApocalypse"] = AddApocalypse;
+	g_addFnRegistry["AddInferno"] = AddInferno;
+	g_addFnRegistry["AddInfernoControl"] = AddInfernoControl;
+	g_addFnRegistry["AddChargedBolt"] = AddChargedBolt;
+	g_addFnRegistry["AddHolyBolt"] = AddHolyBolt;
+	g_addFnRegistry["AddResurrect"] = AddResurrect;
+	g_addFnRegistry["AddResurrectBeam"] = AddResurrectBeam;
+	g_addFnRegistry["AddTelekinesis"] = AddTelekinesis;
+	g_addFnRegistry["AddBoneSpirit"] = AddBoneSpirit;
+	g_addFnRegistry["AddRedPortal"] = AddRedPortal;
+	g_addFnRegistry["AddDiabloApocalypse"] = AddDiabloApocalypse;
+
+	// ProcessFn registry
+	g_processFnRegistry["ProcessElementalArrow"] = ProcessElementalArrow;
+	g_processFnRegistry["ProcessArrow"] = ProcessArrow;
+	g_processFnRegistry["ProcessGenericProjectile"] = ProcessGenericProjectile;
+	g_processFnRegistry["ProcessNovaBall"] = ProcessNovaBall;
+	g_processFnRegistry["ProcessAcidPuddle"] = ProcessAcidPuddle;
+	g_processFnRegistry["ProcessFireWall"] = ProcessFireWall;
+	g_processFnRegistry["ProcessFireball"] = ProcessFireball;
+	g_processFnRegistry["ProcessHorkSpawn"] = ProcessHorkSpawn;
+	g_processFnRegistry["ProcessRune"] = ProcessRune;
+	g_processFnRegistry["ProcessLightningWall"] = ProcessLightningWall;
+	g_processFnRegistry["ProcessBigExplosion"] = ProcessBigExplosion;
+	g_processFnRegistry["ProcessLightningBow"] = ProcessLightningBow;
+	g_processFnRegistry["ProcessRingOfFire"] = ProcessRingOfFire;
+	g_processFnRegistry["ProcessSearch"] = ProcessSearch;
+	g_processFnRegistry["ProcessImmolation"] = ProcessImmolation;
+	g_processFnRegistry["ProcessSpectralArrow"] = ProcessSpectralArrow;
+	g_processFnRegistry["ProcessLightningControl"] = ProcessLightningControl;
+	g_processFnRegistry["ProcessLightning"] = ProcessLightning;
+	g_processFnRegistry["ProcessTownPortal"] = ProcessTownPortal;
+	g_processFnRegistry["ProcessFlashBottom"] = ProcessFlashBottom;
+	g_processFnRegistry["ProcessFlashTop"] = ProcessFlashTop;
+	g_processFnRegistry["ProcessFlameWave"] = ProcessFlameWave;
+	g_processFnRegistry["ProcessGuardian"] = ProcessGuardian;
+	g_processFnRegistry["ProcessChainLightning"] = ProcessChainLightning;
+	g_processFnRegistry["ProcessWeaponExplosion"] = ProcessWeaponExplosion;
+	g_processFnRegistry["ProcessMissileExplosion"] = ProcessMissileExplosion;
+	g_processFnRegistry["ProcessAcidSplate"] = ProcessAcidSplate;
+	g_processFnRegistry["ProcessTeleport"] = ProcessTeleport;
+	g_processFnRegistry["ProcessStoneCurse"] = ProcessStoneCurse;
+	g_processFnRegistry["ProcessApocalypseBoom"] = ProcessApocalypseBoom;
+	g_processFnRegistry["ProcessRhino"] = ProcessRhino;
+	g_processFnRegistry["ProcessWallControl"] = ProcessWallControl;
+	g_processFnRegistry["ProcessInfravision"] = ProcessInfravision;
+	g_processFnRegistry["ProcessApocalypse"] = ProcessApocalypse;
+	g_processFnRegistry["ProcessFlameWaveControl"] = ProcessFlameWaveControl;
+	g_processFnRegistry["ProcessNova"] = ProcessNova;
+	g_processFnRegistry["ProcessRage"] = ProcessRage;
+	g_processFnRegistry["ProcessInferno"] = ProcessInferno;
+	g_processFnRegistry["ProcessInfernoControl"] = ProcessInfernoControl;
+	g_processFnRegistry["ProcessChargedBolt"] = ProcessChargedBolt;
+	g_processFnRegistry["ProcessHolyBolt"] = ProcessHolyBolt;
+	g_processFnRegistry["ProcessElemental"] = ProcessElemental;
+	g_processFnRegistry["ProcessBoneSpirit"] = ProcessBoneSpirit;
+	g_processFnRegistry["ProcessResurrectBeam"] = ProcessResurrectBeam;
+	g_processFnRegistry["ProcessRedPortal"] = ProcessRedPortal;
+}
+
+void RegisterMissileAddFn(std::string_view name, MissileData::AddFn fn)
+{
+	g_addFnRegistry[std::string(name)] = fn;
+}
+
+void RegisterMissileProcessFn(std::string_view name, MissileData::ProcessFn fn)
+{
+	g_processFnRegistry[std::string(name)] = fn;
+}
+
 // NOLINTNEXTLINE(readability-function-cognitive-complexity)
 tl::expected<MissileData::AddFn, std::string> ParseMissileAddFn(std::string_view value)
 {
 	if (value.empty()) return nullptr;
-	if (value == "AddOpenNest") return AddOpenNest;
-	if (value == "AddRuneOfFire") return AddRuneOfFire;
-	if (value == "AddRuneOfLight") return AddRuneOfLight;
-	if (value == "AddRuneOfNova") return AddRuneOfNova;
-	if (value == "AddRuneOfImmolation") return AddRuneOfImmolation;
-	if (value == "AddRuneOfStone") return AddRuneOfStone;
-	if (value == "AddReflect") return AddReflect;
-	if (value == "AddBerserk") return AddBerserk;
-	if (value == "AddHorkSpawn") return AddHorkSpawn;
-	if (value == "AddJester") return AddJester;
-	if (value == "AddStealPotions") return AddStealPotions;
-	if (value == "AddStealMana") return AddStealMana;
-	if (value == "AddSpectralArrow") return AddSpectralArrow;
-	if (value == "AddWarp") return AddWarp;
-	if (value == "AddLightningWall") return AddLightningWall;
-	if (value == "AddBigExplosion") return AddBigExplosion;
-	if (value == "AddImmolation") return AddImmolation;
-	if (value == "AddLightningBow") return AddLightningBow;
-	if (value == "AddMana") return AddMana;
-	if (value == "AddMagi") return AddMagi;
-	if (value == "AddRingOfFire") return AddRingOfFire;
-	if (value == "AddSearch") return AddSearch;
-	if (value == "AddChargedBoltBow") return AddChargedBoltBow;
-	if (value == "AddElementalArrow") return AddElementalArrow;
-	if (value == "AddArrow") return AddArrow;
-	if (value == "AddPhasing") return AddPhasing;
-	if (value == "AddFirebolt") return AddFirebolt;
-	if (value == "AddMagmaBall") return AddMagmaBall;
-	if (value == "AddTeleport") return AddTeleport;
-	if (value == "AddNovaBall") return AddNovaBall;
-	if (value == "AddFireWall") return AddFireWall;
-	if (value == "AddFireball") return AddFireball;
-	if (value == "AddLightningControl") return AddLightningControl;
-	if (value == "AddLightning") return AddLightning;
-	if (value == "AddMissileExplosion") return AddMissileExplosion;
-	if (value == "AddWeaponExplosion") return AddWeaponExplosion;
-	if (value == "AddTownPortal") return AddTownPortal;
-	if (value == "AddFlashBottom") return AddFlashBottom;
-	if (value == "AddFlashTop") return AddFlashTop;
-	if (value == "AddManaShield") return AddManaShield;
-	if (value == "AddFlameWave") return AddFlameWave;
-	if (value == "AddGuardian") return AddGuardian;
-	if (value == "AddChainLightning") return AddChainLightning;
-	if (value == "AddRhino") return AddRhino;
-	if (value == "AddGenericMagicMissile") return AddGenericMagicMissile;
-	if (value == "AddAcid") return AddAcid;
-	if (value == "AddAcidPuddle") return AddAcidPuddle;
-	if (value == "AddStoneCurse") return AddStoneCurse;
-	if (value == "AddGolem") return AddGolem;
-	if (value == "AddApocalypseBoom") return AddApocalypseBoom;
-	if (value == "AddHealing") return AddHealing;
-	if (value == "AddHealOther") return AddHealOther;
-	if (value == "AddElemental") return AddElemental;
-	if (value == "AddIdentify") return AddIdentify;
-	if (value == "AddWallControl") return AddWallControl;
-	if (value == "AddInfravision") return AddInfravision;
-	if (value == "AddFlameWaveControl") return AddFlameWaveControl;
-	if (value == "AddNova") return AddNova;
-	if (value == "AddRage") return AddRage;
-	if (value == "AddItemRepair") return AddItemRepair;
-	if (value == "AddStaffRecharge") return AddStaffRecharge;
-	if (value == "AddTrapDisarm") return AddTrapDisarm;
-	if (value == "AddApocalypse") return AddApocalypse;
-	if (value == "AddInferno") return AddInferno;
-	if (value == "AddInfernoControl") return AddInfernoControl;
-	if (value == "AddChargedBolt") return AddChargedBolt;
-	if (value == "AddHolyBolt") return AddHolyBolt;
-	if (value == "AddResurrect") return AddResurrect;
-	if (value == "AddResurrectBeam") return AddResurrectBeam;
-	if (value == "AddTelekinesis") return AddTelekinesis;
-	if (value == "AddBoneSpirit") return AddBoneSpirit;
-	if (value == "AddRedPortal") return AddRedPortal;
-	if (value == "AddDiabloApocalypse") return AddDiabloApocalypse;
+	InitDefaultMissileRegistries();
+	auto it = g_addFnRegistry.find(std::string(value));
+	if (it != g_addFnRegistry.end())
+		return it->second;
 	return tl::make_unexpected("Unknown MissileData::AddFn name");
 }
 
-// NOLINTNEXTLINE(readability-function-cognitive-complexity)
 tl::expected<MissileData::ProcessFn, std::string> ParseMissileProcessFn(std::string_view value)
 {
 	if (value.empty()) return nullptr;
-	if (value == "ProcessElementalArrow") return ProcessElementalArrow;
-	if (value == "ProcessArrow") return ProcessArrow;
-	if (value == "ProcessGenericProjectile") return ProcessGenericProjectile;
-	if (value == "ProcessNovaBall") return ProcessNovaBall;
-	if (value == "ProcessAcidPuddle") return ProcessAcidPuddle;
-	if (value == "ProcessFireWall") return ProcessFireWall;
-	if (value == "ProcessFireball") return ProcessFireball;
-	if (value == "ProcessHorkSpawn") return ProcessHorkSpawn;
-	if (value == "ProcessRune") return ProcessRune;
-	if (value == "ProcessLightningWall") return ProcessLightningWall;
-	if (value == "ProcessBigExplosion") return ProcessBigExplosion;
-	if (value == "ProcessLightningBow") return ProcessLightningBow;
-	if (value == "ProcessRingOfFire") return ProcessRingOfFire;
-	if (value == "ProcessSearch") return ProcessSearch;
-	if (value == "ProcessImmolation") return ProcessImmolation;
-	if (value == "ProcessSpectralArrow") return ProcessSpectralArrow;
-	if (value == "ProcessLightningControl") return ProcessLightningControl;
-	if (value == "ProcessLightning") return ProcessLightning;
-	if (value == "ProcessTownPortal") return ProcessTownPortal;
-	if (value == "ProcessFlashBottom") return ProcessFlashBottom;
-	if (value == "ProcessFlashTop") return ProcessFlashTop;
-	if (value == "ProcessFlameWave") return ProcessFlameWave;
-	if (value == "ProcessGuardian") return ProcessGuardian;
-	if (value == "ProcessChainLightning") return ProcessChainLightning;
-	if (value == "ProcessWeaponExplosion") return ProcessWeaponExplosion;
-	if (value == "ProcessMissileExplosion") return ProcessMissileExplosion;
-	if (value == "ProcessAcidSplate") return ProcessAcidSplate;
-	if (value == "ProcessTeleport") return ProcessTeleport;
-	if (value == "ProcessStoneCurse") return ProcessStoneCurse;
-	if (value == "ProcessApocalypseBoom") return ProcessApocalypseBoom;
-	if (value == "ProcessRhino") return ProcessRhino;
-	if (value == "ProcessWallControl") return ProcessWallControl;
-	if (value == "ProcessInfravision") return ProcessInfravision;
-	if (value == "ProcessApocalypse") return ProcessApocalypse;
-	if (value == "ProcessFlameWaveControl") return ProcessFlameWaveControl;
-	if (value == "ProcessNova") return ProcessNova;
-	if (value == "ProcessRage") return ProcessRage;
-	if (value == "ProcessInferno") return ProcessInferno;
-	if (value == "ProcessInfernoControl") return ProcessInfernoControl;
-	if (value == "ProcessChargedBolt") return ProcessChargedBolt;
-	if (value == "ProcessHolyBolt") return ProcessHolyBolt;
-	if (value == "ProcessElemental") return ProcessElemental;
-	if (value == "ProcessBoneSpirit") return ProcessBoneSpirit;
-	if (value == "ProcessResurrectBeam") return ProcessResurrectBeam;
-	if (value == "ProcessRedPortal") return ProcessRedPortal;
+	InitDefaultMissileRegistries();
+	auto it = g_processFnRegistry.find(std::string(value));
+	if (it != g_processFnRegistry.end())
+		return it->second;
 	return tl::make_unexpected("Unknown MissileData::ProcessFn name");
 }
+
+namespace {
 
 // A temporary solution for parsing SfxID until we have a more general one.
 // NOLINTNEXTLINE(readability-function-cognitive-complexity)

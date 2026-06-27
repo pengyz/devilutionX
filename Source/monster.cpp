@@ -3087,8 +3087,10 @@ void ActivateSpawn(Monster &monster, Point position, Direction dir)
 	StartSpecialStand(monster, dir);
 }
 
+} // namespace
+
 /** Maps from monster AI ID to monster AI function. */
-void (*AiProc[])(Monster &monster) = {
+std::array<AiFunction, 128> AiProc = { {
 	/*MonsterAIID::Zombie         */ &ZombieAi,
 	/*MonsterAIID::Fat            */ &OverlordAi,
 	/*MonsterAIID::SkeletonMelee  */ &SkeletonAi,
@@ -3128,8 +3130,34 @@ void (*AiProc[])(Monster &monster) = {
 	/*MonsterAIID::ArchLich       */ &AiRanged,
 	/*MonsterAIID::Psychorb       */ &AiRanged,
 	/*MonsterAIID::Necromorb      */ &AiRanged,
-	/*MonsterAIID::BoneDemon      */ &AiRangedAvoidance
-};
+	/*MonsterAIID::BoneDemon      */ &AiRangedAvoidance,
+	// Remaining slots are null-initialized
+} };
+static_assert(static_cast<int>(MonsterAIID::BoneDemon) < static_cast<int>(AiProc.size()),
+    "AiProc must be large enough to hold all built-in AI types");
+
+namespace {
+
+void FallbackAiImpl(Monster &monster)
+{
+	if (monster.activeForTicks == 0)
+		return;
+	if (monster.goal == MonsterGoal::Normal) {
+		monster.mode = MonsterMode::Stand;
+	}
+}
+
+} // namespace
+
+void RegisterAiFunction(MonsterAIID id, AiFunction fn)
+{
+	size_t index = static_cast<size_t>(static_cast<int8_t>(id));
+	if (index >= AiProc.size())
+		return;
+	AiProc[index] = fn != nullptr ? fn : &FallbackAiImpl;
+}
+
+namespace {
 
 bool IsRelativeMoveOK(const Monster &monster, Point position, Direction mdir)
 {

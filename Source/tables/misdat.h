@@ -246,6 +246,11 @@ MissileFileData &GetMissileSpriteData(MissileGraphicID graphicId);
 
 void LoadMissileData();
 
+void RegisterMissileAddFn(std::string_view name, MissileData::AddFn fn);
+void RegisterMissileProcessFn(std::string_view name, MissileData::ProcessFn fn);
+tl::expected<MissileData::AddFn, std::string> ParseMissileAddFn(std::string_view value);
+tl::expected<MissileData::ProcessFn, std::string> ParseMissileProcessFn(std::string_view value);
+
 tl::expected<void, std::string> InitMissileGFX();
 void FreeMissileGFX();
 

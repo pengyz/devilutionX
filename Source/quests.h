@@ -104,6 +104,7 @@ struct QuestData {
 	bool isSinglePlayerOnly;
 	_speech_id _qdmsg;
 	std::string _qlstr;
+	std::string scriptName;
 };
 
 extern DVL_API_FOR_TEST bool QuestLogIsOpen;

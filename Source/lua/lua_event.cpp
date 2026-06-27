@@ -9,6 +9,7 @@
 #include "lua/lua_global.hpp"
 #include "monster.h"
 #include "player.h"
+#include "quests.h"
 #include "utils/log.hpp"
 
 namespace devilution {
@@ -99,6 +100,11 @@ void GameDrawComplete()
 void GameStart()
 {
 	CallLuaEvent("GameStart");
+}
+
+std::string OnQuestCheck(std::string_view scriptName, const Quest *quest)
+{
+	return CallLuaEventReturn<std::string>("", scriptName, quest);
 }
 
 } // namespace lua
