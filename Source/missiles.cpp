@@ -65,6 +65,7 @@
 #include "levels/trigs.h"
 #include "lighting.h"
 #include "monster.h"
+#include "monster_affix.h"
 #include "utils/is_of.hpp"
 #include "utils/str_cat.hpp"
 
@@ -329,6 +330,8 @@ bool MonsterMHit(const Player &player, Monster &monster, int mindam, int maxdam,
 
 	if (&player == MyPlayer)
 		ApplyMonsterDamage(damageType, monster, dam);
+
+	OnAffixMonsterRangedHit(monster, Point { startPos.x, startPos.y });
 
 	if (monster.hasNoLife()) {
 		M_StartKill(monster, player);

@@ -332,4 +332,8 @@ bool IsNearThemeRoom(WorldTilePosition position);
 void InitLevels();
 void FloodTransparencyValues(uint8_t floorID);
 
+// Soul Weakness difficulty scaling
+constexpr float SoulWeaknessHpMultiplier[] = { 0.80f, 0.75f, 0.70f };
+constexpr float AdriaRestoreGoldCost[] = { 0.30f, 0.40f, 0.50f };
+
 } // namespace devilution

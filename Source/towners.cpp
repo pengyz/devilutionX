@@ -11,6 +11,7 @@
 #include "engine/random.hpp"
 #include "game_mode.hpp"
 #include "inv.h"
+#include "mastermark.h"
 #include "minitext.h"
 #include "stores.h"
 #include "tables/textdat.h"
@@ -208,6 +209,56 @@ void TownerTalk(_speech_id message)
 	InitQTextMsg(message);
 }
 
+void HandleMentorMarks(Player &player, HeroClass mentorClass)
+{
+	if (player._pClass != mentorClass)
+		return;
+
+	static constexpr MasterMarkId mentorMarks[6][4] = {
+		{ MasterMarkId::ShieldMaster, MasterMarkId::Berserker, MasterMarkId::Commander, MasterMarkId::Avenger },   // Warrior → Griswold
+		{ MasterMarkId::Deadeye, MasterMarkId::Trapsmith, MasterMarkId::Shadowstep, MasterMarkId::Ricochet },       // Rogue → Ogden
+		{ MasterMarkId::Arcanist, MasterMarkId::Pyromancer, MasterMarkId::Stormcaller, MasterMarkId::Sanguimancer }, // Sorcerer → Adria
+		{ MasterMarkId::IronPalm, MasterMarkId::Serenity, MasterMarkId::ChiWave, MasterMarkId::EarthStance },        // Monk → Pepin
+		{ MasterMarkId::Warsong, MasterMarkId::Lament, MasterMarkId::Echosong, MasterMarkId::HymnOfRespite },        // Bard → Gillian
+		{ MasterMarkId::BloodRage, MasterMarkId::Unchained, MasterMarkId::Sunder, MasterMarkId::Warcry },            // Barbarian → Farnham
+	};
+
+	int classIdx = static_cast<int>(mentorClass);
+	if (classIdx < 0 || classIdx >= 6)
+		return;
+
+	bool newMarkGranted = false;
+	for (int i = 0; i < 4; i++) {
+		MasterMarkId mid = mentorMarks[classIdx][i];
+		if (!HasMark(player, mid)) {
+			GrantMark(player, mid);
+			newMarkGranted = true;
+		}
+	}
+
+	if (newMarkGranted) {
+		if (player.activeMarks[0] == MasterMarkId::COUNT) {
+			ActivateMark(player, mentorMarks[classIdx][0], 0);
+		}
+		if (player.activeMarks[1] == MasterMarkId::COUNT && player.activeMarks[0] != MasterMarkId::COUNT) {
+			ActivateMark(player, mentorMarks[classIdx][1], 1);
+		}
+	}
+
+	if (player.ownedMarks.any()) {
+		MasterMarkId nextToSwap = MasterMarkId::COUNT;
+		for (int i = 0; i < static_cast<int>(MasterMarkId::COUNT); i++) {
+			auto mid = static_cast<MasterMarkId>(i);
+			if (HasMark(player, mid)) {
+				if (!HasActiveMark(player, mid) && nextToSwap == MasterMarkId::COUNT)
+					nextToSwap = mid;
+			}
+		}
+		if (nextToSwap != MasterMarkId::COUNT)
+			SwapActiveMark(player, nextToSwap);
+	}
+}
+
 void TalkToBarOwner(Player &player, Towner &barOwner)
 {
 	if (!player._pLvlVisited[0]) {
@@ -265,6 +316,7 @@ void TalkToBarOwner(Player &player, Towner &barOwner)
 		}
 	}
 
+	HandleMentorMarks(player, HeroClass::Rogue);
 	TownerTalk(TEXT_OGDEN1);
 	StartStore(TalkID::Tavern);
 }
@@ -287,6 +339,8 @@ void TalkToDeadguy(Player &player, Towner & /*deadguy*/)
 	InitQTextMsg(TEXT_BUTCH9);
 	NetSendCmdQuest(true, quest);
 }
+
+
 
 void TalkToBlackSmith(Player &player, Towner &blackSmith)
 {
@@ -333,12 +387,29 @@ void TalkToBlackSmith(Player &player, Towner &blackSmith)
 		}
 	}
 
+	HandleMentorMarks(player, HeroClass::Warrior);
 	TownerTalk(TEXT_GRISWOLD1);
 	StartStore(TalkID::Smith);
 }
 
 void TalkToWitch(Player &player, Towner & /*witch*/)
 {
+	// Soul Weakness: player can pay to restore their soul
+	if (player._pSoulWeakened) {
+		const float costRatio = AdriaRestoreGoldCost[sgGameInitInfo.nDifficulty];
+		int cost = static_cast<int>(player._pGold * costRatio);
+		if (cost < 1 && player._pGold > 0)
+			cost = 1;
+		if (player._pGold >= cost) {
+			player._pGold -= cost;
+		} else {
+			player._pGold = 0;
+		}
+		RestoreSoul(player);
+		InitQTextMsg(TEXT_ADRIA1);
+		return;
+	}
+
 	if (Quests[Q_MUSHROOM]._qactive != QUEST_NOTAVAIL) {
 		if (Quests[Q_MUSHROOM]._qactive == QUEST_INIT && RemoveInventoryItemById(player, IDI_FUNGALTM)) {
 			Quests[Q_MUSHROOM]._qactive = QUEST_ACTIVE;
@@ -383,6 +454,7 @@ void TalkToWitch(Player &player, Towner & /*witch*/)
 		}
 	}
 
+	HandleMentorMarks(player, HeroClass::Sorcerer);
 	TownerTalk(TEXT_ADRIA1);
 	StartStore(TalkID::Witch);
 }
@@ -398,12 +470,14 @@ void TalkToBarmaid(Player &player, Towner & /*barmaid*/)
 		return;
 	}
 
+	HandleMentorMarks(player, HeroClass::Bard);
 	TownerTalk(TEXT_GILLIAN1);
 	StartStore(TalkID::Barmaid);
 }
 
-void TalkToDrunk(Player & /*player*/, Towner & /*drunk*/)
+void TalkToDrunk(Player &player, Towner & /*drunk*/)
 {
+	HandleMentorMarks(player, HeroClass::Barbarian);
 	TownerTalk(TEXT_FARNHAM1);
 	StartStore(TalkID::Drunk);
 }
@@ -442,6 +516,7 @@ void TalkToHealer(Player &player, Towner &healer)
 		}
 	}
 
+	HandleMentorMarks(player, HeroClass::Monk);
 	TownerTalk(TEXT_PEPIN1);
 	StartStore(TalkID::Healer);
 }

@@ -12,6 +12,8 @@
 #include <array>
 #include <string_view>
 
+#include "buff.h"
+#include "mastermark.h"
 #include "diablo.h"
 #include "engine/actor_position.hpp"
 #include "engine/animationinfo.h"
@@ -361,6 +363,22 @@ public:
 	uint8_t pDiabloKillLevel;
 	uint16_t wReflections;
 	ItemSpecialEffectHf pDamAcFlags;
+
+	// Buff/Debuff system
+	Buffable buffable;
+
+	// Master's Mark system
+	std::bitset<static_cast<size_t>(MasterMarkId::COUNT)> ownedMarks;
+	MasterMarkId activeMarks[2] = { MasterMarkId::COUNT, MasterMarkId::COUNT };
+
+	// Soul Weakness system
+	struct SoulFragment {
+		Point position;           // Tile coordinates in current level
+		int level;                // Dungeon level where fragment exists
+		uint32_t experience = 0;  // Stored experience value
+	};
+	bool _pSoulWeakened = false;
+	SoulFragment _soulFragment;
 
 	[[nodiscard]] std::string_view name() const
 	{
@@ -976,6 +994,9 @@ void SyncPlrKill(Player &player, DeathReason deathReason);
 void RemovePlrMissiles(const Player &player);
 void StartNewLvl(Player &player, interface_mode fom, int lvl);
 void RestartTownLvl(Player &player);
+void AdriaRespawn(Player &player);
+void CheckSoulFragmentRetrieval(Player &player);
+void RestoreSoul(Player &player);
 void StartWarpLvl(Player &player, size_t pidx);
 void ProcessPlayers();
 void ClrPlrPath(Player &player);

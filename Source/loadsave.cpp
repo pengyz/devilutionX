@@ -47,6 +47,7 @@
 namespace devilution {
 
 bool gbIsHellfireSaveGame;
+bool gbSaveHasAffixData = false;
 uint8_t giNumberOfLevels;
 
 namespace {
@@ -635,10 +636,50 @@ void LoadPlayer(LoadHelper &file, Player &player)
 	player.pDiabloKillLevel = file.NextLE<uint32_t>();
 	sgGameInitInfo.nDifficulty = static_cast<_difficulty>(file.NextLE<uint32_t>());
 	player.pDamAcFlags = static_cast<ItemSpecialEffectHf>(file.NextLE<uint32_t>());
-	file.Skip(20); // Available bytes
+	// Soul Weakness system data (using available bytes for backward compatibility, old saves default to 0/false)
+	player._pSoulWeakened = file.NextBool8();
+	player._soulFragment.position.x = file.NextLE<int32_t>();
+	player._soulFragment.position.y = file.NextLE<int32_t>();
+	player._soulFragment.level = file.NextLE<int32_t>();
+	player._soulFragment.experience = file.NextLE<uint32_t>();
+	file.Skip(3); // Remaining available bytes
 	CalcPlrInv(player, false);
 
+	// Buff deserialization (backward compatible: old saves without this data read 0 count)
+	{
+		uint8_t buffCount = file.NextLE<uint8_t>();
+		buffCount = std::min<uint8_t>(buffCount, Buffable::MAX_BUFFS);
+		player.buffable.buffs.resize(buffCount);
+		for (size_t i = 0; i < buffCount; i++) {
+			auto &b = player.buffable.buffs[i];
+			b.type = static_cast<BuffType>(file.NextLE<uint8_t>());
+			b.value = file.NextLE<int16_t>();
+			b.duration = file.NextLE<int32_t>();
+			b.sourceEntity = file.NextLE<int32_t>();
+			b.stacks = file.NextLE<uint8_t>();
+		}
+		uint8_t debuffCount = file.NextLE<uint8_t>();
+		debuffCount = std::min<uint8_t>(debuffCount, Buffable::MAX_DEBUFFS);
+		player.buffable.debuffs.resize(debuffCount);
+		for (size_t i = 0; i < debuffCount; i++) {
+			auto &d = player.buffable.debuffs[i];
+			d.type = static_cast<BuffType>(file.NextLE<uint8_t>());
+			d.value = file.NextLE<int16_t>();
+			d.duration = file.NextLE<int32_t>();
+			d.sourceEntity = file.NextLE<int32_t>();
+			d.stacks = file.NextLE<uint8_t>();
+		}
+	}
+
 	player.executedSpell = player.queuedSpell; // Ensures backwards compatibility
+
+	// Master's Mark deserialization (backward compatible: old saves without this data read 0s)
+	{
+		uint64_t ownedBits = file.NextLE<uint64_t>();
+		player.ownedMarks = std::bitset<static_cast<size_t>(MasterMarkId::COUNT)>(ownedBits);
+		player.activeMarks[0] = static_cast<MasterMarkId>(file.NextLE<uint8_t>());
+		player.activeMarks[1] = static_cast<MasterMarkId>(file.NextLE<uint8_t>());
+	}
 
 	// Omit pointer _pNData
 	// Omit pointer _pWData
@@ -763,7 +804,11 @@ bool gbSkipSync = false;
 	if (monster.lightId == 0)
 		monster.lightId = NO_LIGHT; // Correct incorrect values in old saves
 
-	// Omit pointer name;
+	if (gbSaveHasAffixData) {
+		monster.activeAffixes = file->NextLE<uint16_t>();
+		monster.affixTier = static_cast<MonsterAffixTier>(file->NextLE<uint8_t>());
+		file->Skip(1); // Alignment
+	}
 
 	if (monster.mode == MonsterMode::Petrified)
 		monster.animInfo.isPetrified = true;
@@ -1485,7 +1530,44 @@ void SavePlayer(SaveHelper &file, const Player &player)
 	file.WriteLE<uint32_t>(player.pDiabloKillLevel);
 	file.WriteLE<uint32_t>(sgGameInitInfo.nDifficulty);
 	file.WriteLE<uint32_t>(static_cast<uint32_t>(player.pDamAcFlags));
-	file.Skip(20); // Available bytes
+	// Soul Weakness system data (using available bytes for backward compatibility)
+	file.WriteLE<uint8_t>(player._pSoulWeakened ? 1 : 0);
+	file.WriteLE<int32_t>(player._soulFragment.position.x);
+	file.WriteLE<int32_t>(player._soulFragment.position.y);
+	file.WriteLE<int32_t>(player._soulFragment.level);
+	file.WriteLE<uint32_t>(player._soulFragment.experience);
+	file.Skip(3); // Remaining available bytes
+
+	// Buff serialization (appended for backward compatibility)
+	{
+		uint8_t buffCount = std::min(player.buffable.buffs.size(), Buffable::MAX_BUFFS);
+		file.WriteLE<uint8_t>(buffCount);
+		for (size_t i = 0; i < buffCount; i++) {
+			const auto &b = player.buffable.buffs[i];
+			file.WriteLE<uint8_t>(static_cast<uint8_t>(b.type));
+			file.WriteLE<int16_t>(b.value);
+			file.WriteLE<int32_t>(b.duration);
+			file.WriteLE<int32_t>(b.sourceEntity);
+			file.WriteLE<uint8_t>(b.stacks);
+		}
+		uint8_t debuffCount = std::min(player.buffable.debuffs.size(), Buffable::MAX_DEBUFFS);
+		file.WriteLE<uint8_t>(debuffCount);
+		for (size_t i = 0; i < debuffCount; i++) {
+			const auto &d = player.buffable.debuffs[i];
+			file.WriteLE<uint8_t>(static_cast<uint8_t>(d.type));
+			file.WriteLE<int16_t>(d.value);
+			file.WriteLE<int32_t>(d.duration);
+			file.WriteLE<int32_t>(d.sourceEntity);
+			file.WriteLE<uint8_t>(d.stacks);
+		}
+	}
+
+	// Master's Mark serialization
+	{
+		file.WriteLE<uint64_t>(player.ownedMarks.to_ullong());
+		file.WriteLE<uint8_t>(static_cast<uint8_t>(player.activeMarks[0]));
+		file.WriteLE<uint8_t>(static_cast<uint8_t>(player.activeMarks[1]));
+	}
 
 	// Omit pointer _pNData
 	// Omit pointer _pWData
@@ -1608,7 +1690,9 @@ void SaveMonster(SaveHelper *file, Monster &monster, MonsterConversionData *mons
 	else
 		file->WriteLE<int8_t>(monster.lightId);
 
-	// Omit pointer name;
+	file->WriteLE<uint16_t>(monster.activeAffixes);
+	file->WriteLE<uint8_t>(static_cast<uint8_t>(monster.affixTier));
+	file->Skip(1); // Alignment
 }
 
 void SaveMissile(SaveHelper *file, const Missile &missile)
@@ -2032,6 +2116,11 @@ tl::expected<void, std::string> LoadLevel(LevelConversionData *levelConversionDa
 	if (leveltype != DTYPE_TOWN) {
 		LoadMonsters(file, removedMonsterIds, true, levelConversionData);
 
+		if (!gbSaveHasAffixData) {
+			for (size_t i = 0; i < ActiveMonsterCount; i++)
+				RestoreMonsterAffixes(Monsters[ActiveMonsters[i]], sgGameInitInfo.nDifficulty);
+		}
+
 		if (!gbSkipSync) {
 			for (size_t i = 0; i < ActiveMonsterCount; i++)
 				RETURN_IF_ERROR(SyncMonsterAnim(Monsters[ActiveMonsters[i]]));
@@ -2304,18 +2393,37 @@ _item_indexes RemapItemIdxToSpawn(_item_indexes i)
 bool IsHeaderValid(uint32_t magicNumber)
 {
 	gbIsHellfireSaveGame = false;
+	gbSaveHasAffixData = false;
 	if (magicNumber == LoadLE32("SHAR")) {
+		return true;
+	}
+	if (magicNumber == LoadLE32("SHA2")) {
+		gbSaveHasAffixData = true;
 		return true;
 	}
 	if (magicNumber == LoadLE32("SHLF")) {
 		gbIsHellfireSaveGame = true;
 		return true;
 	}
+	if (magicNumber == LoadLE32("SHL2")) {
+		gbIsHellfireSaveGame = true;
+		gbSaveHasAffixData = true;
+		return true;
+	}
 	if (!gbIsSpawn && magicNumber == LoadLE32("RETL")) {
+		return true;
+	}
+	if (!gbIsSpawn && magicNumber == LoadLE32("RET2")) {
+		gbSaveHasAffixData = true;
 		return true;
 	}
 	if (!gbIsSpawn && magicNumber == LoadLE32("HELF")) {
 		gbIsHellfireSaveGame = true;
+		return true;
+	}
+	if (!gbIsSpawn && magicNumber == LoadLE32("HEL2")) {
+		gbIsHellfireSaveGame = true;
+		gbSaveHasAffixData = true;
 		return true;
 	}
 
@@ -2550,11 +2658,15 @@ tl::expected<void, std::string> LoadGame(bool firstflag)
 
 	// skip ahead for vanilla save compatibility (Related to bugfix where MonsterKillCounts[MaxMonsters] was changed to MonsterKillCounts[NUM_MTYPES]
 	file.Skip(4 * (MaxMonsters - MonstersData.size()));
-	if (leveltype != DTYPE_TOWN) {
-		LoadMonsters(file, removedMonsterIds, false, nullptr);
+		if (leveltype != DTYPE_TOWN) {
+			LoadMonsters(file, removedMonsterIds, false, nullptr);
 
-		for (size_t i = 0; i < ActiveMonsterCount; i++)
-			SyncPackSize(Monsters[ActiveMonsters[i]]);
+			if (!gbSaveHasAffixData) {
+				for (size_t i = 0; i < ActiveMonsterCount; i++)
+					RestoreMonsterAffixes(Monsters[ActiveMonsters[i]], sgGameInitInfo.nDifficulty);
+			}
+			for (size_t i = 0; i < ActiveMonsterCount; i++)
+				SyncPackSize(Monsters[ActiveMonsters[i]]);
 		// Skip ActiveMissiles
 		file.Skip<int8_t>(MaxMissilesForSaveGame);
 		// Skip AvailableMissiles
@@ -2764,13 +2876,13 @@ void SaveGameData(SaveWriter &saveWriter)
 	SaveHelper file(saveWriter, "game", 320 * 1024);
 
 	if (gbIsSpawn && !gbIsHellfire)
-		file.WriteLE<uint32_t>(LoadLE32("SHAR"));
+		file.WriteLE<uint32_t>(LoadLE32("SHA2"));
 	else if (gbIsSpawn && gbIsHellfire)
-		file.WriteLE<uint32_t>(LoadLE32("SHLF"));
+		file.WriteLE<uint32_t>(LoadLE32("SHL2"));
 	else if (!gbIsSpawn && gbIsHellfire)
-		file.WriteLE<uint32_t>(LoadLE32("HELF"));
+		file.WriteLE<uint32_t>(LoadLE32("HEL2"));
 	else if (!gbIsSpawn && !gbIsHellfire)
-		file.WriteLE<uint32_t>(LoadLE32("RETL"));
+		file.WriteLE<uint32_t>(LoadLE32("RET2"));
 	else
 		app_fatal(_("Invalid game state"));
 

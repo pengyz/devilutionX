@@ -5,6 +5,7 @@ include(functions/genex)
 set(libdevilutionx_SRCS
   appfat.cpp
   automap.cpp
+  buff.cpp
   capture.cpp
   cursor.cpp
   dead.cpp
@@ -19,6 +20,7 @@ set(libdevilutionx_SRCS
   interfac.cpp
   inv.cpp
   loadsave.cpp
+  mastermark.cpp
   menu.cpp
   minitext.cpp
   missiles.cpp
@@ -580,6 +582,7 @@ target_link_dependencies(libdevilutionx_level_objects PUBLIC
 add_devilutionx_object_library(libdevilutionx_monster
   tables/monstdat.cpp
   monster.cpp
+  monster_affix.cpp
 )
 target_link_dependencies(libdevilutionx_monster
   PUBLIC

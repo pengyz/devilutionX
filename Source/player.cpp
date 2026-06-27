@@ -42,12 +42,15 @@
 #include "lighting.h"
 #include "loadsave.h"
 #include "lua/lua_event.hpp"
+#include "menu.h"
 #include "minitext.h"
 #include "missiles.h"
+#include "multi.h"
 #include "monster.h"
 #include "nthread.h"
 #include "objects.h"
 #include "options.h"
+#include "pfile.h"
 #include "player.h"
 #include "qol/autopickup.h"
 #include "qol/stash.h"
@@ -641,6 +644,37 @@ bool PlrHitMonst(Player &player, Monster &monster, bool adjacentDamage = false)
 		}
 #endif
 		ApplyMonsterDamage(DamageType::Physical, monster, dam);
+
+		// Berserker mark: sweep all enemies in attack arc when HP < 30%
+		if (HasActiveMark(player, MasterMarkId::Berserker)) {
+			int hpPercent = player._pHitPoints * 100 / std::max(player._pMaxHP, 1);
+			if (hpPercent < 30) {
+				int sweepDam = dam / 2;
+				if (sweepDam < 64)
+					sweepDam = 64;
+				for (size_t i = 0; i < MaxMonsters; i++) {
+					Monster &sweepTarget = Monsters[i];
+					if (&sweepTarget == &monster || sweepTarget.isInvalid || sweepTarget.mode == MonsterMode::Death)
+						continue;
+					if (sweepTarget.position.tile.WalkingDistance(player.position.tile) > 1)
+						continue;
+					ApplyMonsterDamage(DamageType::Physical, sweepTarget, sweepDam);
+					if (sweepTarget.hasNoLife())
+						M_StartKill(sweepTarget, player);
+					else
+						M_StartHit(sweepTarget, player, sweepDam);
+				}
+				int healAmt = player._pMaxHP * 3 / 100;
+				if (healAmt > 0) {
+					player._pHitPoints += healAmt;
+					if (player._pHitPoints > player._pMaxHP)
+						player._pHitPoints = player._pMaxHP;
+					player._pHPBase += healAmt;
+					if (player._pHPBase > player._pMaxHPBase)
+						player._pHPBase = player._pMaxHPBase;
+				}
+			}
+		}
 	}
 
 	int skdam = 0;
@@ -2680,6 +2714,21 @@ __attribute__((no_sanitize("shift-base")))
 void
 StartPlayerKill(Player &player, DeathReason deathReason)
 {
+	// Expert Mode: death deletes the save file permanently
+	if (&player == MyPlayer && sgGameInitInfo.bExpertMode) {
+		_uiheroinfo heroInfo;
+		heroInfo.saveNumber = gSaveNumber;
+		pfile_delete_save(&heroInfo);
+		gamemenu_exit_game(false);
+		return;
+	}
+
+	// Soul Weakness: second death while weakened -> Adria respawn
+	if (&player == MyPlayer && MyPlayer->_pSoulWeakened) {
+		AdriaRespawn(player);
+		return;
+	}
+
 	if (player.hasNoLife() && player._pmode == PM_DEATH) {
 		return;
 	}
@@ -2784,6 +2833,14 @@ StartPlayerKill(Player &player, DeathReason deathReason)
 		}
 	}
 	SetPlayerHitPoints(player, 0);
+
+	// Soul Weakness: first death -> mark weakened, store soul fragment
+	if (&player == MyPlayer && !MyPlayer->_pSoulWeakened && !gbIsMultiplayer) {
+		MyPlayer->_pSoulWeakened = true;
+		MyPlayer->_soulFragment.position = player.position.tile;
+		MyPlayer->_soulFragment.level = player.plrlevel;
+		MyPlayer->_soulFragment.experience = player._pExperience;
+	}
 }
 
 void StripTopGold(Player &player)
@@ -2955,6 +3012,47 @@ void RestartTownLvl(Player &player)
 	}
 }
 
+void AdriaRespawn(Player &player)
+{
+	// Lose all stored experience
+	player._pExperience = 0;
+	player._soulFragment.experience = 0;
+
+	// Remove weakness
+	player._pSoulWeakened = false;
+
+	// Respawn in town
+	RestartTownLvl(player);
+
+	// Full HP (override RestartTownLvl's 64 HP)
+	SetPlayerHitPoints(player, player._pMaxHP);
+}
+
+void CheckSoulFragmentRetrieval(Player &player)
+{
+	if (!player._pSoulWeakened)
+		return;
+
+	const auto &frag = player._soulFragment;
+	if (frag.level != player.plrlevel)
+		return; // Not on the right level
+
+	// Check if player is standing on the fragment tile
+	if (player.position.tile == frag.position) {
+		player._pExperience = frag.experience;
+		player._soulFragment.experience = 0;
+		player._pSoulWeakened = false;
+	}
+}
+
+void RestoreSoul(Player &player)
+{
+	player._pSoulWeakened = false;
+	player._pExperience = 0;
+	player._soulFragment.experience = 0;
+	CalcPlrInv(player, true);
+}
+
 void StartWarpLvl(Player &player, size_t pidx)
 {
 	InitLevelChange(player);
@@ -3020,6 +3118,8 @@ void ProcessPlayers()
 				SyncPlrKill(player, DeathReason::Unknown);
 			}
 
+			player.buffable.Process();
+
 			if (&player == MyPlayer) {
 				if (HasAnyOf(player._pIFlags, ItemSpecialEffect::DrainLife) && leveltype != DTYPE_TOWN) {
 					ApplyPlrDamage(DamageType::Physical, player, 0, 0, 4);
@@ -3067,6 +3167,10 @@ void ProcessPlayers()
 			player.previewCelSprite = std::nullopt;
 			if (player._pmode != PM_DEATH || player.AnimInfo.tickCounterOfCurrentFrame != 40)
 				player.AnimInfo.processAnimation();
+
+			if (&player == MyPlayer) {
+				CheckSoulFragmentRetrieval(player);
+			}
 		}
 	}
 }

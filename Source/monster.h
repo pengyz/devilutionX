@@ -15,6 +15,8 @@
 #include <expected.hpp>
 #include <function_ref.hpp>
 
+#include "buff.h"
+#include "monster_affix.h"
 #include "engine/actor_position.hpp"
 #include "engine/animationinfo.h"
 #include "engine/clx_sprite.hpp"
@@ -482,6 +484,13 @@ struct Monster { // note: missing field _mAFNum
 	 * @param isMoving specifies whether the monster is moving or not (true/moving results in a negative index in dMonster)
 	 */
 	void occupyTile(Point tile, bool isMoving) const;
+
+	Buffable buffable;
+
+	MonsterAffixTier affixTier = MonsterAffixTier::Normal;
+	uint16_t activeAffixes = 0;
+	uint8_t affixFlags = 0;
+	int16_t affixTimers[2] = { 0, 0 };
 
 	bool hasNoLife() const
 	{

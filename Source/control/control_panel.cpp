@@ -579,10 +579,9 @@ void CheckMainPanelButtonUp()
 		case PanelButtonMainmenu:
 			if (MyPlayerIsDead) {
 				if (!gbIsMultiplayer) {
-					if (gbValidSaveFile)
-						gamemenu_load_game(false);
-					else
-						gamemenu_exit_game(false);
+					MyPlayerIsDead = false;
+					gamemenu_off();
+					RestartTownLvl(*MyPlayer);
 				} else {
 					NetSendCmd(true, CMD_RETOWN);
 				}
@@ -817,11 +816,7 @@ void DrawDeathText(const Surface &out)
 	}
 
 	if (!gbIsMultiplayer) {
-		if (gbValidSaveFile)
-			text = fmt::format(fmt::runtime(_("Press {} to load last save.")), buttonText);
-		else
-			text = fmt::format(fmt::runtime(_("Press {} to return to Main Menu.")), buttonText);
-
+		text = fmt::format(fmt::runtime(_("Press {} to return to town.")), buttonText);
 	} else {
 		text = fmt::format(fmt::runtime(_("Press {} to restart in town.")), buttonText);
 	}

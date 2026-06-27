@@ -518,10 +518,9 @@ void PressKey(SDL_Keycode vkey, uint16_t modState)
 	if (MyPlayerIsDead) {
 		if (vkey == SDLK_ESCAPE) {
 			if (!gbIsMultiplayer) {
-				if (gbValidSaveFile)
-					gamemenu_load_game(false);
-				else
-					gamemenu_exit_game(false);
+				MyPlayerIsDead = false;
+				gamemenu_off();
+				RestartTownLvl(*MyPlayer);
 			} else {
 				NetSendCmd(true, CMD_RETOWN);
 			}
@@ -957,6 +956,8 @@ void RunGameLoop(interface_mode uMsg)
 	if (gbIsMultiplayer) {
 		pfile_write_hero(/*writeGameData=*/false);
 		sfile_write_stash();
+	} else {
+		pfile_write_hero(/*writeGameData=*/true);
 	}
 
 	PaletteFadeOut(8);

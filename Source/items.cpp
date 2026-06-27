@@ -2886,6 +2886,18 @@ void CalcPlrItemVals(Player &player, bool loadgfx)
 	player._pIEnAc = targetAc;
 	CalcPlrResistances(player, flags, fireRes, lightRes, magicRes);
 	CalcPlrLifeMana(player, vitality, magic, life, mana);
+
+	// Apply Soul Weakness HP reduction
+	if (player._pSoulWeakened) {
+		const float reduction = SoulWeaknessHpMultiplier[sgGameInitInfo.nDifficulty];
+		player._pMaxHP = static_cast<int>(player._pMaxHP * reduction);
+		player._pMaxHPBase = static_cast<int>(player._pMaxHPBase * reduction);
+		if (player._pHitPoints > player._pMaxHP) {
+			player._pHitPoints = player._pMaxHP;
+			player._pHPBase = player._pMaxHPBase;
+		}
+	}
+
 	player._pIFMinDam = minFireDam;
 	player._pIFMaxDam = maxFireDam;
 	player._pILMinDam = minLightDam;

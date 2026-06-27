@@ -4,6 +4,7 @@
  * Implementation of monster functionality, AI, actions, spawning, loading, etc.
  */
 #include "monster.h"
+#include "monster_affix.h"
 
 #include <algorithm>
 #include <array>
@@ -70,6 +71,7 @@
 #include "levels/tile_properties.hpp"
 #include "levels/trigs.h"
 #include "lighting.h"
+#include "mastermark.h"
 #include "lua/lua_event.hpp"
 #include "minitext.h"
 #include "missiles.h"
@@ -304,6 +306,7 @@ void PlaceMonster(size_t i, size_t typeIndex, Point position)
 
 	auto rd = static_cast<Direction>(GenerateRnd(8));
 	InitMonster(monster, rd, typeIndex, position);
+	RollMonsterAffix(monster, sgGameInitInfo.nDifficulty);
 }
 
 void PlaceGroup(size_t typeIndex, size_t num, Monster *leader = nullptr, bool leashed = false)
@@ -1172,6 +1175,36 @@ int GetMinHit()
 	}
 }
 
+static void ApplyShieldMasterBash(Monster &monster, Player &player)
+{
+	if (!HasActiveMark(player, MasterMarkId::ShieldMaster))
+		return;
+	int bashDmg = GetShieldArmor(player) * 30 / 100;
+	if (bashDmg < 1)
+		bashDmg = 1;
+	bashDmg <<= 6;
+	ApplyMonsterDamage(DamageType::Physical, monster, bashDmg);
+	monster.flags |= MFLAG_KNOCKBACK;
+	if (monster.hasNoLife())
+		M_StartKill(monster, player);
+	else
+		M_StartHit(monster, player, bashDmg);
+}
+
+static void ApplyAvengerRetaliate(Monster &monster, Player &player, int dam)
+{
+	if (!HasActiveMark(player, MasterMarkId::Avenger))
+		return;
+	int retDmg = dam / 2;
+	if (retDmg < 64)
+		retDmg = 64;
+	ApplyMonsterDamage(DamageType::Physical, monster, retDmg);
+	if (monster.hasNoLife())
+		M_StartKill(monster, player);
+	else
+		M_StartHit(monster, player, retDmg);
+}
+
 void MonsterAttackPlayer(Monster &monster, Player &player, int hit, int minDam, int maxDam)
 {
 	if (player.hasNoLife() || player._pInvincible || HasAnyOf(player._pSpellFlags, SpellFlag::Etherealize))
@@ -1205,10 +1238,13 @@ void MonsterAttackPlayer(Monster &monster, Player &player, int hit, int minDam, 
 	if (blkper < blk) {
 		const Direction dir = GetDirection(player.position.tile, monster.position.tile);
 		StartPlrBlock(player, dir);
-		if (&player == MyPlayer && player.wReflections > 0) {
-			int dam = GenerateRnd(((maxDam - minDam) << 6) + 1) + (minDam << 6);
-			dam = std::max(dam + (player._pIGetHit << 6), 64);
-			CheckReflect(monster, player, dam);
+		if (&player == MyPlayer) {
+			if (player.wReflections > 0) {
+				int dam = GenerateRnd(((maxDam - minDam) << 6) + 1) + (minDam << 6);
+				dam = std::max(dam + (player._pIGetHit << 6), 64);
+				CheckReflect(monster, player, dam);
+			}
+			ApplyShieldMasterBash(monster, player);
 		}
 		return;
 	}
@@ -1224,6 +1260,8 @@ void MonsterAttackPlayer(Monster &monster, Player &player, int hit, int minDam, 
 			dam = std::max(dam - reflectedDamage, 0);
 		}
 		ApplyPlrDamage(DamageType::Physical, player, 0, 0, dam);
+		if (monster.mode != MonsterMode::Death)
+			ApplyAvengerRetaliate(monster, player, dam);
 	}
 
 	// Reflect can also kill a monster, so make sure the monster is still alive
@@ -1238,6 +1276,7 @@ void MonsterAttackPlayer(Monster &monster, Player &player, int hit, int minDam, 
 
 	if ((monster.flags & MFLAG_NOLIFESTEAL) == 0 && monster.type().type == MT_SKING && gbIsMultiplayer)
 		monster.hitPoints += dam;
+	OnAffixMonsterAttack(monster, player, dam);
 	if (player.hasNoLife()) {
 		if (gbIsHellfire)
 			M_StartStand(monster, monster.direction);
@@ -1304,11 +1343,21 @@ bool MonsterRangedAttack(Monster &monster)
 			int multimissiles = 1;
 			if (missileType == MissileID::ChargedBolt)
 				multimissiles = 3;
+			bool hasMultishot = (monster.activeAffixes & static_cast<uint16_t>(AffixId::Multishot)) != 0;
+			if (hasMultishot)
+				multimissiles = 3;
 			for (int mi = 0; mi < multimissiles; mi++) {
+				Direction dir = monster.direction;
+				if (hasMultishot && multimissiles == 3) {
+					if (mi == 0)
+						dir = Left(dir);
+					else if (mi == 2)
+						dir = Right(dir);
+				}
 				AddMissile(
 				    monster.position.tile,
 				    monster.enemyPosition,
-				    monster.direction,
+				    dir,
 				    missileType,
 				    TARGET_PLAYERS,
 				    monster,
@@ -3899,6 +3948,7 @@ void ApplyMonsterDamage(DamageType damageType, Monster &monster, int damage)
 	lua::OnMonsterTakeDamage(&monster, damage, static_cast<int>(damageType));
 
 	monster.hitPoints -= damage;
+	OnAffixMonsterDamaged(monster, damage);
 
 	if (monster.hasNoLife()) {
 		delta_kill_monster(monster, monster.position.tile, *MyPlayer);
@@ -4056,6 +4106,7 @@ void MonsterDeath(Monster &monster, Direction md, bool sendmsg)
 	M_FallenFear(monster.position.tile);
 	if (IsAnyOf(monster.type().type, MT_NACID, MT_RACID, MT_BACID, MT_XACID, MT_SPIDLORD))
 		AddMissile(monster.position.tile, { 0, 0 }, Direction::South, MissileID::AcidPuddle, TARGET_PLAYERS, monster, monster.intelligence + 1, 0);
+	OnAffixMonsterDeath(monster);
 }
 
 void StartMonsterDeath(Monster &monster, const Player &player, bool sendmsg)
@@ -4074,6 +4125,18 @@ void KillGolem(Monster &golem)
 
 void M_StartKill(Monster &monster, const Player &player)
 {
+	// Commander mark: Fear enemies within 2 tiles
+	if (&player == MyPlayer && player.isOnActiveLevel() && HasActiveMark(player, MasterMarkId::Commander)) {
+		for (size_t i = 0; i < MaxMonsters; i++) {
+			Monster &target = Monsters[i];
+			if (&target == &monster || target.isInvalid || target.mode == MonsterMode::Death)
+				continue;
+			if (monster.position.tile.ManhattanDistance(target.position.tile) <= 2) {
+				target.buffable.Apply(BuffType::Fear, 0, 40, -1);
+			}
+		}
+	}
+
 	StartMonsterDeath(monster, player, true);
 }
 
@@ -4345,6 +4408,9 @@ void ProcessMonsters()
 				monster.activeForTicks--;
 			}
 		}
+
+		monster.buffable.Process();
+		ProcessMonsterAffixes(monster);
 
 		while (true) {
 			if ((monster.flags & MFLAG_SEARCH) == 0 || !AiPlanPath(monster)) {

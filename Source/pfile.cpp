@@ -813,9 +813,6 @@ void pfile_update(bool forceSave)
 {
 	static Uint32 prevTick;
 
-	if (!gbIsMultiplayer)
-		return;
-
 	const Uint32 tick = SDL_GetTicks();
 	if (!forceSave && tick - prevTick <= 60000)
 		return;

@@ -25,7 +25,8 @@ struct Player;
 
 struct GameData {
 	int32_t size;
-	uint8_t reserved[4];
+	uint8_t reserved[3];
+	uint8_t bExpertMode;
 	uint32_t programid;
 	uint8_t versionMajor;
 	uint8_t versionMinor;
