@@ -29,6 +29,7 @@
 #include "capture.h"
 #include "control/control.hpp"
 #include "cursor.h"
+#include "panels/mark_panel.hpp"
 #include "dead.h"
 #ifdef _DEBUG
 #include "debug.h"
@@ -394,6 +395,8 @@ void LeftMouseDown(uint16_t modState)
 					CheckVisualStoreItem(MousePosition, isCtrlHeld, isShiftHeld);
 				}
 				CheckVisualStoreButtonPress(MousePosition);
+			} else if (MarkPanelFlag && GetLeftPanel().contains(MousePosition)) {
+				CheckMarkPanelButton();
 			} else if (SpellbookFlag && GetRightPanel().contains(MousePosition)) {
 				CheckSBook();
 			} else if (!MyPlayer->HoldItem.isEmpty()) {
