@@ -597,7 +597,36 @@ enum item_effect_type : int8_t {
 	IPL_ACUNDEAD,
 	IPL_MANATOLIFE,
 	IPL_LIFETOMANA,
+	// Behavioral equipment affixes
+	IPL_FIREBALL_ONHIT,    // 10% chance on hit → fireball
+	IPL_CHAINLIGHT_ONHIT,  // 8% chance on hit → chain lightning
+	IPL_MANASTEAL_ONHIT,   // 5% mana steal on hit
+	IPL_LIFESTEAL_ONHIT,   // 3% HP steal on hit
+	IPL_FROSTNOVA_ONDAM,   // 5% chance when damaged → frost nova
+	IPL_CONFUSE_ONHIT,     // 8% chance on hit → confuse 2s
+	IPL_BLOODLUST_ONKILL,   // On kill → +20% attack speed 3s
+	IPL_VANISH_ONKILL,      // On kill → invisible 2s
+	IPL_CRITNEXT_ONKILL,    // On kill → next attack guaranteed crit
+	IPL_MANASHIELD_ONDAM,   // 15% chance on damaged → mana shield 3s
+	IPL_HASTE_ONDAM,        // 20% chance on damaged → +30% move speed 2s
+	IPL_THORNS_ONDAM,       // When hit by melee → reflect 15% damage
 	IPL_INVALID = -1,
+};
+
+// Behavioral proc flags (bitmask for _iProcFlags)
+enum ItemProcFlag : uint16_t {
+	PROC_FIREBALL_ONHIT    = 1 << 0,  // IPL_FIREBALL_ONHIT
+	PROC_CHAINLIGHT_ONHIT  = 1 << 1,  // IPL_CHAINLIGHT_ONHIT
+	PROC_MANASTEAL_ONHIT   = 1 << 2,  // IPL_MANASTEAL_ONHIT
+	PROC_LIFESTEAL_ONHIT   = 1 << 3,  // IPL_LIFESTEAL_ONHIT
+	PROC_FROSTNOVA_ONDAM   = 1 << 4,  // IPL_FROSTNOVA_ONDAM
+	PROC_CONFUSE_ONHIT     = 1 << 5,  // IPL_CONFUSE_ONHIT
+	PROC_BLOODLUST_ONKILL  = 1 << 6,  // IPL_BLOODLUST_ONKILL
+	PROC_VANISH_ONKILL     = 1 << 7,  // IPL_VANISH_ONKILL
+	PROC_CRITNEXT_ONKILL   = 1 << 8,  // IPL_CRITNEXT_ONKILL
+	PROC_MANASHIELD_ONDAM  = 1 << 9,  // IPL_MANASHIELD_ONDAM
+	PROC_HASTE_ONDAM       = 1 << 10, // IPL_HASTE_ONDAM
+	PROC_THORNS_ONDAM      = 1 << 11, // IPL_THORNS_ONDAM
 };
 
 enum goodorevil : uint8_t {

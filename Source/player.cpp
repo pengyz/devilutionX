@@ -724,6 +724,10 @@ bool PlrHitMonst(Player &player, Monster &monster, bool adjacentDamage = false)
 		}
 		RedrawComponent(PanelDrawComponent::Health);
 	}
+	// Behavioral equipment procs on hit
+	if (&player == MyPlayer && monster.hasNoLife() == false) {
+		CheckEquipmentProcsOnHit(player, dam);
+	}
 	if (monster.hasNoLife()) {
 		M_StartKill(monster, player);
 	} else {
@@ -2882,6 +2886,7 @@ void ApplyPlrDamage(DamageType damageType, Player &player, int dam, int minHP /*
 	int totalDamage = (dam << 6) + frac;
 	if (&player == MyPlayer && !player.hasNoLife()) {
 		lua::OnPlayerTakeDamage(&player, totalDamage, static_cast<int>(damageType));
+		CheckEquipmentProcsOnDamaged(player);
 	}
 	if (totalDamage > 0 && player.pManaShield && HasNoneOf(player._pIFlags, ItemSpecialEffect::NoMana)) {
 		const uint8_t manaShieldLevel = player._pSplLvl[static_cast<int8_t>(SpellID::ManaShield)];

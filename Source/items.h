@@ -254,6 +254,7 @@ struct Item {
 	int8_t _iMinDex = 0;
 	bool _iStatFlag = false;
 	ItemSpecialEffectHf _iDamAcFlags = ItemSpecialEffectHf::None;
+	uint16_t _iProcFlags = 0; // Behavioral equip affix bitmask
 	uint32_t dwBuff = 0;
 
 	/**
@@ -499,6 +500,10 @@ void InitItemGFX();
 void InitItems();
 void CalcPlrItemVals(Player &player, bool Loadgfx);
 void CalcPlrInv(Player &player, bool Loadgfx);
+// Behavioral equipment proc checks
+void CheckEquipmentProcsOnHit(Player &player, int &damage);
+void CheckEquipmentProcsOnKill(Player &player);
+void CheckEquipmentProcsOnDamaged(Player &player);
 void InitializeItem(Item &item, _item_indexes itemData);
 void GenerateNewSeed(Item &item);
 int GetGoldCursor(int value);

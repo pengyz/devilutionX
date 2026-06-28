@@ -4114,6 +4114,11 @@ void StartMonsterDeath(Monster &monster, const Player &player, bool sendmsg)
 	monster.tag(player);
 	const Direction md = GetDirection(monster.position.tile, player.position.tile);
 	MonsterDeath(monster, md, sendmsg);
+
+	// Check equipment behavioral procs on kill
+	if (&player == MyPlayer) {
+		CheckEquipmentProcsOnKill(*MyPlayer);
+	}
 }
 
 void KillGolem(Monster &golem)

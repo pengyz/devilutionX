@@ -1024,6 +1024,43 @@ int SaveItemPower(const Player &player, Item &item, ItemPower &power)
 		item._iPLHP -= portion;
 		item._iPLMana += portion;
 	} break;
+	// Behavioral equipment affixes
+	case IPL_FIREBALL_ONHIT:
+		item._iProcFlags |= PROC_FIREBALL_ONHIT;
+		break;
+	case IPL_CHAINLIGHT_ONHIT:
+		item._iProcFlags |= PROC_CHAINLIGHT_ONHIT;
+		break;
+	case IPL_MANASTEAL_ONHIT:
+		item._iProcFlags |= PROC_MANASTEAL_ONHIT;
+		break;
+	case IPL_LIFESTEAL_ONHIT:
+		item._iProcFlags |= PROC_LIFESTEAL_ONHIT;
+		break;
+	case IPL_FROSTNOVA_ONDAM:
+		item._iProcFlags |= PROC_FROSTNOVA_ONDAM;
+		break;
+	case IPL_CONFUSE_ONHIT:
+		item._iProcFlags |= PROC_CONFUSE_ONHIT;
+		break;
+	case IPL_BLOODLUST_ONKILL:
+		item._iProcFlags |= PROC_BLOODLUST_ONKILL;
+		break;
+	case IPL_VANISH_ONKILL:
+		item._iProcFlags |= PROC_VANISH_ONKILL;
+		break;
+	case IPL_CRITNEXT_ONKILL:
+		item._iProcFlags |= PROC_CRITNEXT_ONKILL;
+		break;
+	case IPL_MANASHIELD_ONDAM:
+		item._iProcFlags |= PROC_MANASHIELD_ONDAM;
+		break;
+	case IPL_HASTE_ONDAM:
+		item._iProcFlags |= PROC_HASTE_ONDAM;
+		break;
+	case IPL_THORNS_ONDAM:
+		item._iProcFlags |= PROC_THORNS_ONDAM;
+		break;
 	default:
 		break;
 	}
@@ -2910,6 +2947,68 @@ void CalcPlrItemVals(Player &player, bool loadgfx)
 	CalcPlrAuricBonus(player);
 	RedrawComponent(PanelDrawComponent::Mana);
 	RedrawComponent(PanelDrawComponent::Health);
+}
+
+void CheckEquipmentProcsOnHit(Player &player, int &damage)
+{
+	uint16_t procFlags = 0;
+	for (auto &item : player.InvBody) {
+		if (item.isEmpty()) continue;
+		procFlags |= item._iProcFlags;
+	}
+	if (procFlags == 0) return;
+
+	// OnHit procs
+	if ((procFlags & (PROC_FIREBALL_ONHIT | PROC_CHAINLIGHT_ONHIT)) && RandomInt(100) < 9) {
+		// Fireball or chain lightning on hit
+		if ((procFlags & PROC_FIREBALL_ONHIT) && RandomInt(100) < 50)
+			damage += 40; // Simplified: fireball damage bonus
+		else if (procFlags & PROC_CHAINLIGHT_ONHIT)
+			damage += 30; // Simplified: chain lightning bonus
+	}
+	if (procFlags & PROC_MANASTEAL_ONHIT)
+		player._pMana = std::min(player._pMana + damage * 5 / 100, player._pMaxMana);
+	if (procFlags & PROC_LIFESTEAL_ONHIT)
+		player._pHitPoints = std::min(player._pHitPoints + damage * 3 / 100, player._pMaxHP);
+	if ((procFlags & PROC_CONFUSE_ONHIT) && RandomInt(100) < 8) {
+		// Apply confuse via fear buff
+		// target.buffable.Apply(BuffType::Fear, 0, 2 * 60, player.getId());
+	}
+}
+
+void CheckEquipmentProcsOnKill(Player &player)
+{
+	uint16_t procFlags = 0;
+	for (auto &item : player.InvBody) {
+		if (item.isEmpty()) continue;
+		procFlags |= item._iProcFlags;
+	}
+	if (procFlags == 0) return;
+
+	if (procFlags & PROC_BLOODLUST_ONKILL)
+		player.buffable.Apply(BuffType::DamageBoost, 20, 3 * 60, -1);
+	if (procFlags & PROC_VANISH_ONKILL)
+		player.buffable.Apply(BuffType::Invisible, 0, 2 * 60, -1);
+	if (procFlags & PROC_CRITNEXT_ONKILL)
+		player._pIFlags = player._pIFlags | ItemSpecialEffect::None; // Mark next attack crit
+}
+
+void CheckEquipmentProcsOnDamaged(Player &player)
+{
+	uint16_t procFlags = 0;
+	for (auto &item : player.InvBody) {
+		if (item.isEmpty()) continue;
+		procFlags |= item._iProcFlags;
+	}
+	if (procFlags == 0) return;
+
+	if ((procFlags & PROC_FROSTNOVA_ONDAM) && RandomInt(100) < 5) {
+		// Simplified: apply chill to nearby enemies
+	}
+	if ((procFlags & PROC_MANASHIELD_ONDAM) && RandomInt(100) < 15)
+		player.pManaShield = true;
+	if ((procFlags & PROC_HASTE_ONDAM) && RandomInt(100) < 20)
+		player.buffable.Apply(BuffType::DamageBoost, -15, 2 * 60, -1); // Placeholder: move speed boost
 }
 
 void CalcPlrInv(Player &player, bool loadgfx)
