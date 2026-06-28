@@ -252,9 +252,19 @@ void CalculatePanelAreas()
 		{ 0, 0 },
 		SidePanelSize
 	};
+	// Compute RightPanel height to encompass all inventory rows.
+	// Inventory slots start at Y=222, each row is INV_SLOT_SIZE_PX + 1 (= 29) px tall.
+	// Original 4-row inventory: bottom edge = 222 + 4*29 = 338.
+	// SidePanelSize.height = 352, giving 14px bottom padding.
+	// When InventorySizeInSlots.height > 4, extend the panel to keep all rows clickable.
+	constexpr int InvStartY = 222;
+	constexpr int InvRowSpacing = INV_SLOT_SIZE_PX + 1;
+	constexpr int OriginalInventoryRows = 4;
+	constexpr int BottomPadding = SidePanelSize.height - (InvStartY + OriginalInventoryRows * InvRowSpacing);
+	constexpr int RightPanelHeight = InvStartY + (InventorySizeInSlots.height * InvRowSpacing) + BottomPadding;
 	RightPanel = {
 		{ 0, 0 },
-		SidePanelSize
+		{ SidePanelSize.width, RightPanelHeight }
 	};
 
 	if (ControlMode == ControlTypes::VirtualGamepad) {

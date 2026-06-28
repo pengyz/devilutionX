@@ -681,21 +681,21 @@ std::optional<inv_xy_slot> FindSlotUnderCursor(Point cursorPosition)
  */
 bool CheckItemFitsInInventorySlot(const Player &player, int slotIndex, const Size &itemSize, int itemIndexToIgnore)
 {
-	int yy = (slotIndex > 0) ? (10 * (slotIndex / 10)) : 0;
+	const int COLS = InventorySizeInSlots.width;
+	int yy = (slotIndex > 0) ? (COLS * (slotIndex / COLS)) : 0;
 
 	for (int j = 0; j < itemSize.height; j++) {
 		if (yy >= InventoryGridCells) {
 			return false;
 		}
-		int xx = (slotIndex > 0) ? (slotIndex % 10) : 0;
+		int xx = (slotIndex > 0) ? (slotIndex % COLS) : 0;
 		for (int i = 0; i < itemSize.width; i++) {
-			if (xx >= 10 || (player.InvGrid[xx + yy] != 0 && std::abs(player.InvGrid[xx + yy]) - 1 != itemIndexToIgnore)) {
-				// The item is too wide to fit in the specified column, or one of the cells is occupied (and not by the item we're planning on removing)
+			if (xx >= COLS || (player.InvGrid[xx + yy] != 0 && std::abs(player.InvGrid[xx + yy]) - 1 != itemIndexToIgnore)) {
 				return false;
 			}
 			xx++;
 		}
-		yy += 10;
+		yy += COLS;
 	}
 	return true;
 }
@@ -709,32 +709,40 @@ bool CheckItemFitsInInventorySlot(const Player &player, int slotIndex, const Siz
  */
 std::optional<int> FindSlotForItem(const Player &player, const Size &itemSize, int itemIndexToIgnore = -1)
 {
+	const int COLS = InventorySizeInSlots.width;       // 10
+	const int ROWS = InventorySizeInSlots.height;       // 6
+	const int LAST_COL = COLS - 1;                      // 9
+	const int LAST_ROW = ROWS - 1;                      // 5
+	const int LAST_ROW_START = LAST_ROW * COLS;         // 50
+
 	if (itemSize.height == 1) {
-		for (int i = 50; i <= 59; i++) {
+		for (int i = LAST_ROW_START; i < InventoryGridCells; i++) {
 			if (CheckItemFitsInInventorySlot(player, i, itemSize, itemIndexToIgnore))
 				return i;
 		}
-		for (int x = 9; x >= 0; x--) {
-			for (int y = 5; y >= 0; y--) {
-				if (CheckItemFitsInInventorySlot(player, (10 * y) + x, itemSize, itemIndexToIgnore))
-					return (10 * y) + x;
+		for (int x = LAST_COL; x >= 0; x--) {
+			for (int y = LAST_ROW; y >= 0; y--) {
+				if (CheckItemFitsInInventorySlot(player, (COLS * y) + x, itemSize, itemIndexToIgnore))
+					return (COLS * y) + x;
 			}
 		}
 		return {};
 	}
 
 	if (itemSize.height == 2) {
-		for (int x = 10 - itemSize.width; x >= 0; x--) {
-			for (int y = 0; y < 5; y++) {
-				if (CheckItemFitsInInventorySlot(player, (10 * y) + x, itemSize, itemIndexToIgnore))
-					return (10 * y) + x;
+		for (int x = COLS - itemSize.width; x >= 0; x--) {
+			for (int y = 0; y < ROWS - 1; y++) {
+				if (CheckItemFitsInInventorySlot(player, (COLS * y) + x, itemSize, itemIndexToIgnore))
+					return (COLS * y) + x;
 			}
 		}
 		return {};
 	}
 
 	if (itemSize == Size { 1, 3 }) {
-		for (int i = 0; i < 40; i++) {
+		// 3-high item: max starting row = ROWS - 3
+		const int maxStart = (ROWS - 3) * COLS + COLS;
+		for (int i = 0; i < maxStart; i++) {
 			if (CheckItemFitsInInventorySlot(player, i, itemSize, itemIndexToIgnore))
 				return i;
 		}
@@ -742,24 +750,12 @@ std::optional<int> FindSlotForItem(const Player &player, const Size &itemSize, i
 	}
 
 	if (itemSize == Size { 2, 3 }) {
-		for (int i = 0; i < 9; i++) {
-			if (CheckItemFitsInInventorySlot(player, i, itemSize, itemIndexToIgnore))
-				return i;
-		}
-
-		for (int i = 10; i < 19; i++) {
-			if (CheckItemFitsInInventorySlot(player, i, itemSize, itemIndexToIgnore))
-				return i;
-		}
-
-		for (int i = 20; i < 29; i++) {
-			if (CheckItemFitsInInventorySlot(player, i, itemSize, itemIndexToIgnore))
-				return i;
-		}
-
-		for (int i = 30; i < 39; i++) {
-			if (CheckItemFitsInInventorySlot(player, i, itemSize, itemIndexToIgnore))
-				return i;
+		// 2-wide 3-high item: iterate each valid starting row (ROWS-3 rows available)
+		for (int row = 0; row <= ROWS - 3; row++) {
+			for (int i = row * COLS; i < row * COLS + LAST_COL; i++) {
+				if (CheckItemFitsInInventorySlot(player, i, itemSize, itemIndexToIgnore))
+					return i;
+			}
 		}
 		return {};
 	}
@@ -1215,7 +1211,19 @@ void InitInv()
 
 void DrawInv(const Surface &out)
 {
-	ClxDraw(out, GetPanelPosition(UiPanels::Inventory, { 0, 351 }), (*pInvCels)[0]);
+	const Point panelPos = GetPanelPosition(UiPanels::Inventory, { 0, 0 });
+	const int celW = (*pInvCels)[0].width();
+
+	// Draw CEL background at normal position
+	ClxDraw(out, panelPos + Displacement { 0, 351 }, (*pInvCels)[0]);
+
+	// Extend grid: copy full-width rows 1-2 to rows 5-6
+	out.BlitFrom(out,
+	    { panelPos.x, panelPos.y + 222, celW, 29 },
+	    { panelPos.x, panelPos.y + 338 });
+	out.BlitFrom(out,
+	    { panelPos.x, panelPos.y + 251, celW, 29 },
+	    { panelPos.x, panelPos.y + 367 });
 
 	const Size slotSize[] = {
 		{ 2, 2 }, // head
@@ -1481,7 +1489,7 @@ void ReorganizeInventory(Player &player)
 
 	// Temporary storage for items and a copy of InvGrid
 	std::vector<Item> tempStorage(player._pNumInv);
-	std::array<int8_t, 40> originalInvGrid;                                                       // Declare an array for InvGrid copy
+	std::array<int8_t, InventoryGridCells> originalInvGrid;
 	std::copy(std::begin(player.InvGrid), std::end(player.InvGrid), std::begin(originalInvGrid)); // Copy InvGrid to originalInvGrid
 
 	// Move items to temporary storage and clear inventory slots
@@ -1538,6 +1546,11 @@ int RoomForGold()
 
 int AddGoldToInventory(Player &player, int value)
 {
+	const int COLS = InventorySizeInSlots.width;
+	const int ROWS = InventorySizeInSlots.height;
+	const int LAST_ROW_START = (ROWS - 1) * COLS;
+	const int LAST_COL = COLS - 1;
+
 	// Top off existing piles
 	for (int i = 0; i < player._pNumInv && value > 0; i++) {
 		Item &goldItem = player.InvList[i];
@@ -1557,15 +1570,15 @@ int AddGoldToInventory(Player &player, int value)
 		SetPlrHandGoldCurs(goldItem);
 	}
 
-	// Last row right to left
-	for (int i = 39; i >= 30 && value > 0; i--) {
+	// Last row (bottom) right to left
+	for (int i = InventoryGridCells - 1; i >= LAST_ROW_START && value > 0; i--) {
 		value = CreateGoldItemInInventorySlot(player, i, value);
 	}
 
 	// Remaining inventory in columns, bottom to top, right to left
-	for (int x = 9; x >= 0 && value > 0; x--) {
-		for (int y = 2; y >= 0 && value > 0; y--) {
-			value = CreateGoldItemInInventorySlot(player, (10 * y) + x, value);
+	for (int x = LAST_COL; x >= 0 && value > 0; x--) {
+		for (int y = ROWS - 2; y >= 0 && value > 0; y--) {
+			value = CreateGoldItemInInventorySlot(player, (COLS * y) + x, value);
 		}
 	}
 
