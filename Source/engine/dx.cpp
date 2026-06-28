@@ -135,8 +135,10 @@ void dx_cleanup()
 #ifndef USE_SDL1
 	texture = nullptr;
 	FreeVirtualGamepadTextures();
-	if (*GetOptions().Graphics.upscale)
+	if (*GetOptions().Graphics.upscale) {
 		SDL_DestroyRenderer(renderer);
+		renderer = nullptr;
+	}
 #endif
 	SDL_DestroyWindow(ghMainWnd);
 }

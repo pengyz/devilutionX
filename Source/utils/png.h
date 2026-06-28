@@ -50,7 +50,7 @@ inline void QuitPNG()
 
 inline SDL_Surface *LoadPNG(const char *file)
 {
-	auto *rwops = OpenAssetAsSdlRwOps(file);
+	auto *rwops = OpenAssetAsSdlRwOps(file, /*threadsafe=*/true);
 #ifdef USE_SDL3
 	SDL_Surface *surface = IMG_LoadPNG_IO(rwops);
 	SDL_CloseIO(rwops);
