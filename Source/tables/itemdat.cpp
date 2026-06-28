@@ -539,6 +539,18 @@ tl::expected<item_effect_type, std::string> ParseItemEffectType(std::string_view
 	if (value == "ACUNDEAD") return IPL_ACUNDEAD;
 	if (value == "MANATOLIFE") return IPL_MANATOLIFE;
 	if (value == "LIFETOMANA") return IPL_LIFETOMANA;
+	if (value == "FIREBALL_ONHIT") return IPL_FIREBALL_ONHIT;
+	if (value == "CHAINLIGHT_ONHIT") return IPL_CHAINLIGHT_ONHIT;
+	if (value == "MANASTEAL_ONHIT") return IPL_MANASTEAL_ONHIT;
+	if (value == "LIFESTEAL_ONHIT") return IPL_LIFESTEAL_ONHIT;
+	if (value == "FROSTNOVA_ONDAM") return IPL_FROSTNOVA_ONDAM;
+	if (value == "CONFUSE_ONHIT") return IPL_CONFUSE_ONHIT;
+	if (value == "BLOODLUST_ONKILL") return IPL_BLOODLUST_ONKILL;
+	if (value == "VANISH_ONKILL") return IPL_VANISH_ONKILL;
+	if (value == "CRITNEXT_ONKILL") return IPL_CRITNEXT_ONKILL;
+	if (value == "MANASHIELD_ONDAM") return IPL_MANASHIELD_ONDAM;
+	if (value == "HASTE_ONDAM") return IPL_HASTE_ONDAM;
+	if (value == "THORNS_ONDAM") return IPL_THORNS_ONDAM;
 	return tl::make_unexpected("Unknown enum value");
 }
 

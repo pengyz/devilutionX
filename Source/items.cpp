@@ -1028,39 +1028,51 @@ int SaveItemPower(const Player &player, Item &item, ItemPower &power)
 	// Behavioral equipment affixes
 	case IPL_FIREBALL_ONHIT:
 		item._iProcFlags |= PROC_FIREBALL_ONHIT;
+		item._iProcChance = static_cast<uint8_t>(5 + (r / 10));
 		break;
 	case IPL_CHAINLIGHT_ONHIT:
 		item._iProcFlags |= PROC_CHAINLIGHT_ONHIT;
+		item._iProcChance = static_cast<uint8_t>(5 + (r / 10));
 		break;
 	case IPL_MANASTEAL_ONHIT:
 		item._iProcFlags |= PROC_MANASTEAL_ONHIT;
+		item._iProcChance = static_cast<uint8_t>(5 + (r / 10));
 		break;
 	case IPL_LIFESTEAL_ONHIT:
 		item._iProcFlags |= PROC_LIFESTEAL_ONHIT;
+		item._iProcChance = static_cast<uint8_t>(5 + (r / 10));
 		break;
 	case IPL_FROSTNOVA_ONDAM:
 		item._iProcFlags |= PROC_FROSTNOVA_ONDAM;
+		item._iProcChance = static_cast<uint8_t>(5 + (r / 10));
 		break;
 	case IPL_CONFUSE_ONHIT:
 		item._iProcFlags |= PROC_CONFUSE_ONHIT;
+		item._iProcChance = static_cast<uint8_t>(5 + (r / 10));
 		break;
 	case IPL_BLOODLUST_ONKILL:
 		item._iProcFlags |= PROC_BLOODLUST_ONKILL;
+		item._iProcChance = 100;
 		break;
 	case IPL_VANISH_ONKILL:
 		item._iProcFlags |= PROC_VANISH_ONKILL;
+		item._iProcChance = 100;
 		break;
 	case IPL_CRITNEXT_ONKILL:
 		item._iProcFlags |= PROC_CRITNEXT_ONKILL;
+		item._iProcChance = 100;
 		break;
 	case IPL_MANASHIELD_ONDAM:
 		item._iProcFlags |= PROC_MANASHIELD_ONDAM;
+		item._iProcChance = static_cast<uint8_t>(5 + (r / 10));
 		break;
 	case IPL_HASTE_ONDAM:
 		item._iProcFlags |= PROC_HASTE_ONDAM;
+		item._iProcChance = static_cast<uint8_t>(5 + (r / 10));
 		break;
 	case IPL_THORNS_ONDAM:
 		item._iProcFlags |= PROC_THORNS_ONDAM;
+		item._iProcChance = static_cast<uint8_t>(5 + (r / 10));
 		break;
 	default:
 		break;

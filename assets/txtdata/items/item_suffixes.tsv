@@ -94,3 +94,15 @@ balance	FASTRECOVER	1	1	1	Armor,Misc	Any	1	true	2000	2000	2
 stability	FASTRECOVER	2	2	10	Armor,Misc	Any	1	true	4000	4000	4
 harmony	FASTRECOVER	3	3	20	Armor,Misc	Any	1	true	8000	8000	8
 blocking	FASTBLOCK	1	1	5	Shield	Any	1	true	4000	4000	4
+inferno	FIREBALL_ONHIT			15	Weapon,Staff	Any	1	true	6000	6000	4
+storms	CHAINLIGHT_ONHIT			20	Weapon,Staff	Any	1	true	8000	8000	6
+the vampire	LIFESTEAL_ONHIT			12	Weapon	Any	1	true	5000	5000	3
+mana leech	MANASTEAL_ONHIT			10	Weapon,Staff,Bow	Any	1	true	3500	3500	3
+frost shield	FROSTNOVA_ONDAM			12	Armor,Shield	Any	1	true	5000	5000	3
+confusion	CONFUSE_ONHIT			18	Weapon,Staff	Any	1	true	7000	7000	5
+bloodlust	BLOODLUST_ONKILL			22	Weapon	Any	1	true	9000	9000	6
+shadows	VANISH_ONKILL			28	Armor	Any	1	true	12000	12000	8
+certainty	CRITNEXT_ONKILL			28	Weapon,Bow	Any	1	true	12000	12000	8
+warding	MANASHIELD_ONDAM			18	Armor,Shield	Any	1	true	7000	7000	5
+haste	HASTE_ONDAM			12	Armor,Misc	Any	1	true	5000	5000	3
+thorns	THORNS_ONDAM			10	Armor,Shield	Any	1	true	3500	3500	3

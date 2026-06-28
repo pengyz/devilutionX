@@ -255,6 +255,7 @@ struct Item {
 	bool _iStatFlag = false;
 	ItemSpecialEffectHf _iDamAcFlags = ItemSpecialEffectHf::None;
 	uint16_t _iProcFlags = 0; // Behavioral equip affix bitmask
+	uint8_t _iProcChance = 0;  // 0-100 trigger probability, or reflect %
 	uint32_t dwBuff = 0;
 
 	/**
