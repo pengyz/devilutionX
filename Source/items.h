@@ -256,6 +256,12 @@ struct Item {
 	ItemSpecialEffectHf _iDamAcFlags = ItemSpecialEffectHf::None;
 	uint16_t _iProcFlags = 0; // Behavioral equip affix bitmask
 	uint8_t _iProcChance = 0;  // 0-100 trigger probability, or reflect %
+	int _iHMinDam;  // Holy min
+	int _iHMaxDam;  // Holy max
+	int _iPMinDam;  // Poison min
+	int _iPMaxDam;  // Poison max
+	int _iCMinDam;  // Cold min
+	int _iCMaxDam;  // Cold max
 	uint32_t dwBuff = 0;
 
 	/**

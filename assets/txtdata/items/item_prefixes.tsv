@@ -82,3 +82,6 @@ Plentiful	CHARGES	2	2	4	Staff	Any	1	true	2000	2000	2
 Bountiful	CHARGES	3	3	9	Staff	Any	1	true	3000	3000	3
 Flaming	FIREDAM	1	10	7	Weapon,Staff	Any	1	true	5000	5000	2
 Lightning	LIGHTDAM	2	20	18	Weapon,Staff	Any	1	true	10000	10000	2
+Holy	HOLYDAM	1	8	20	Weapon,Staff	Good	1	true	12000	12000	3
+Venomous	POISONDAM	1	6	15	Weapon	Any	1	true	8000	8000	3
+Frozen	COLDDAM	1	6	15	Weapon,Staff	Any	1	true	8000	8000	3

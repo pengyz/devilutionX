@@ -1074,6 +1074,19 @@ int SaveItemPower(const Player &player, Item &item, ItemPower &power)
 		item._iProcFlags |= PROC_THORNS_ONDAM;
 		item._iProcChance = static_cast<uint8_t>(5 + (r / 10));
 		break;
+	// Elemental damage affixes
+	case IPL_HOLYDAM:
+		item._iHMinDam = power.param1;
+		item._iHMaxDam = power.param2;
+		break;
+	case IPL_POISONDAM:
+		item._iPMinDam = power.param1;
+		item._iPMaxDam = power.param2;
+		break;
+	case IPL_COLDDAM:
+		item._iCMinDam = power.param1;
+		item._iCMaxDam = power.param2;
+		break;
 	default:
 		break;
 	}
@@ -2878,6 +2891,12 @@ void CalcPlrItemVals(Player &player, bool loadgfx)
 	int maxFireDam = 0;
 	int minLightDam = 0;
 	int maxLightDam = 0;
+	int minHolyDam = 0;
+	int maxHolyDam = 0;
+	int minPoisonDam = 0;
+	int maxPoisonDam = 0;
+	int minColdDam = 0;
+	int maxColdDam = 0;
 
 	for (const Item &item : player.InvBody) {
 		if (!item.isEmpty() && item._iStatFlag) {
@@ -2914,6 +2933,12 @@ void CalcPlrItemVals(Player &player, bool loadgfx)
 				maxFireDam += item._iFMaxDam;
 				minLightDam += item._iLMinDam;
 				maxLightDam += item._iLMaxDam;
+			minHolyDam += item._iHMinDam;
+			maxHolyDam += item._iHMaxDam;
+			minPoisonDam += item._iPMinDam;
+			maxPoisonDam += item._iPMaxDam;
+			minColdDam += item._iCMinDam;
+			maxColdDam += item._iCMaxDam;
 			}
 		}
 	}
@@ -2952,6 +2977,12 @@ void CalcPlrItemVals(Player &player, bool loadgfx)
 	player._pIFMaxDam = maxFireDam;
 	player._pILMinDam = minLightDam;
 	player._pILMaxDam = maxLightDam;
+	player._pIHMinDam = minHolyDam;
+	player._pIHMaxDam = maxHolyDam;
+	player._pIPMinDam = minPoisonDam;
+	player._pIPMaxDam = maxPoisonDam;
+	player._pICMinDam = minColdDam;
+	player._pICMaxDam = maxColdDam;
 
 	CalcPlrBlockFlag(player);
 

@@ -106,3 +106,6 @@ certainty	CRITNEXT_ONKILL			28	Weapon,Bow	Any	1	true	12000	12000	8
 warding	MANASHIELD_ONDAM			18	Armor,Shield	Any	1	true	7000	7000	5
 haste	HASTE_ONDAM			12	Armor,Misc	Any	1	true	5000	5000	3
 thorns	THORNS_ONDAM			10	Armor,Shield	Any	1	true	3500	3500	3
+of Holiness	HOLYDAM	1	8	25	Weapon,Staff	Good	1	true	9000	9000	3
+of Venom	POISONDAM	2	10	20	Weapon	Any	1	true	7000	7000	4
+of Frostbite	COLDDAM	1	6	18	Weapon,Staff	Any	1	true	7000	7000	3

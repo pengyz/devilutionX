@@ -551,6 +551,9 @@ tl::expected<item_effect_type, std::string> ParseItemEffectType(std::string_view
 	if (value == "MANASHIELD_ONDAM") return IPL_MANASHIELD_ONDAM;
 	if (value == "HASTE_ONDAM") return IPL_HASTE_ONDAM;
 	if (value == "THORNS_ONDAM") return IPL_THORNS_ONDAM;
+	if (value == "HOLYDAM") return IPL_HOLYDAM;
+	if (value == "POISONDAM") return IPL_POISONDAM;
+	if (value == "COLDDAM") return IPL_COLDDAM;
 	return tl::make_unexpected("Unknown enum value");
 }
 

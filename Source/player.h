@@ -256,6 +256,12 @@ struct Player {
 	int _pIFMaxDam;
 	int _pILMinDam;
 	int _pILMaxDam;
+	int _pIHMinDam;  // Holy min
+	int _pIHMaxDam;  // Holy max
+	int _pIPMinDam;  // Poison min
+	int _pIPMaxDam;  // Poison max
+	int _pICMinDam;  // Cold min
+	int _pICMaxDam;  // Cold max
 	uint32_t _pExperience;
 	PLR_MODE _pmode;
 	int8_t walkpath[MaxPathLengthPlayer];

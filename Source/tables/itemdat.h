@@ -610,6 +610,9 @@ enum item_effect_type : int8_t {
 	IPL_MANASHIELD_ONDAM,   // 15% chance on damaged → mana shield 3s
 	IPL_HASTE_ONDAM,        // 20% chance on damaged → +30% move speed 2s
 	IPL_THORNS_ONDAM,       // When hit by melee → reflect 15% damage
+	IPL_HOLYDAM,             // Adds Holy damage to attacks
+	IPL_POISONDAM,           // Adds Poison damage to attacks
+	IPL_COLDDAM,             // Adds Cold damage to attacks
 	IPL_INVALID = -1,
 };
 
