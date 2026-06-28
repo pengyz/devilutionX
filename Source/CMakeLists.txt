@@ -24,6 +24,7 @@ set(libdevilutionx_SRCS
 mastermark_warrior.cpp
 mastermark_sorcerer.cpp
 mastermark_rogue.cpp
+setitems.cpp
   menu.cpp
   minitext.cpp
   missiles.cpp

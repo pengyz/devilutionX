@@ -38,6 +38,7 @@
 #include "engine/animationinfo.h"
 #include "engine/backbuffer_state.hpp"
 #include "engine/clx_sprite.hpp"
+#include "setitems.h"
 #include "engine/load_cel.hpp"
 #include "engine/path.h"
 #include "engine/point.hpp"
@@ -2947,6 +2948,10 @@ void CalcPlrItemVals(Player &player, bool loadgfx)
 	CalcPlrAuricBonus(player);
 	RedrawComponent(PanelDrawComponent::Mana);
 	RedrawComponent(PanelDrawComponent::Health);
+	}
+
+	// Recalculate set item bonuses on equipment change
+	CheckSetBonuses(player);
 }
 
 void CheckEquipmentProcsOnHit(Player &player, int &damage)
