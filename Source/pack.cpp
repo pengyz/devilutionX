@@ -189,7 +189,9 @@ void PackPlayer(PlayerPack &packed, const Player &player)
 	for (int i = 0; i < packed._pNumInv; i++)
 		PackItem(packed.InvList[i], player.InvList[i], gbIsHellfire);
 
-	for (int i = 0; i < InventoryGridCells; i++)
+	// Packed format stores 40 slots; only pack the first 40
+	constexpr int PackedInventorySlots = 40;
+	for (int i = 0; i < PackedInventorySlots; i++)
 		packed.InvGrid[i] = player.InvGrid[i];
 
 	for (int i = 0; i < MaxBeltItems; i++)
@@ -247,7 +249,9 @@ void PackNetPlayer(PlayerNetPack &packed, const Player &player)
 	for (int i = 0; i < packed._pNumInv; i++)
 		PackNetItem(player.InvList[i], packed.InvList[i]);
 
-	for (int i = 0; i < InventoryGridCells; i++)
+	// Net pack stores 40 slots
+	constexpr int PackedInventorySlots = 40;
+	for (int i = 0; i < PackedInventorySlots; i++)
 		packed.InvGrid[i] = player.InvGrid[i];
 
 	for (int i = 0; i < MaxBeltItems; i++)
@@ -421,8 +425,12 @@ void UnPackPlayer(const PlayerPack &packed, Player &player)
 	for (int i = 0; i < player._pNumInv; i++)
 		UnPackItem(packed.InvList[i], player, player.InvList[i], isHellfire);
 
-	for (int i = 0; i < InventoryGridCells; i++)
+	// Packed format has 40 slots; runtime has 60. Copy first 40, zero the rest.
+	constexpr int PackedInventorySlots = 40;
+	for (int i = 0; i < PackedInventorySlots; i++)
 		player.InvGrid[i] = packed.InvGrid[i];
+	for (int i = PackedInventorySlots; i < InventoryGridCells; i++)
+		player.InvGrid[i] = 0;
 
 	VerifyGoldSeeds(player);
 
@@ -562,8 +570,12 @@ bool UnPackNetPlayer(const PlayerNetPack &packed, Player &player)
 			return false;
 	}
 
-	for (int i = 0; i < InventoryGridCells; i++)
+	// Net pack stores 40 slots; runtime has 60
+	constexpr int PackedInventorySlots = 40;
+	for (int i = 0; i < PackedInventorySlots; i++)
 		player.InvGrid[i] = packed.InvGrid[i];
+	for (int i = PackedInventorySlots; i < InventoryGridCells; i++)
+		player.InvGrid[i] = 0;
 
 	for (int i = 0; i < MaxBeltItems; i++) {
 		Item &item = player.SpdList[i];

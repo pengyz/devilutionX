@@ -1,117 +1,125 @@
 #pragma once
 
-#include <bitset>
 #include <cstdint>
 #include <string>
-#include <vector>
 
 #include "tables/playerdat.hpp"
 
 namespace devilution {
 struct Player;
 
-
+// === Mark Identifiers (9 marks, 3 per class) ===
 
 enum class MasterMarkId : uint8_t {
-	// Warrior (8)
-	ShieldMaster,
-	Berserker,
-	Commander,
-	Avenger,
-	Juggernaut,
-	Sentinel,
-	Executioner,
-	IronWill,
-	// Sorcerer (8)
-	Arcanist,
-	Pyromancer,
-	Stormcaller,
+	// Warrior (3)
+	IronBastion,
+	CrimsonBrand,
+	ArmsMaster,
+	// Sorcerer (3)
 	Sanguimancer,
-	Frostborn,
-	LeyWeaver,
-	EchoMage,
-	Voidcaller,
-	// Rogue (8)
-	Deadeye,
-	Trapsmith,
+	Spellblade,
+	Overcharge,
+	// Rogue (3)
+	Marksman,
 	Shadowstep,
-	Ricochet,
-	Predator,
-	WindWalker,
-	Venomancer,
-	Ghost,
-	// Monk (8)
-	IronPalm,
-	Serenity,
-	ChiWave,
-	EarthStance,
-	FlowingWater,
-	InnerFire,
-	Karma,
-	Transcendence,
-	// Bard (8)
-	Warsong,
-	Lament,
-	Echosong,
-	HymnOfRespite,
-	Crescendo,
-	Dissonance,
-	Coda,
-	Overture,
-	// Barbarian (8)
-	BloodRage,
-	Unchained,
-	Sunder,
-	Warcry,
-	ThickSkin,
-	Momentum,
-	LastStand,
-	TrophyHunter,
+	Precision,
 
-	COUNT
+	COUNT // = 9
 };
 
-enum class MasterMarkSource : uint8_t {
-	MentorOrdeal,
-	Dungeon,
+// === Rune System ===
+
+enum class RuneRarity : uint8_t {
+	Common,    // White  — slot 1
+	Rare,      // Blue   — slot 2
+	Legendary, // Gold   — slot 3
 };
+
+// Each mark has 3 rune slots, each with a binary choice
+struct MarkSlot {
+	RuneRarity requiredRune;
+	bool socketed = false;
+	uint8_t choice = 0; // 0 = empty, 1 = path A, 2 = path B
+};
+
+// Per-mark runtime state (4 generic data fields for mark-specific use)
+struct MarkState {
+	MasterMarkId id = MasterMarkId::COUNT;
+	MarkSlot slots[3];
+	bool isActive = false;
+
+	// Mark-specific runtime data (interpreted per-mark)
+	int32_t data0 = 0;
+	int32_t data1 = 0;
+	int32_t data2 = 0;
+	int32_t data3 = 0;
+};
+
+// === Mark Definition ===
 
 struct MasterMarkDef {
 	const char *name;
 	const char *description;
 	HeroClass requiredClass;
-	MasterMarkSource source;
-	int dungeonLevel; // 0 = mentor ordeal, 1-16 = dungeon level
 };
 
 extern const MasterMarkDef markDefs[static_cast<size_t>(MasterMarkId::COUNT)];
+constexpr size_t MarkCount = static_cast<size_t>(MasterMarkId::COUNT);
 
-// Mark state management
+// === Mark Management ===
+
 void GrantMark(Player &player, MasterMarkId id);
 bool HasMark(const Player &player, MasterMarkId id);
 bool HasActiveMark(const Player &player, MasterMarkId id);
-void ActivateMark(Player &player, MasterMarkId id, int slot);
-void DeactivateMark(Player &player, int slot);
+void ActivateMark(Player &player, MasterMarkId id, int activeSlot);
+void DeactivateMark(Player &player, int activeSlot);
+void SwapActiveMark(Player &player, MasterMarkId id);
 
-constexpr size_t MarkCount = static_cast<size_t>(MasterMarkId::COUNT);
+// Returns the MarkState for a given mark on a player
+MarkState &GetMarkState(Player &player, MasterMarkId id);
+const MarkState &GetMarkState(const Player &player, MasterMarkId id);
 
-// Ordeal tracking
-struct OrdealState {
-	MasterMarkId markId;
-	int progress;
-	bool completed;
-};
+// Returns which path (0=empty, 1=A, 2=B) the player chose for a given slot on a given mark
+uint8_t GetMarkSlotChoice(const Player &player, MasterMarkId id, int slotIndex);
 
-// Mark effect hooks — called from combat code
+// === Rune Socketing ===
+
+// Socket a rune into a mark slot, permanently locking the choice.
+// Returns false if the rune rarity doesn't match or slot is already filled.
+bool SocketRune(Player &player, MasterMarkId id, int slotIndex, uint8_t choice);
+
+// === Combat Hooks ===
+
+// Called per tick for active marks
 void CheckMarkEffects(Player &player);
 
-// Get shield armor for ShieldMaster bash
-int GetShieldArmor(const Player &player);
+// Called on successful block
+void MarkOnPlayerBlock(Player &player, int blockedDamage);
 
-// Check if an ordeal is completed and grant mark
-void CheckAndGrantOrdealMarks(Player &player);
+// Called before melee attack damage calculation
+void MarkOnPlayerAttack(Player &player, int &damage, bool isMelee);
 
-// Swap a player's active marks — deactivates both, activates newest owned
-void SwapActiveMark(Player &player, MasterMarkId id);
+// Called when player kills a monster
+void MarkOnPlayerKill(Player &player, int monsterMaxHp);
+
+// Called when player takes damage (before HP subtraction)
+// Returns true if the mark prevented death
+bool MarkOnPlayerDamaged(Player &player, int &damage);
+
+// Called when player dodges an attack
+void MarkOnPlayerDodge(Player &player);
+
+// Called before spell cast (modifies mana cost and cast speed)
+void MarkOnPlayerSpell(Player &player, int &manaCost, int &castTime);
+
+// Called to compute spell damage modifier
+int MarkSpellDamageModifier(const Player &player);
+
+// Called when player is about to die from fatal damage
+// Returns true if death was prevented by a mark
+bool MarkOnPlayerFatalDamage(Player &player);
+
+// === UI ===
+std::string GetActiveMarksString(const Player &player);
 
 } // namespace devilution

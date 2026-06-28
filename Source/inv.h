@@ -19,7 +19,7 @@ namespace devilution {
 
 #define INV_SLOT_SIZE_PX 28
 #define INV_SLOT_HALF_SIZE_PX (INV_SLOT_SIZE_PX / 2)
-constexpr Size InventorySizeInSlots { 10, 4 };
+constexpr Size InventorySizeInSlots { 10, 6 };
 #define INV_ROW_SLOT_SIZE InventorySizeInSlots.width
 constexpr Size InventorySlotSizeInPixels { INV_SLOT_SIZE_PX };
 
@@ -33,9 +33,9 @@ enum inv_item : int8_t {
 	INVITEM_HAND_RIGHT = 5,
 	INVITEM_CHEST      = 6,
 	INVITEM_INV_FIRST  = 7,
-	INVITEM_INV_LAST   = 46,
-	INVITEM_BELT_FIRST = 47,
-	INVITEM_BELT_LAST  = 54,
+	INVITEM_INV_LAST   = 66,
+	INVITEM_BELT_FIRST = 67,
+	INVITEM_BELT_LAST  = 74,
 	// clang-format on
 };
 
@@ -65,12 +65,16 @@ enum inv_xy_slot : uint8_t {
 	SLOTXY_INV_ROW3_LAST  = 36,
 	SLOTXY_INV_ROW4_FIRST = 37,
 	SLOTXY_INV_ROW4_LAST  = 46,
-	SLOTXY_INV_LAST       = SLOTXY_INV_ROW4_LAST,
+	SLOTXY_INV_ROW5_FIRST = 47,
+	SLOTXY_INV_ROW5_LAST  = 56,
+	SLOTXY_INV_ROW6_FIRST = 57,
+	SLOTXY_INV_ROW6_LAST  = 66,
+	SLOTXY_INV_LAST       = SLOTXY_INV_ROW6_LAST,
 
 	// belt items
-	SLOTXY_BELT_FIRST     = 47,
-	SLOTXY_BELT_LAST      = 54,
-	NUM_XY_SLOTS          = 55
+	SLOTXY_BELT_FIRST     = 67,
+	SLOTXY_BELT_LAST      = 74,
+	NUM_XY_SLOTS          = 75
 	// clang-format on
 };
 

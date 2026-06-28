@@ -36,7 +36,7 @@
 
 namespace devilution {
 
-constexpr int InventoryGridCells = 40;
+constexpr int InventoryGridCells = 60;
 constexpr int MaxBeltItems = 8;
 constexpr int MaxResistance = 75;
 constexpr uint8_t MaxSpellLevel = 15;
@@ -367,8 +367,8 @@ public:
 	// Buff/Debuff system
 	Buffable buffable;
 
-	// Master's Mark system
-	std::bitset<static_cast<size_t>(MasterMarkId::COUNT)> ownedMarks;
+	// Master's Mark system (9 marks, 3 rune slots each)
+	MarkState ownedMarks[static_cast<size_t>(MasterMarkId::COUNT)];
 	MasterMarkId activeMarks[2] = { MasterMarkId::COUNT, MasterMarkId::COUNT };
 
 	// Soul Weakness system

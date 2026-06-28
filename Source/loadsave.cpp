@@ -673,10 +673,24 @@ void LoadPlayer(LoadHelper &file, Player &player)
 
 	player.executedSpell = player.queuedSpell; // Ensures backwards compatibility
 
-	// Master's Mark deserialization (backward compatible: old saves without this data read 0s)
+	// Master's Mark deserialization (9 marks × 3 slots, backward compatible: old saves read 0s)
 	{
-		uint64_t ownedBits = file.NextLE<uint64_t>();
-		player.ownedMarks = std::bitset<static_cast<size_t>(MasterMarkId::COUNT)>(ownedBits);
+		for (size_t i = 0; i < MarkCount; i++) {
+			bool owned = file.NextBool8();
+			if (!owned) continue;
+			auto &state = player.ownedMarks[i];
+			state.id = static_cast<MasterMarkId>(i);
+			state.isActive = file.NextBool8();
+			for (int s = 0; s < 3; s++) {
+				uint8_t packed = file.NextLE<uint8_t>();
+				state.slots[s].socketed = (packed & 0x80) != 0;
+				state.slots[s].choice = packed & 0x7F;
+			}
+			state.data0 = file.NextLE<int32_t>();
+			state.data1 = file.NextLE<int32_t>();
+			state.data2 = file.NextLE<int32_t>();
+			state.data3 = file.NextLE<int32_t>();
+		}
 		player.activeMarks[0] = static_cast<MasterMarkId>(file.NextLE<uint8_t>());
 		player.activeMarks[1] = static_cast<MasterMarkId>(file.NextLE<uint8_t>());
 	}
@@ -1562,9 +1576,24 @@ void SavePlayer(SaveHelper &file, const Player &player)
 		}
 	}
 
-	// Master's Mark serialization
+	// Master's Mark serialization (9 marks × 3 slots)
 	{
-		file.WriteLE<uint64_t>(player.ownedMarks.to_ullong());
+		for (size_t i = 0; i < MarkCount; i++) {
+			const auto &state = player.ownedMarks[i];
+			bool owned = (state.id != MasterMarkId::COUNT);
+			file.WriteLE<uint8_t>(owned ? 1 : 0);
+			if (!owned) continue;
+			file.WriteLE<uint8_t>(state.isActive ? 1 : 0);
+			for (int s = 0; s < 3; s++) {
+				uint8_t packed = state.slots[s].choice & 0x7F;
+				if (state.slots[s].socketed) packed |= 0x80;
+				file.WriteLE<uint8_t>(packed);
+			}
+			file.WriteLE<int32_t>(state.data0);
+			file.WriteLE<int32_t>(state.data1);
+			file.WriteLE<int32_t>(state.data2);
+			file.WriteLE<int32_t>(state.data3);
+		}
 		file.WriteLE<uint8_t>(static_cast<uint8_t>(player.activeMarks[0]));
 		file.WriteLE<uint8_t>(static_cast<uint8_t>(player.activeMarks[1]));
 	}
@@ -2507,8 +2536,25 @@ void LoadHeroItems(Player &player)
 
 	gbIsHellfireSaveGame = file.NextBool8();
 
+	// Detect save version by file size.
+	// Old saves: 1 byte (hellfire) + 55 items × itemSize (7 equip + 40 inv + 8 belt)
+	// New saves: 1 byte (hellfire) + 1 byte (version) + 75 items × itemSize (7 equip + 60 inv + 8 belt)
+	const int itemSize = gbIsHellfireSaveGame ? HellfireItemSaveSize : DiabloItemSaveSize;
+	const size_t oldSaveSize = 1 + 55 * itemSize;
+	const uint8_t saveVersion = (file.Size() == oldSaveSize) ? 0 : file.NextLE<uint8_t>();
+	const int invSlotsToLoad = (saveVersion >= 1) ? InventoryGridCells : 40;
+
 	LoadMatchingItems(file, player, NUM_INVLOC, player.InvBody);
-	LoadMatchingItems(file, player, InventoryGridCells, player.InvList);
+	LoadMatchingItems(file, player, invSlotsToLoad, player.InvList);
+
+	// If loading old save (40 slots), fill the remaining 20 with empty items
+	if (saveVersion < 1) {
+		for (int i = 40; i < InventoryGridCells; i++) {
+			player.InvList[i] = Item();
+			player.InvGrid[i] = 0;
+		}
+	}
+
 	LoadMatchingItems(file, player, MaxBeltItems, player.SpdList);
 
 	gbIsHellfireSaveGame = gbIsHellfire;
@@ -2802,9 +2848,10 @@ tl::expected<void, std::string> LoadGame(bool firstflag)
 void SaveHeroItems(SaveWriter &saveWriter, Player &player)
 {
 	const size_t itemCount = static_cast<size_t>(NUM_INVLOC) + InventoryGridCells + MaxBeltItems;
-	SaveHelper file(saveWriter, "heroitems", (itemCount * (gbIsHellfire ? HellfireItemSaveSize : DiabloItemSaveSize)) + sizeof(uint8_t));
+	SaveHelper file(saveWriter, "heroitems", (itemCount * (gbIsHellfire ? HellfireItemSaveSize : DiabloItemSaveSize)) + sizeof(uint8_t) + sizeof(uint8_t));
 
 	file.WriteLE<uint8_t>(gbIsHellfire ? 1 : 0);
+	file.WriteLE<uint8_t>(1); // Save version: 1 = 60-slot inventory
 
 	for (const Item &item : player.InvBody)
 		SaveItem(file, item);

@@ -72,8 +72,10 @@ bool invflag;
  *              17 18 19 20 21 22 23 24 25 26
  *              27 28 29 30 31 32 33 34 35 36
  *              37 38 39 40 41 42 43 44 45 46
+ *              47 48 49 50 51 52 53 54 55 56
+ *              57 58 59 60 61 62 63 64 65 66
  *
- * 47 48 49 50 51 52 53 54
+ * 67 68 69 70 71 72 73 74
  * @endcode
  */
 const Rectangle InvRect[] = {
@@ -126,6 +128,26 @@ const Rectangle InvRect[] = {
 	{ { 220, 309 }, { 29, 29 } }, // inv row 4
 	{ { 249, 309 }, { 29, 29 } }, // inv row 4
 	{ { 278, 309 }, { 29, 29 } }, // inv row 4
+	{ {  17, 338 }, { 29, 29 } }, // inv row 5
+	{ {  46, 338 }, { 29, 29 } }, // inv row 5
+	{ {  75, 338 }, { 29, 29 } }, // inv row 5
+	{ { 104, 338 }, { 29, 29 } }, // inv row 5
+	{ { 133, 338 }, { 29, 29 } }, // inv row 5
+	{ { 162, 338 }, { 29, 29 } }, // inv row 5
+	{ { 191, 338 }, { 29, 29 } }, // inv row 5
+	{ { 220, 338 }, { 29, 29 } }, // inv row 5
+	{ { 249, 338 }, { 29, 29 } }, // inv row 5
+	{ { 278, 338 }, { 29, 29 } }, // inv row 5
+	{ {  17, 367 }, { 29, 29 } }, // inv row 6
+	{ {  46, 367 }, { 29, 29 } }, // inv row 6
+	{ {  75, 367 }, { 29, 29 } }, // inv row 6
+	{ { 104, 367 }, { 29, 29 } }, // inv row 6
+	{ { 133, 367 }, { 29, 29 } }, // inv row 6
+	{ { 162, 367 }, { 29, 29 } }, // inv row 6
+	{ { 191, 367 }, { 29, 29 } }, // inv row 6
+	{ { 220, 367 }, { 29, 29 } }, // inv row 6
+	{ { 249, 367 }, { 29, 29 } }, // inv row 6
+	{ { 278, 367 }, { 29, 29 } }, // inv row 6
 	{ { 205,   5 }, { 29, 29 } }, // belt
 	{ { 234,   5 }, { 29, 29 } }, // belt
 	{ { 263,   5 }, { 29, 29 } }, // belt
@@ -688,12 +710,12 @@ bool CheckItemFitsInInventorySlot(const Player &player, int slotIndex, const Siz
 std::optional<int> FindSlotForItem(const Player &player, const Size &itemSize, int itemIndexToIgnore = -1)
 {
 	if (itemSize.height == 1) {
-		for (int i = 30; i <= 39; i++) {
+		for (int i = 50; i <= 59; i++) {
 			if (CheckItemFitsInInventorySlot(player, i, itemSize, itemIndexToIgnore))
 				return i;
 		}
 		for (int x = 9; x >= 0; x--) {
-			for (int y = 2; y >= 0; y--) {
+			for (int y = 5; y >= 0; y--) {
 				if (CheckItemFitsInInventorySlot(player, (10 * y) + x, itemSize, itemIndexToIgnore))
 					return (10 * y) + x;
 			}
@@ -703,7 +725,7 @@ std::optional<int> FindSlotForItem(const Player &player, const Size &itemSize, i
 
 	if (itemSize.height == 2) {
 		for (int x = 10 - itemSize.width; x >= 0; x--) {
-			for (int y = 0; y < 3; y++) {
+			for (int y = 0; y < 5; y++) {
 				if (CheckItemFitsInInventorySlot(player, (10 * y) + x, itemSize, itemIndexToIgnore))
 					return (10 * y) + x;
 			}
@@ -712,7 +734,7 @@ std::optional<int> FindSlotForItem(const Player &player, const Size &itemSize, i
 	}
 
 	if (itemSize == Size { 1, 3 }) {
-		for (int i = 0; i < 20; i++) {
+		for (int i = 0; i < 40; i++) {
 			if (CheckItemFitsInInventorySlot(player, i, itemSize, itemIndexToIgnore))
 				return i;
 		}
@@ -726,6 +748,16 @@ std::optional<int> FindSlotForItem(const Player &player, const Size &itemSize, i
 		}
 
 		for (int i = 10; i < 19; i++) {
+			if (CheckItemFitsInInventorySlot(player, i, itemSize, itemIndexToIgnore))
+				return i;
+		}
+
+		for (int i = 20; i < 29; i++) {
+			if (CheckItemFitsInInventorySlot(player, i, itemSize, itemIndexToIgnore))
+				return i;
+		}
+
+		for (int i = 30; i < 39; i++) {
 			if (CheckItemFitsInInventorySlot(player, i, itemSize, itemIndexToIgnore))
 				return i;
 		}

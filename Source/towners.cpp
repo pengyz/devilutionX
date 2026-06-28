@@ -215,21 +215,22 @@ void HandleMentorMarks(Player &player, HeroClass mentorClass)
 	if (player._pClass != mentorClass)
 		return;
 
-	static constexpr MasterMarkId mentorMarks[6][4] = {
-		{ MasterMarkId::ShieldMaster, MasterMarkId::Berserker, MasterMarkId::Commander, MasterMarkId::Avenger },   // Warrior → Griswold
-		{ MasterMarkId::Deadeye, MasterMarkId::Trapsmith, MasterMarkId::Shadowstep, MasterMarkId::Ricochet },       // Rogue → Ogden
-		{ MasterMarkId::Arcanist, MasterMarkId::Pyromancer, MasterMarkId::Stormcaller, MasterMarkId::Sanguimancer }, // Sorcerer → Adria
-		{ MasterMarkId::IronPalm, MasterMarkId::Serenity, MasterMarkId::ChiWave, MasterMarkId::EarthStance },        // Monk → Pepin
-		{ MasterMarkId::Warsong, MasterMarkId::Lament, MasterMarkId::Echosong, MasterMarkId::HymnOfRespite },        // Bard → Gillian
-		{ MasterMarkId::BloodRage, MasterMarkId::Unchained, MasterMarkId::Sunder, MasterMarkId::Warcry },            // Barbarian → Farnham
+	static constexpr MasterMarkId mentorMarks[3][3] = {
+		{ MasterMarkId::IronBastion, MasterMarkId::CrimsonBrand, MasterMarkId::ArmsMaster },          // Warrior → Griswold
+		{ MasterMarkId::Sanguimancer, MasterMarkId::Spellblade, MasterMarkId::Overcharge },            // Sorcerer → Adria
+		{ MasterMarkId::Marksman, MasterMarkId::Shadowstep, MasterMarkId::Precision },                 // Rogue → Gillian
 	};
 
-	int classIdx = static_cast<int>(mentorClass);
-	if (classIdx < 0 || classIdx >= 6)
-		return;
+	int classIdx = -1;
+	switch (mentorClass) {
+	case HeroClass::Warrior:  classIdx = 0; break;
+	case HeroClass::Sorcerer: classIdx = 1; break;
+	case HeroClass::Rogue:    classIdx = 2; break;
+	default: return;
+	}
 
 	bool newMarkGranted = false;
-	for (int i = 0; i < 4; i++) {
+	for (int i = 0; i < 3; i++) {
 		MasterMarkId mid = mentorMarks[classIdx][i];
 		if (!HasMark(player, mid)) {
 			GrantMark(player, mid);
@@ -246,22 +247,20 @@ void HandleMentorMarks(Player &player, HeroClass mentorClass)
 		}
 	}
 
-	if (player.ownedMarks.any()) {
-		MasterMarkId nextToSwap = MasterMarkId::COUNT;
-		for (int i = 0; i < static_cast<int>(MasterMarkId::COUNT); i++) {
-			auto mid = static_cast<MasterMarkId>(i);
-			if (HasMark(player, mid)) {
-				if (!HasActiveMark(player, mid) && nextToSwap == MasterMarkId::COUNT)
-					nextToSwap = mid;
-			}
+	// Check if any marks are owned but not active
+	bool hasInactive = false;
+	for (size_t i = 0; i < MarkCount; i++) {
+		if (HasMark(player, static_cast<MasterMarkId>(i)) && !HasActiveMark(player, static_cast<MasterMarkId>(i))) {
+			hasInactive = true;
+			SwapActiveMark(player, static_cast<MasterMarkId>(i));
+			break;
 		}
-		if (nextToSwap != MasterMarkId::COUNT)
-			SwapActiveMark(player, nextToSwap);
 	}
+	(void)hasInactive;
 
 	if (newMarkGranted) {
 		std::string markList = "Marks: ";
-		for (int i = 0; i < 4; i++) {
+		for (int i = 0; i < 3; i++) {
 			if (i > 0) markList += ", ";
 			markList += markDefs[static_cast<size_t>(mentorMarks[classIdx][i])].name;
 		}

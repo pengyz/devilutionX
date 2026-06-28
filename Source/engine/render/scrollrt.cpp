@@ -45,6 +45,7 @@
 #include "init.hpp"
 #include "inv.h"
 #include "levels/dun_tile.hpp"
+#include "mastermark.h"
 #include "levels/gendung.h"
 #include "levels/tile_properties.hpp"
 #include "lighting.h"
@@ -1902,6 +1903,13 @@ void DrawAndBlit()
 	DrawCursor(out);
 
 	DrawFPS(out);
+
+	{
+		std::string activeMarks = GetActiveMarksString(*MyPlayer);
+		if (!activeMarks.empty()) {
+			DrawString(out, activeMarks, Point { 8, 26 }, { .flags = UiFlags::ColorWhitegold });
+		}
+	}
 
 	lua::GameDrawComplete();
 
