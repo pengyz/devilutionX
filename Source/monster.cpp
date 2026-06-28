@@ -3947,6 +3947,30 @@ void ApplyMonsterDamage(DamageType damageType, Monster &monster, int damage)
 {
 	lua::OnMonsterTakeDamage(&monster, damage, static_cast<int>(damageType));
 
+	// Damage type multipliers
+	switch (damageType) {
+	case DamageType::Holy:
+		if (monster.data().monsterClass == MonsterClass::Undead)
+			damage = damage * 2;
+		else if (monster.data().monsterClass == MonsterClass::Demon)
+			damage = damage * 3 / 2;
+		else
+			damage = damage / 2;
+		break;
+	case DamageType::Poison:
+		if (monster.data().monsterClass == MonsterClass::Animal)
+			damage = damage * 3 / 2;
+		// Apply poison DoT via buff system
+		monster.buffable.Apply(BuffType::Poison, static_cast<int16_t>(damage / 3), 3 * 60, -1, 5);
+		break;
+	case DamageType::Cold:
+		// Apply chill slow via buff system (max 3 stacks)
+		monster.buffable.Apply(BuffType::Chill, 20, 4 * 60, -1, 3);
+		break;
+	default:
+		break;
+	}
+
 	monster.hitPoints -= damage;
 	OnAffixMonsterDamaged(monster, damage);
 
@@ -5035,7 +5059,10 @@ bool Monster::isImmune(MissileID missileType, DamageType missileElement) const
 	if (((resistance & IMMUNE_MAGIC) != 0 && missileElement == DamageType::Magic)
 	    || ((resistance & IMMUNE_FIRE) != 0 && missileElement == DamageType::Fire)
 	    || ((resistance & IMMUNE_LIGHTNING) != 0 && missileElement == DamageType::Lightning)
-	    || ((resistance & IMMUNE_ACID) != 0 && missileElement == DamageType::Acid))
+	    || ((resistance & IMMUNE_ACID) != 0 && missileElement == DamageType::Acid)
+	    || ((resistance & IMMUNE_HOLY) != 0 && missileElement == DamageType::Holy)
+	    || ((resistance & IMMUNE_POISON) != 0 && missileElement == DamageType::Poison)
+	    || ((resistance & IMMUNE_COLD) != 0 && missileElement == DamageType::Cold))
 		return true;
 	if (missileType == MissileID::HolyBolt && type().type != MT_DIABLO && data().monsterClass != MonsterClass::Undead)
 		return true;
@@ -5046,7 +5073,10 @@ bool Monster::isResistant(MissileID missileType, DamageType missileElement) cons
 {
 	if (((resistance & RESIST_MAGIC) != 0 && missileElement == DamageType::Magic)
 	    || ((resistance & RESIST_FIRE) != 0 && missileElement == DamageType::Fire)
-	    || ((resistance & RESIST_LIGHTNING) != 0 && missileElement == DamageType::Lightning))
+	    || ((resistance & RESIST_LIGHTNING) != 0 && missileElement == DamageType::Lightning)
+	    || ((resistance & RESIST_HOLY) != 0 && missileElement == DamageType::Holy)
+	    || ((resistance & RESIST_POISON) != 0 && missileElement == DamageType::Poison)
+	    || ((resistance & RESIST_COLD) != 0 && missileElement == DamageType::Cold))
 		return true;
 	if (gbIsHellfire && missileType == MissileID::HolyBolt && IsAnyOf(type().type, MT_DIABLO, MT_BONEDEMN))
 		return true;

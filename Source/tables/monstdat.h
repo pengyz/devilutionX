@@ -72,7 +72,7 @@ enum class MonsterClass : uint8_t {
 	Animal,
 };
 
-enum monster_resistance : uint8_t {
+enum monster_resistance : uint16_t {
 	// clang-format off
 	RESIST_MAGIC     = 1 << 0,
 	RESIST_FIRE      = 1 << 1,
@@ -80,7 +80,13 @@ enum monster_resistance : uint8_t {
 	IMMUNE_MAGIC     = 1 << 3,
 	IMMUNE_FIRE      = 1 << 4,
 	IMMUNE_LIGHTNING = 1 << 5,
+	RESIST_HOLY      = 1 << 6,
 	IMMUNE_ACID      = 1 << 7,
+	RESIST_POISON    = 1 << 8,
+	RESIST_COLD      = 1 << 9,
+	IMMUNE_HOLY      = 1 << 10,
+	IMMUNE_POISON    = 1 << 11,
+	IMMUNE_COLD      = 1 << 12,
 	// clang-format on
 };
 
@@ -139,9 +145,9 @@ struct MonsterData {
 	uint8_t armorClass = 0;
 	MonsterClass monsterClass {};
 	/** Using monster_resistance as bitflags */
-	uint8_t resistance = 0;
+	uint16_t resistance = 0;
 	/** Using monster_resistance as bitflags */
-	uint8_t resistanceHell = 0;
+	uint16_t resistanceHell = 0;
 	SelectionRegion selectionRegion = SelectionRegion::None;
 	/** Using monster_treasure */
 	uint16_t treasure = 0;
