@@ -670,25 +670,6 @@ void LoadUniqueItemDatFromFile(DataFile &dataFile, std::string_view filename, in
 		}
 
 		item.mappingId = currentMappingId;
-
-		// Parse setId/setPiece (default -1/-1 if empty)
-		reader.readOptionalInt("setId", item.iSetId);
-		reader.readOptionalInt("setPiece", item.iSetPiece);
-
-		// Parse procFlags (IPL name, parsed via existing string→enum mapper)
-		std::string pfStr;
-		reader.readString("procFlags", pfStr);
-		if (!pfStr.empty()) {
-			auto maybeIpl = ParseItemEffectType(pfStr);
-			if (maybeIpl.has_value()) {
-				item_effect_type ipl = *maybeIpl;
-				if (ipl >= IPL_FIREBALL_ONHIT && ipl <= IPL_THORNS_ONDAM) {
-					item.iProcFlags |= static_cast<uint16_t>(1 << (ipl - IPL_FIREBALL_ONHIT));
-				}
-			}
-		}
-		reader.readOptionalInt("procChance", item.iProcChance);
-
 		const auto [it, inserted] = UniqueItemMappingIdsToIndices.emplace(item.mappingId, static_cast<int32_t>(UniqueItems.size()) - 1);
 		if (!inserted) {
 			DisplayFatalErrorAndExit("Adding Unique Item Failed", fmt::format("A unique item already exists for mapping ID {}.", item.mappingId));

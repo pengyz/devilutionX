@@ -64,7 +64,7 @@ static void IronBastionPerTick(Player &player) {
 	if (decayRate == 2 && state.data1 < 10 * 60) {
 		state.data1++; // 10s timer for Fortress
 	} else if (state.data1 >= 10 * 60 || decayRate == 5) {
-		bool inCombat = (player._pmode >= PM_ATTACK && player._pmode <= PM_WALK3);
+		bool inCombat = (player._pmode >= PM_ATTACK && player._pmode <= PM_DEATH);
 		if (!inCombat)
 			state.data0 = std::max(0, state.data0 - (state.data0 * decayRate / 100));
 	}

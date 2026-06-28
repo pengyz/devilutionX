@@ -50,6 +50,7 @@
 #include "levels/tile_properties.hpp"
 #include "lighting.h"
 #include "lua/lua_event.hpp"
+#include "panels/mark_panel.hpp"
 #include "minitext.h"
 #include "missiles.h"
 #include "nthread.h"
@@ -1398,6 +1399,8 @@ void DrawView(const Surface &out, Point startPosition)
 		DrawInv(out);
 	} else if (SpellbookFlag) {
 		DrawSpellBook(out);
+	} else if (MarkPanelFlag) {
+		DrawMarkPanel(out);
 	}
 
 	DrawDurIcon(out);

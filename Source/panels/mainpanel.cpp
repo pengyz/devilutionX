@@ -73,7 +73,7 @@ void RenderMainButton(const Surface &out, int buttonId, std::string_view text, i
 tl::expected<void, std::string> LoadMainPanel()
 {
 	std::optional<OwnedSurface> out;
-	constexpr uint16_t NumButtonSprites = 6;
+	constexpr uint16_t NumButtonSprites = 7;
 	{
 		ASSIGN_OR_RETURN(OptionalOwnedClxSpriteList background, LoadClxWithStatus("data\\panel8bucp.clx"));
 		out.emplace((*background)[0].width(), (*background)[0].height() * NumButtonSprites);
@@ -94,6 +94,7 @@ tl::expected<void, std::string> LoadMainPanel()
 	RenderMainButton(*out, 3, _("menu"), 0);
 	RenderMainButton(*out, 4, _("inv"), 1);
 	RenderMainButton(*out, 5, _("spells"), 0);
+	RenderMainButton(*out, 6, _("marks"), 1);
 	PanelButtonDown = SurfaceToClx(*out, NumButtonSprites);
 	out = std::nullopt;
 

@@ -342,6 +342,12 @@ struct LevelConversionData {
 	item._iFMaxDam = file.NextLE<int32_t>();
 	item._iLMinDam = file.NextLE<int32_t>();
 	item._iLMaxDam = file.NextLE<int32_t>();
+	item._iHMinDam = file.NextLE<int32_t>();
+	item._iHMaxDam = file.NextLE<int32_t>();
+	item._iPMinDam = file.NextLE<int32_t>();
+	item._iPMaxDam = file.NextLE<int32_t>();
+	item._iCMinDam = file.NextLE<int32_t>();
+	item._iCMaxDam = file.NextLE<int32_t>();
 	item._iPLEnAc = file.NextLE<int32_t>();
 	item._iPrePower = static_cast<item_effect_type>(file.NextLE<int8_t>());
 	item._iSufPower = static_cast<item_effect_type>(file.NextLE<int8_t>());
@@ -1292,6 +1298,12 @@ void SaveItem(SaveHelper &file, const Item &item)
 	file.WriteLE<int32_t>(item._iFMaxDam);
 	file.WriteLE<int32_t>(item._iLMinDam);
 	file.WriteLE<int32_t>(item._iLMaxDam);
+	file.WriteLE<int32_t>(item._iHMinDam);
+	file.WriteLE<int32_t>(item._iHMaxDam);
+	file.WriteLE<int32_t>(item._iPMinDam);
+	file.WriteLE<int32_t>(item._iPMaxDam);
+	file.WriteLE<int32_t>(item._iCMinDam);
+	file.WriteLE<int32_t>(item._iCMaxDam);
 	file.WriteLE<int32_t>(item._iPLEnAc);
 	file.WriteLE<int8_t>(item._iPrePower);
 	file.WriteLE<int8_t>(item._iSufPower);
@@ -2231,8 +2243,8 @@ tl::expected<void, std::string> LoadLevel(LevelConversionData *levelConversionDa
 	return {};
 }
 
-const int DiabloItemSaveSize = 368;
-const int HellfireItemSaveSize = 372;
+const int DiabloItemSaveSize = 397;
+const int HellfireItemSaveSize = 401;
 
 bool IsStashSizeValid(size_t stashSize, uint32_t pages, uint32_t itemCount)
 {

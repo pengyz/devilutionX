@@ -158,7 +158,7 @@ namespace RogueMarks {
 void MarkOnPlayerBlock(Player &p, int dmg)        { WarriorMarks::OnPlayerBlock(p, dmg); }
 void MarkOnPlayerAttack(Player &p, int &d, bool m) { WarriorMarks::OnPlayerAttack(p, d); RogueMarks::OnPlayerAttack(p, d, m); }
 void MarkOnPlayerKill(Player &p, int hp)            { SorcererMarks::OnPlayerKill(p, hp); RogueMarks::OnPlayerKill(p, hp); }
-void MarkOnPlayerDamaged(Player &p, int &d)         { WarriorMarks::OnPlayerDamaged(p, d); }
+bool MarkOnPlayerDamaged(Player &p, int &d)         { WarriorMarks::OnPlayerDamaged(p, d); return false; }
 bool MarkOnPlayerFatalDamage(Player &p) {
 	if (WarriorMarks::OnPlayerFatalDamage(p)) return true;
 	if (SorcererMarks::OnPlayerFatalDamage(p)) return true;

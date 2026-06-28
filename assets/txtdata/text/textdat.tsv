@@ -337,3 +337,13 @@ TEXT_RBOOKC	Efficio Obitus Ut Inimicus.	true	Warrior56
 TEXT_BBOOKA	In Spiritu Sanctum.	true	Warrior54
 TEXT_BBOOKB	Praedictum Otium.	true	Warrior55
 TEXT_BBOOKC	Efficio Obitus Ut Inimicus.	true	Warrior56
+
+TEXT_MARK_IRONBASTION	The Iron Bastion is a mark of the guardian. Those who bear this brand learn to turn defense into offense. Every blow you block stores its force within you, waiting to be released in a single devastating strike. The shield is not a wall - it is a coiled spring.	true	Cain1
+TEXT_MARK_CRIMSONBRAND	The Crimson Brand is the mark of the berserker. Your blood becomes fuel for your rage. Each wound you suffer, each enemy you slay, feeds the fire within. At the edge of death, you will find power that no sane warrior dares touch. Pain is not your enemy - it is your currency.	true	Cain1
+TEXT_MARK_ARMSMASTER	The Arms Master is the mark of true weapon mastery. You will wield two-handed blades in each hand, or dance between sword and shield with impossible speed. A weapon is not a tool - it is an extension of your will.	true	Cain1
+TEXT_MARK_SANGUIMANCER	The Sanguimancer walks the crimson path. When mana fails, blood suffices. Each kill restores what was spent. The boundary between life and magic is an illusion - one that you will learn to cross at will.	true	Cain1
+TEXT_MARK_SPELLBLADE	The Spellblade forges magic into steel. Your mana shield becomes an unbreakable ward, your weapon burns with elemental fury. Strength is for soldiers - you will fight with mind and blade as one.	true	Cain1
+TEXT_MARK_OVERCHARGE	The Overcharge mark lets you burn twice as bright. For a brief moment, your spells will flow without cost, striking with impossible speed. But power demands a price - when the surge ends, weakness follows.	true	Cain1
+TEXT_MARK_MARKSMAN	The Marksman is the mark of the patient hunter. Distance becomes your armor. Every step backward sharpens your arrows. Stand still long enough and your next shot will pierce anything. The deadliest arrow is the one that takes its time.	true	Cain1
+TEXT_MARK_SHADOWSTEP	The Shadowstep mark teaches you to dance between blows. When an enemy swings at empty air, you are already behind them. Every dodge becomes an opening. Every miss becomes their last mistake.	true	Cain1
+TEXT_MARK_PRECISION	Precision is the mark of the true professional. Whether you fight with blade or bow, every strike finds its target. Your eyes see weakness where others see only chaos. Steady hands and steady eyes - that is the only creed you need.	true	Cain1

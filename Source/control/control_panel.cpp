@@ -37,6 +37,7 @@ int SpellbookTab;
 bool ChatFlag;
 bool SpellbookFlag;
 bool CharFlag;
+bool MarkPanelFlag;
 bool MainPanelFlag;
 bool MainPanelButtonDown;
 bool SpellSelectFlag;
@@ -64,7 +65,7 @@ bool IsLeftPanelOpen()
 }
 bool IsRightPanelOpen()
 {
-	return invflag || SpellbookFlag;
+	return invflag || SpellbookFlag || MarkPanelFlag;
 }
 
 constexpr Size IncrementAttributeButtonSize { 41, 22 };
@@ -79,7 +80,7 @@ Rectangle CharPanelButtonRect[4] = {
 constexpr Size WidePanelButtonSize { 71, 20 };
 constexpr Size PanelButtonSize { 33, 32 };
 /** Positions of panel buttons. */
-Rectangle MainPanelButtonRect[8] = {
+Rectangle MainPanelButtonRect[9] = {
 	// clang-format off
 	{ {   9,   9 }, WidePanelButtonSize }, // char button
 	{ {   9,  35 }, WidePanelButtonSize }, // quests button
@@ -87,6 +88,7 @@ Rectangle MainPanelButtonRect[8] = {
 	{ {   9, 101 }, WidePanelButtonSize }, // menu button
 	{ { 560,   9 }, WidePanelButtonSize }, // inv button
 	{ { 560,  35 }, WidePanelButtonSize }, // spells button
+	{ {   9, 127 }, WidePanelButtonSize }, // marks button
 	{ {  87,  91 }, PanelButtonSize     }, // chat button
 	{ { 527,  91 }, PanelButtonSize     }, // friendly fire button
 	// clang-format on
@@ -103,21 +105,22 @@ Rectangle SpellButtonRect { { 565, 64 }, { 56, 56 } };
 int PanelPaddingHeight = 16;
 
 /** Maps from panel_button_id to panel button description. */
-const char *const PanBtnStr[8] = {
+const char *const PanBtnStr[9] = {
 	N_("Character Information"),
 	N_("Quests log"),
 	N_("Automap"),
 	N_("Main Menu"),
 	N_("Inventory"),
 	N_("Spell book"),
+	N_("Master Marks"),
 	N_("Send Message"),
 	"" // Player attack
 };
 
 /** Maps from panel_button_id to hotkey name. */
-const char *const PanBtnHotKey[8] = { "'c'", "'q'", N_("Tab"), N_("Esc"), "'i'", "'b'", N_("Enter"), nullptr };
+const char *const PanBtnHotKey[9] = { "'c'", "'q'", N_("Tab"), N_("Esc"), "'i'", "'b'", "'m'", N_("Enter"), nullptr };
 
-int TotalSpMainPanelButtons = 6;
+int TotalSpMainPanelButtons = 7;
 int TotalMpMainPanelButtons = 8;
 
 namespace {
@@ -134,6 +137,7 @@ enum panel_button_id : uint8_t {
 	PanelButtonMainmenu,
 	PanelButtonInventory,
 	PanelButtonSpellbook,
+	PanelButtonMarks,
 	PanelButtonSendmsg,
 	PanelButtonFriendly,
 	PanelButtonLast = PanelButtonFriendly,
@@ -327,6 +331,19 @@ void ToggleCharPanel()
 		OpenCharPanel();
 }
 
+void ToggleMarkPanel()
+{
+	MarkPanelFlag = !MarkPanelFlag;
+	if (MarkPanelFlag) {
+		SpellbookFlag = false;
+		invflag = false;
+		CharFlag = false;
+		QuestLogIsOpen = false;
+		CloseStash();
+		CloseVisualStore();
+	}
+}
+
 Point GetPanelPosition(UiPanels panel, Point offset)
 {
 	const Displacement displacement { offset.x, offset.y };
@@ -337,6 +354,7 @@ Point GetPanelPosition(UiPanels panel, Point offset)
 	case UiPanels::Quest:
 	case UiPanels::Character:
 	case UiPanels::Stash:
+	case UiPanels::Marks:
 		return GetLeftPanel().position + displacement;
 	case UiPanels::Spell:
 	case UiPanels::Inventory:
@@ -605,6 +623,11 @@ void CheckMainPanelButtonUp()
 			CloseInventory();
 			CloseGoldDrop();
 			SpellbookFlag = !SpellbookFlag;
+			break;
+		case PanelButtonMarks:
+			CloseInventory();
+			CloseGoldDrop();
+			ToggleMarkPanel();
 			break;
 		case PanelButtonSendmsg:
 			if (ChatFlag)

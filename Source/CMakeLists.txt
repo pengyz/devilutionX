@@ -131,6 +131,7 @@ setitems.cpp
   monsters/validation.cpp
 
   panels/charpanel.cpp
+  panels/mark_panel.cpp
   panels/console.cpp
   panels/info_box.cpp
   panels/mainpanel.cpp

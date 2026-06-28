@@ -50,7 +50,7 @@ extern UiFlags InfoColor;
 extern StringOrView InfoString;
 extern StringOrView FloatingInfoString;
 
-extern Rectangle MainPanelButtonRect[8];
+extern Rectangle MainPanelButtonRect[9];
 extern DVL_API_FOR_TEST Rectangle CharPanelButtonRect[4];
 
 extern bool MainPanelButtonDown;
@@ -63,6 +63,10 @@ extern bool MainPanelFlag;
 extern bool ChatFlag;
 extern DVL_API_FOR_TEST bool SpellbookFlag;
 extern DVL_API_FOR_TEST bool CharFlag;
+extern bool MarkPanelFlag;
+
+void ToggleCharPanel();
+void ToggleMarkPanel();
 extern DVL_API_FOR_TEST bool SpellSelectFlag;
 
 [[nodiscard]] const Rectangle &GetMainPanel();

@@ -1,4 +1,4 @@
-name	power	power.value1	power.value2	minLevel	itemTypes	alignment	chance	useful	minVal	maxVal	multVal
+﻿name	power	power.value1	power.value2	minLevel	itemTypes	alignment	chance	useful	minVal	maxVal	multVal
 Tin	TOHIT_CURSE	6	10	3	Weapon,Bow,Misc	Any	2	false	0	0	-3
 Brass	TOHIT_CURSE	1	5	1	Weapon,Bow,Misc	Any	2	false	0	0	-2
 Bronze	TOHIT	1	5	1	Weapon,Bow,Misc	Any	2	true	100	500	2

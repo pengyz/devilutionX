@@ -1174,8 +1174,6 @@ int GetMinHit()
 		return 15;
 	}
 }
-		M_StartHit(monster, player, retDmg);
-}
 
 void MonsterAttackPlayer(Monster &monster, Player &player, int hit, int minDam, int maxDam)
 {

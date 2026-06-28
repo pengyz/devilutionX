@@ -216,9 +216,9 @@ void HandleMentorMarks(Player &player, HeroClass mentorClass)
 		return;
 
 	static constexpr MasterMarkId mentorMarks[3][3] = {
-		{ MasterMarkId::IronBastion, MasterMarkId::CrimsonBrand, MasterMarkId::ArmsMaster },          // Warrior → Griswold
-		{ MasterMarkId::Sanguimancer, MasterMarkId::Spellblade, MasterMarkId::Overcharge },            // Sorcerer → Adria
-		{ MasterMarkId::Marksman, MasterMarkId::Shadowstep, MasterMarkId::Precision },                 // Rogue → Gillian
+		{ MasterMarkId::IronBastion, MasterMarkId::CrimsonBrand, MasterMarkId::ArmsMaster },
+		{ MasterMarkId::Sanguimancer, MasterMarkId::Spellblade, MasterMarkId::Overcharge },
+		{ MasterMarkId::Marksman, MasterMarkId::Shadowstep, MasterMarkId::Precision },
 	};
 
 	int classIdx = -1;
@@ -229,42 +229,27 @@ void HandleMentorMarks(Player &player, HeroClass mentorClass)
 	default: return;
 	}
 
-	bool newMarkGranted = false;
+	// Count how many mentor marks the player already has
+	int ownedCount = 0;
 	for (int i = 0; i < 3; i++) {
-		MasterMarkId mid = mentorMarks[classIdx][i];
-		if (!HasMark(player, mid)) {
-			GrantMark(player, mid);
-			newMarkGranted = true;
-		}
+		if (HasMark(player, mentorMarks[classIdx][i]))
+			ownedCount++;
 	}
 
-	if (newMarkGranted) {
-		if (player.activeMarks[0] == MasterMarkId::COUNT) {
-			ActivateMark(player, mentorMarks[classIdx][0], 0);
-		}
-		if (player.activeMarks[1] == MasterMarkId::COUNT && player.activeMarks[0] != MasterMarkId::COUNT) {
-			ActivateMark(player, mentorMarks[classIdx][1], 1);
-		}
-	}
+	// Grant the next mark in sequence if any remain
+	if (ownedCount < 3) {
+		MasterMarkId nextMark = mentorMarks[classIdx][ownedCount];
+		GrantMark(player, nextMark);
 
-	// Check if any marks are owned but not active
-	bool hasInactive = false;
-	for (size_t i = 0; i < MarkCount; i++) {
-		if (HasMark(player, static_cast<MasterMarkId>(i)) && !HasActiveMark(player, static_cast<MasterMarkId>(i))) {
-			hasInactive = true;
-			SwapActiveMark(player, static_cast<MasterMarkId>(i));
-			break;
-		}
-	}
-	(void)hasInactive;
+		// Auto-activate in first available slot
+		if (player.activeMarks[0] == MasterMarkId::COUNT)
+			ActivateMark(player, nextMark, 0);
+		else if (player.activeMarks[1] == MasterMarkId::COUNT)
+			ActivateMark(player, nextMark, 1);
 
-	if (newMarkGranted) {
-		std::string markList = "Marks: ";
-		for (int i = 0; i < 3; i++) {
-			if (i > 0) markList += ", ";
-			markList += markDefs[static_cast<size_t>(mentorMarks[classIdx][i])].name;
-		}
-		EventPlrMsg(markList);
+		// Show mark name in gold text
+		const auto &def = markDefs[static_cast<size_t>(nextMark)];
+		EventPlrMsg(std::string(def.name) + ": " + def.description);
 	}
 }
 

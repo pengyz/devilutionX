@@ -8,8 +8,8 @@ namespace devilution {
 extern int TotalSpMainPanelButtons;
 extern int TotalMpMainPanelButtons;
 extern int PanelPaddingHeight;
-extern const char *const PanBtnStr[8];
-extern const char *const PanBtnHotKey[8];
+extern const char *const PanBtnStr[9];
+extern const char *const PanBtnHotKey[9];
 extern Rectangle SpellButtonRect;
 extern Rectangle BeltRect;
 

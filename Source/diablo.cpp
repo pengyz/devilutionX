@@ -500,6 +500,7 @@ void ClosePanels()
 	CloseInventory();
 	CloseCharPanel();
 	SpellbookFlag = false;
+	MarkPanelFlag = false;
 	QuestLogIsOpen = false;
 }
 
@@ -2002,6 +2003,14 @@ void InitKeymapActions()
 	    N_("Open Spellbook."),
 	    'B',
 	    SpellBookKeyPressed,
+	    nullptr,
+	    CanPlayerTakeAction);
+	options.Keymapper.AddAction(
+	    "Marks",
+	    N_("Master's Marks"),
+	    N_("Open Mark panel."),
+	    'M',
+	    [] { ToggleMarkPanel(); },
 	    nullptr,
 	    CanPlayerTakeAction);
 	for (uint32_t i = 0; i < QuickMessages.size(); ++i) {

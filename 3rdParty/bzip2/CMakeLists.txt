@@ -27,5 +27,6 @@ add_library(BZip2 ${_lib_type}
 )
 target_compile_definitions(BZip2 PRIVATE -DBZ_NO_STDIO)
 target_include_directories(BZip2 PUBLIC ${bzip2_SOURCE_DIR})
+set_target_properties(BZip2 PROPERTIES WINDOWS_EXPORT_ALL_SYMBOLS ON)
 
 add_library(BZip2::BZip2 ALIAS BZip2)

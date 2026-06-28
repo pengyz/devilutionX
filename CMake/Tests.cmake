@@ -16,6 +16,7 @@ set(tests
   appfat_test
   automap_test
   cursor_test
+  data_integrity_test
   dead_test
   diablo_test
   drlg_common_test
