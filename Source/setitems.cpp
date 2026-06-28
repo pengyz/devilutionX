@@ -13,12 +13,8 @@ int CountEquippedSetPieces(const Player &player, SetId setId)
 	int count = 0;
 	for (auto &item : player.InvBody) {
 		if (item.isEmpty()) continue;
-		// Items flagged as set pieces via _iProcFlags (repurposed for set membership)
-		// In a full implementation, a dedicated _iSetId field would be used.
-		// For now, set bonuses are checked based on equipped unique items matching set pieces.
-		(void)setId;
-		// Simplified: count is incremented when a known unique base item is equipped
-		// TODO: proper set membership tracking via item data
+		if (item._iSetId == static_cast<int8_t>(setId))
+			count++;
 	}
 	return count;
 }

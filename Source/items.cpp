@@ -1526,6 +1526,10 @@ void GetUniqueItem(const Player &player, Item &item, _unique_items uid)
 	if (uniqueItemData.UICurs != ICURS_DEFAULT)
 		item._iCurs = uniqueItemData.UICurs;
 	item._iIvalue = uniqueItemData.UIValue;
+	item._iSetId = uniqueItemData.iSetId;
+	item._iSetPiece = uniqueItemData.iSetPiece;
+	item._iProcFlags = uniqueItemData.iProcFlags;
+	item._iProcChance = uniqueItemData.iProcChance;
 
 	if (item._iMiscId == IMISC_UNIQUE)
 		item._iSeed = uid;

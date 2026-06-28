@@ -679,6 +679,10 @@ struct UniqueItem {
 	int UIValue;
 	ItemPower powers[6];
 	int32_t mappingId;
+	int8_t iSetId = -1;       // -1 = not a set piece, 0-3 = SetId
+	int8_t iSetPiece = -1;    // piece index within set
+	uint16_t iProcFlags = 0;  // behavioral proc flags
+	uint8_t iProcChance = 0;  // trigger probability
 };
 
 extern DVL_API_FOR_TEST std::vector<ItemData> AllItemsList;

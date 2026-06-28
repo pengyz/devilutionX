@@ -377,6 +377,8 @@ struct LevelConversionData {
 		item._iDamAcFlags = ItemSpecialEffectHf::None;
 	item._iProcFlags = file.NextLE<uint16_t>();
 	item._iProcChance = file.NextLE<uint8_t>();
+	item._iSetId = file.NextLE<int8_t>();
+	item._iSetPiece = file.NextLE<int8_t>();
 	UpdateHellfireFlag(item, item._iIName);
 
 	return true;
@@ -1309,6 +1311,8 @@ void SaveItem(SaveHelper &file, const Item &item)
 		file.WriteLE<uint32_t>(static_cast<uint32_t>(item._iDamAcFlags));
 	file.WriteLE<uint16_t>(item._iProcFlags);
 	file.WriteLE<uint8_t>(item._iProcChance);
+	file.WriteLE<int8_t>(item._iSetId);
+	file.WriteLE<int8_t>(item._iSetPiece);
 }
 
 void SavePlayer(SaveHelper &file, const Player &player)

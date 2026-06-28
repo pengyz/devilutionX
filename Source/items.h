@@ -262,6 +262,8 @@ struct Item {
 	int _iPMaxDam;  // Poison max
 	int _iCMinDam;  // Cold min
 	int _iCMaxDam;  // Cold max
+	int8_t _iSetId = -1;    // -1=not a set piece, 0-3=SetId
+	int8_t _iSetPiece = -1; // piece index within set
 	uint32_t dwBuff = 0;
 
 	/**
