@@ -1,0 +1,14 @@
+# Target labels
+ sdl2-populate
+# Source files and their labels
+D:/workspace/DevilutionX/build2/_deps/sdl2-subbuild/CMakeFiles/sdl2-populate
+D:/workspace/DevilutionX/build2/_deps/sdl2-subbuild/CMakeFiles/257ea051befc27385b32a55efbce1d83/sdl2-populate.rule
+D:/workspace/DevilutionX/build2/_deps/sdl2-subbuild/CMakeFiles/84fd33232de1dbc67c7d4668ecf0adc9/sdl2-populate-complete.rule
+D:/workspace/DevilutionX/build2/_deps/sdl2-subbuild/CMakeFiles/075100447fe2071912f196b8c49569d3/sdl2-populate-build.rule
+D:/workspace/DevilutionX/build2/_deps/sdl2-subbuild/CMakeFiles/075100447fe2071912f196b8c49569d3/sdl2-populate-configure.rule
+D:/workspace/DevilutionX/build2/_deps/sdl2-subbuild/CMakeFiles/075100447fe2071912f196b8c49569d3/sdl2-populate-download.rule
+D:/workspace/DevilutionX/build2/_deps/sdl2-subbuild/CMakeFiles/075100447fe2071912f196b8c49569d3/sdl2-populate-install.rule
+D:/workspace/DevilutionX/build2/_deps/sdl2-subbuild/CMakeFiles/075100447fe2071912f196b8c49569d3/sdl2-populate-mkdir.rule
+D:/workspace/DevilutionX/build2/_deps/sdl2-subbuild/CMakeFiles/075100447fe2071912f196b8c49569d3/sdl2-populate-patch.rule
+D:/workspace/DevilutionX/build2/_deps/sdl2-subbuild/CMakeFiles/075100447fe2071912f196b8c49569d3/sdl2-populate-test.rule
+D:/workspace/DevilutionX/build2/_deps/sdl2-subbuild/CMakeFiles/075100447fe2071912f196b8c49569d3/sdl2-populate-update.rule

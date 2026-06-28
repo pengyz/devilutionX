@@ -1,0 +1,14 @@
+# Target labels
+ lua-populate
+# Source files and their labels
+D:/workspace/DevilutionX/build2/_deps/lua-subbuild/CMakeFiles/lua-populate
+D:/workspace/DevilutionX/build2/_deps/lua-subbuild/CMakeFiles/c5e4a32c32e13de7c7f8b06c47665d7b/lua-populate.rule
+D:/workspace/DevilutionX/build2/_deps/lua-subbuild/CMakeFiles/6f942c38875255561cd7ffbec699bf08/lua-populate-complete.rule
+D:/workspace/DevilutionX/build2/_deps/lua-subbuild/CMakeFiles/a0468c506e450de1c68fee9777694f1a/lua-populate-build.rule
+D:/workspace/DevilutionX/build2/_deps/lua-subbuild/CMakeFiles/a0468c506e450de1c68fee9777694f1a/lua-populate-configure.rule
+D:/workspace/DevilutionX/build2/_deps/lua-subbuild/CMakeFiles/a0468c506e450de1c68fee9777694f1a/lua-populate-download.rule
+D:/workspace/DevilutionX/build2/_deps/lua-subbuild/CMakeFiles/a0468c506e450de1c68fee9777694f1a/lua-populate-install.rule
+D:/workspace/DevilutionX/build2/_deps/lua-subbuild/CMakeFiles/a0468c506e450de1c68fee9777694f1a/lua-populate-mkdir.rule
+D:/workspace/DevilutionX/build2/_deps/lua-subbuild/CMakeFiles/a0468c506e450de1c68fee9777694f1a/lua-populate-patch.rule
+D:/workspace/DevilutionX/build2/_deps/lua-subbuild/CMakeFiles/a0468c506e450de1c68fee9777694f1a/lua-populate-test.rule
+D:/workspace/DevilutionX/build2/_deps/lua-subbuild/CMakeFiles/a0468c506e450de1c68fee9777694f1a/lua-populate-update.rule

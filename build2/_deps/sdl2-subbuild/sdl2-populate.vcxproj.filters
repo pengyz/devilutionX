@@ -1,0 +1,44 @@
+﻿<?xml version="1.0" encoding="utf-8"?>
+<Project ToolsVersion="17.0" xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
+  <ItemGroup>
+    <CustomBuild Include="D:\workspace\DevilutionX\build2\_deps\sdl2-subbuild\CMakeFiles\075100447fe2071912f196b8c49569d3\sdl2-populate-mkdir.rule">
+      <Filter>CMake Rules</Filter>
+    </CustomBuild>
+    <CustomBuild Include="D:\workspace\DevilutionX\build2\_deps\sdl2-subbuild\CMakeFiles\075100447fe2071912f196b8c49569d3\sdl2-populate-download.rule">
+      <Filter>CMake Rules</Filter>
+    </CustomBuild>
+    <CustomBuild Include="D:\workspace\DevilutionX\build2\_deps\sdl2-subbuild\CMakeFiles\075100447fe2071912f196b8c49569d3\sdl2-populate-update.rule">
+      <Filter>CMake Rules</Filter>
+    </CustomBuild>
+    <CustomBuild Include="D:\workspace\DevilutionX\build2\_deps\sdl2-subbuild\CMakeFiles\075100447fe2071912f196b8c49569d3\sdl2-populate-patch.rule">
+      <Filter>CMake Rules</Filter>
+    </CustomBuild>
+    <CustomBuild Include="D:\workspace\DevilutionX\build2\_deps\sdl2-subbuild\CMakeFiles\075100447fe2071912f196b8c49569d3\sdl2-populate-configure.rule">
+      <Filter>CMake Rules</Filter>
+    </CustomBuild>
+    <CustomBuild Include="D:\workspace\DevilutionX\build2\_deps\sdl2-subbuild\CMakeFiles\075100447fe2071912f196b8c49569d3\sdl2-populate-build.rule">
+      <Filter>CMake Rules</Filter>
+    </CustomBuild>
+    <CustomBuild Include="D:\workspace\DevilutionX\build2\_deps\sdl2-subbuild\CMakeFiles\075100447fe2071912f196b8c49569d3\sdl2-populate-install.rule">
+      <Filter>CMake Rules</Filter>
+    </CustomBuild>
+    <CustomBuild Include="D:\workspace\DevilutionX\build2\_deps\sdl2-subbuild\CMakeFiles\075100447fe2071912f196b8c49569d3\sdl2-populate-test.rule">
+      <Filter>CMake Rules</Filter>
+    </CustomBuild>
+    <CustomBuild Include="D:\workspace\DevilutionX\build2\_deps\sdl2-subbuild\CMakeFiles\84fd33232de1dbc67c7d4668ecf0adc9\sdl2-populate-complete.rule">
+      <Filter>CMake Rules</Filter>
+    </CustomBuild>
+    <CustomBuild Include="D:\workspace\DevilutionX\build2\_deps\sdl2-subbuild\CMakeFiles\257ea051befc27385b32a55efbce1d83\sdl2-populate.rule">
+      <Filter>CMake Rules</Filter>
+    </CustomBuild>
+    <CustomBuild Include="D:\workspace\DevilutionX\build2\_deps\sdl2-subbuild\CMakeLists.txt" />
+  </ItemGroup>
+  <ItemGroup>
+    <None Include="D:\workspace\DevilutionX\build2\_deps\sdl2-subbuild\CMakeFiles\sdl2-populate" />
+  </ItemGroup>
+  <ItemGroup>
+    <Filter Include="CMake Rules">
+      <UniqueIdentifier>{8D062546-BFE8-32D1-A27A-7537E933B617}</UniqueIdentifier>
+    </Filter>
+  </ItemGroup>
+</Project>

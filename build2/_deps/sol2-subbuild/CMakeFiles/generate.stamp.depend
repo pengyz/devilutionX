@@ -1,0 +1,20 @@
+# CMake generation dependency list for this directory.
+D:/Program Files/CMake/share/cmake-4.0/Modules/CMakeGenericSystem.cmake
+D:/Program Files/CMake/share/cmake-4.0/Modules/CMakeInitializeConfigs.cmake
+D:/Program Files/CMake/share/cmake-4.0/Modules/CMakeSystemSpecificInformation.cmake
+D:/Program Files/CMake/share/cmake-4.0/Modules/CMakeSystemSpecificInitialize.cmake
+D:/Program Files/CMake/share/cmake-4.0/Modules/ExternalProject.cmake
+D:/Program Files/CMake/share/cmake-4.0/Modules/ExternalProject/PatchInfo.txt.in
+D:/Program Files/CMake/share/cmake-4.0/Modules/ExternalProject/RepositoryInfo.txt.in
+D:/Program Files/CMake/share/cmake-4.0/Modules/ExternalProject/UpdateInfo.txt.in
+D:/Program Files/CMake/share/cmake-4.0/Modules/ExternalProject/cfgcmd.txt.in
+D:/Program Files/CMake/share/cmake-4.0/Modules/ExternalProject/download.cmake.in
+D:/Program Files/CMake/share/cmake-4.0/Modules/ExternalProject/extractfile.cmake.in
+D:/Program Files/CMake/share/cmake-4.0/Modules/ExternalProject/mkdirs.cmake.in
+D:/Program Files/CMake/share/cmake-4.0/Modules/ExternalProject/shared_internal_commands.cmake
+D:/Program Files/CMake/share/cmake-4.0/Modules/Platform/Windows-Initialize.cmake
+D:/Program Files/CMake/share/cmake-4.0/Modules/Platform/Windows.cmake
+D:/Program Files/CMake/share/cmake-4.0/Modules/Platform/WindowsPaths.cmake
+D:/workspace/DevilutionX/build2/_deps/sol2-subbuild/CMakeFiles/4.0.1/CMakeSystem.cmake
+D:/workspace/DevilutionX/build2/_deps/sol2-subbuild/CMakeLists.txt
+D:/workspace/DevilutionX/build2/_deps/sol2-subbuild/sol2-populate-prefix/tmp/sol2-populate-mkdirs.cmake

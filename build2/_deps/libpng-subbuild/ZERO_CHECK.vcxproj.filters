@@ -1,0 +1,13 @@
+﻿<?xml version="1.0" encoding="utf-8"?>
+<Project ToolsVersion="17.0" xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
+  <ItemGroup>
+    <CustomBuild Include="D:\workspace\DevilutionX\build2\_deps\libpng-subbuild\CMakeFiles\5d74e3b2d9de42c867ed2f4815aa4135\generate.stamp.rule">
+      <Filter>CMake Rules</Filter>
+    </CustomBuild>
+  </ItemGroup>
+  <ItemGroup>
+    <Filter Include="CMake Rules">
+      <UniqueIdentifier>{66855019-0C05-3AEC-9605-E102642FB4ED}</UniqueIdentifier>
+    </Filter>
+  </ItemGroup>
+</Project>

@@ -1174,34 +1174,6 @@ int GetMinHit()
 		return 15;
 	}
 }
-
-static void ApplyShieldMasterBash(Monster &monster, Player &player)
-{
-	if (!HasActiveMark(player, MasterMarkId::ShieldMaster))
-		return;
-	int bashDmg = GetShieldArmor(player) * 30 / 100;
-	if (bashDmg < 1)
-		bashDmg = 1;
-	bashDmg <<= 6;
-	ApplyMonsterDamage(DamageType::Physical, monster, bashDmg);
-	monster.flags |= MFLAG_KNOCKBACK;
-	if (monster.hasNoLife())
-		M_StartKill(monster, player);
-	else
-		M_StartHit(monster, player, bashDmg);
-}
-
-static void ApplyAvengerRetaliate(Monster &monster, Player &player, int dam)
-{
-	if (!HasActiveMark(player, MasterMarkId::Avenger))
-		return;
-	int retDmg = dam / 2;
-	if (retDmg < 64)
-		retDmg = 64;
-	ApplyMonsterDamage(DamageType::Physical, monster, retDmg);
-	if (monster.hasNoLife())
-		M_StartKill(monster, player);
-	else
 		M_StartHit(monster, player, retDmg);
 }
 
@@ -1244,7 +1216,7 @@ void MonsterAttackPlayer(Monster &monster, Player &player, int hit, int minDam, 
 				dam = std::max(dam + (player._pIGetHit << 6), 64);
 				CheckReflect(monster, player, dam);
 			}
-			ApplyShieldMasterBash(monster, player);
+			// ApplyShieldMasterBash removed — see WarriorMarks in mastermark_warrior.cpp
 		}
 		return;
 	}
@@ -1260,8 +1232,7 @@ void MonsterAttackPlayer(Monster &monster, Player &player, int hit, int minDam, 
 			dam = std::max(dam - reflectedDamage, 0);
 		}
 		ApplyPlrDamage(DamageType::Physical, player, 0, 0, dam);
-		if (monster.mode != MonsterMode::Death)
-			ApplyAvengerRetaliate(monster, player, dam);
+		// ApplyAvengerRetaliate removed — see WarriorMarks in mastermark_warrior.cpp
 	}
 
 	// Reflect can also kill a monster, so make sure the monster is still alive
@@ -3961,11 +3932,11 @@ void ApplyMonsterDamage(DamageType damageType, Monster &monster, int damage)
 		if (monster.data().monsterClass == MonsterClass::Animal)
 			damage = damage * 3 / 2;
 		// Apply poison DoT via buff system
-		monster.buffable.Apply(BuffType::Poison, static_cast<int16_t>(damage / 3), 3 * 60, -1, 5);
+		monster.buffable.Apply(BuffType::Poison, static_cast<int16_t>(damage / 3), 3 * 60, -1);
 		break;
 	case DamageType::Cold:
-		// Apply chill slow via buff system (max 3 stacks)
-		monster.buffable.Apply(BuffType::Chill, 20, 4 * 60, -1, 3);
+		// Apply chill slow via buff system
+		monster.buffable.Apply(BuffType::Chill, 20, 4 * 60, -1);
 		break;
 	default:
 		break;
@@ -4154,18 +4125,7 @@ void KillGolem(Monster &golem)
 
 void M_StartKill(Monster &monster, const Player &player)
 {
-	// Commander mark: Fear enemies within 2 tiles
-	if (&player == MyPlayer && player.isOnActiveLevel() && HasActiveMark(player, MasterMarkId::Commander)) {
-		for (size_t i = 0; i < MaxMonsters; i++) {
-			Monster &target = Monsters[i];
-			if (&target == &monster || target.isInvalid || target.mode == MonsterMode::Death)
-				continue;
-			if (monster.position.tile.ManhattanDistance(target.position.tile) <= 2) {
-				target.buffable.Apply(BuffType::Fear, 0, 40, -1);
-			}
-		}
-	}
-
+	// Commander mark fear removed — see mastermark design spec
 	StartMonsterDeath(monster, player, true);
 }
 

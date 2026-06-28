@@ -1,0 +1,302 @@
+﻿<?xml version="1.0" encoding="utf-8"?>
+<Project DefaultTargets="Build" ToolsVersion="17.0" xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
+  <PropertyGroup>
+    <PreferredToolArchitecture>x64</PreferredToolArchitecture>
+  </PropertyGroup>
+  <ItemGroup Label="ProjectConfigurations">
+    <ProjectConfiguration Include="Debug|x64">
+      <Configuration>Debug</Configuration>
+      <Platform>x64</Platform>
+    </ProjectConfiguration>
+  </ItemGroup>
+  <PropertyGroup Label="Globals">
+    <ProjectGuid>{C546318C-9465-33B2-94BF-A503F2193614}</ProjectGuid>
+    <Keyword>Win32Proj</Keyword>
+    <WindowsTargetPlatformVersion>10.0.22621.0</WindowsTargetPlatformVersion>
+    <Platform>x64</Platform>
+    <ProjectName>libpng-populate</ProjectName>
+    <VCProjectUpgraderObjectName>NoUpgrade</VCProjectUpgraderObjectName>
+  </PropertyGroup>
+  <Import Project="$(VCTargetsPath)\Microsoft.Cpp.Default.props" />
+  <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Debug|x64'" Label="Configuration">
+    <ConfigurationType>Utility</ConfigurationType>
+    <CharacterSet>MultiByte</CharacterSet>
+    <PlatformToolset>v143</PlatformToolset>
+    <UseDebugLibraries>true</UseDebugLibraries>
+  </PropertyGroup>
+  <Import Project="$(VCTargetsPath)\Microsoft.Cpp.props" />
+  <ImportGroup Label="ExtensionSettings">
+  </ImportGroup>
+  <ImportGroup Label="PropertySheets">
+    <Import Project="$(UserRootDir)\Microsoft.Cpp.$(Platform).user.props" Condition="exists('$(UserRootDir)\Microsoft.Cpp.$(Platform).user.props')" Label="LocalAppDataPlatform" />
+  </ImportGroup>
+  <PropertyGroup Label="UserMacros" />
+  <PropertyGroup>
+    <_ProjectFileVersion>10.0.20506.1</_ProjectFileVersion>
+    <IntDir Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">$(Platform)\$(Configuration)\$(ProjectName)\</IntDir>
+  </PropertyGroup>
+  <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">
+    <Midl>
+      <AdditionalIncludeDirectories>%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
+      <OutputDirectory>$(ProjectDir)/$(IntDir)</OutputDirectory>
+      <HeaderFileName>%(Filename).h</HeaderFileName>
+      <TypeLibraryName>%(Filename).tlb</TypeLibraryName>
+      <InterfaceIdentifierFileName>%(Filename)_i.c</InterfaceIdentifierFileName>
+      <ProxyFileName>%(Filename)_p.c</ProxyFileName>
+    </Midl>
+  </ItemDefinitionGroup>
+  <ItemGroup>
+    <CustomBuild Include="D:\workspace\DevilutionX\build2\_deps\libpng-subbuild\CMakeFiles\6d45cc26c499f5641c0200d6c4af0fd1\libpng-populate-mkdir.rule">
+      <BuildInParallel Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">true</BuildInParallel>
+      <Message Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">Creating directories for 'libpng-populate'</Message>
+      <Command Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">setlocal
+"D:\Program Files\CMake\bin\cmake.exe" -Dcfgdir=/Debug -P D:/workspace/DevilutionX/build2/_deps/libpng-subbuild/libpng-populate-prefix/tmp/libpng-populate-mkdirs.cmake
+if %errorlevel% neq 0 goto :cmEnd
+"D:\Program Files\CMake\bin\cmake.exe" -E touch D:/workspace/DevilutionX/build2/_deps/libpng-subbuild/libpng-populate-prefix/src/libpng-populate-stamp/Debug/libpng-populate-mkdir
+if %errorlevel% neq 0 goto :cmEnd
+:cmEnd
+endlocal &amp; call :cmErrorLevel %errorlevel% &amp; goto :cmDone
+:cmErrorLevel
+exit /b %1
+:cmDone
+if %errorlevel% neq 0 goto :VCEnd</Command>
+      <AdditionalInputs Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">%(AdditionalInputs)</AdditionalInputs>
+      <Outputs Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">D:\workspace\DevilutionX\build2\_deps\libpng-subbuild\libpng-populate-prefix\src\libpng-populate-stamp\Debug\libpng-populate-mkdir</Outputs>
+      <LinkObjects Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">false</LinkObjects>
+    </CustomBuild>
+  </ItemGroup>
+  <ItemGroup>
+    <CustomBuild Include="D:\workspace\DevilutionX\build2\_deps\libpng-subbuild\CMakeFiles\6d45cc26c499f5641c0200d6c4af0fd1\libpng-populate-download.rule">
+      <Message Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">Performing download step (download, verify and extract) for 'libpng-populate'</Message>
+      <Command Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">setlocal
+cd D:\workspace\DevilutionX\build2\_deps
+if %errorlevel% neq 0 goto :cmEnd
+D:
+if %errorlevel% neq 0 goto :cmEnd
+"D:\Program Files\CMake\bin\cmake.exe" -DCMAKE_MESSAGE_LOG_LEVEL=VERBOSE -P D:/workspace/DevilutionX/build2/_deps/libpng-subbuild/libpng-populate-prefix/src/libpng-populate-stamp/download-libpng-populate.cmake
+if %errorlevel% neq 0 goto :cmEnd
+"D:\Program Files\CMake\bin\cmake.exe" -DCMAKE_MESSAGE_LOG_LEVEL=VERBOSE -P D:/workspace/DevilutionX/build2/_deps/libpng-subbuild/libpng-populate-prefix/src/libpng-populate-stamp/verify-libpng-populate.cmake
+if %errorlevel% neq 0 goto :cmEnd
+"D:\Program Files\CMake\bin\cmake.exe" -DCMAKE_MESSAGE_LOG_LEVEL=VERBOSE -P D:/workspace/DevilutionX/build2/_deps/libpng-subbuild/libpng-populate-prefix/src/libpng-populate-stamp/extract-libpng-populate.cmake
+if %errorlevel% neq 0 goto :cmEnd
+"D:\Program Files\CMake\bin\cmake.exe" -E touch D:/workspace/DevilutionX/build2/_deps/libpng-subbuild/libpng-populate-prefix/src/libpng-populate-stamp/Debug/libpng-populate-download
+if %errorlevel% neq 0 goto :cmEnd
+:cmEnd
+endlocal &amp; call :cmErrorLevel %errorlevel% &amp; goto :cmDone
+:cmErrorLevel
+exit /b %1
+:cmDone
+if %errorlevel% neq 0 goto :VCEnd</Command>
+      <AdditionalInputs Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">D:\workspace\DevilutionX\build2\_deps\libpng-subbuild\libpng-populate-prefix\src\libpng-populate-stamp\download-libpng-populate.cmake;D:\workspace\DevilutionX\build2\_deps\libpng-subbuild\libpng-populate-prefix\src\libpng-populate-stamp\libpng-populate-urlinfo.txt;D:\workspace\DevilutionX\build2\_deps\libpng-subbuild\libpng-populate-prefix\src\libpng-populate-stamp\Debug\libpng-populate-mkdir;%(AdditionalInputs)</AdditionalInputs>
+      <Outputs Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">D:\workspace\DevilutionX\build2\_deps\libpng-subbuild\libpng-populate-prefix\src\libpng-populate-stamp\Debug\libpng-populate-download</Outputs>
+      <LinkObjects Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">false</LinkObjects>
+    </CustomBuild>
+  </ItemGroup>
+  <ItemGroup>
+    <CustomBuild Include="D:\workspace\DevilutionX\build2\_deps\libpng-subbuild\CMakeFiles\6d45cc26c499f5641c0200d6c4af0fd1\libpng-populate-update.rule">
+      <Message Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">No update step for 'libpng-populate'</Message>
+      <Command Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">setlocal
+"D:\Program Files\CMake\bin\cmake.exe" -E echo_append
+if %errorlevel% neq 0 goto :cmEnd
+"D:\Program Files\CMake\bin\cmake.exe" -E touch D:/workspace/DevilutionX/build2/_deps/libpng-subbuild/libpng-populate-prefix/src/libpng-populate-stamp/Debug/libpng-populate-update
+if %errorlevel% neq 0 goto :cmEnd
+:cmEnd
+endlocal &amp; call :cmErrorLevel %errorlevel% &amp; goto :cmDone
+:cmErrorLevel
+exit /b %1
+:cmDone
+if %errorlevel% neq 0 goto :VCEnd</Command>
+      <AdditionalInputs Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">D:\workspace\DevilutionX\build2\_deps\libpng-subbuild\libpng-populate-prefix\src\libpng-populate-stamp\libpng-populate-update-info.txt;D:\workspace\DevilutionX\build2\_deps\libpng-subbuild\libpng-populate-prefix\src\libpng-populate-stamp\Debug\libpng-populate-download;%(AdditionalInputs)</AdditionalInputs>
+      <Outputs Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">D:\workspace\DevilutionX\build2\_deps\libpng-subbuild\libpng-populate-prefix\src\libpng-populate-stamp\Debug\libpng-populate-update</Outputs>
+      <LinkObjects Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">false</LinkObjects>
+    </CustomBuild>
+  </ItemGroup>
+  <ItemGroup>
+    <CustomBuild Include="D:\workspace\DevilutionX\build2\_deps\libpng-subbuild\CMakeFiles\6d45cc26c499f5641c0200d6c4af0fd1\libpng-populate-patch.rule">
+      <Message Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">No patch step for 'libpng-populate'</Message>
+      <Command Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">setlocal
+"D:\Program Files\CMake\bin\cmake.exe" -E echo_append
+if %errorlevel% neq 0 goto :cmEnd
+"D:\Program Files\CMake\bin\cmake.exe" -E touch D:/workspace/DevilutionX/build2/_deps/libpng-subbuild/libpng-populate-prefix/src/libpng-populate-stamp/Debug/libpng-populate-patch
+if %errorlevel% neq 0 goto :cmEnd
+:cmEnd
+endlocal &amp; call :cmErrorLevel %errorlevel% &amp; goto :cmDone
+:cmErrorLevel
+exit /b %1
+:cmDone
+if %errorlevel% neq 0 goto :VCEnd</Command>
+      <AdditionalInputs Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">D:\workspace\DevilutionX\build2\_deps\libpng-subbuild\libpng-populate-prefix\src\libpng-populate-stamp\libpng-populate-patch-info.txt;D:\workspace\DevilutionX\build2\_deps\libpng-subbuild\libpng-populate-prefix\src\libpng-populate-stamp\Debug\libpng-populate-update;%(AdditionalInputs)</AdditionalInputs>
+      <Outputs Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">D:\workspace\DevilutionX\build2\_deps\libpng-subbuild\libpng-populate-prefix\src\libpng-populate-stamp\Debug\libpng-populate-patch</Outputs>
+      <LinkObjects Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">false</LinkObjects>
+    </CustomBuild>
+  </ItemGroup>
+  <ItemGroup>
+    <CustomBuild Include="D:\workspace\DevilutionX\build2\_deps\libpng-subbuild\CMakeFiles\6d45cc26c499f5641c0200d6c4af0fd1\libpng-populate-configure.rule">
+      <BuildInParallel Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">true</BuildInParallel>
+      <Message Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">No configure step for 'libpng-populate'</Message>
+      <Command Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">setlocal
+cd D:\workspace\DevilutionX\build2\_deps\libpng-build
+if %errorlevel% neq 0 goto :cmEnd
+D:
+if %errorlevel% neq 0 goto :cmEnd
+"D:\Program Files\CMake\bin\cmake.exe" -E echo_append
+if %errorlevel% neq 0 goto :cmEnd
+"D:\Program Files\CMake\bin\cmake.exe" -E touch D:/workspace/DevilutionX/build2/_deps/libpng-subbuild/libpng-populate-prefix/src/libpng-populate-stamp/Debug/libpng-populate-configure
+if %errorlevel% neq 0 goto :cmEnd
+:cmEnd
+endlocal &amp; call :cmErrorLevel %errorlevel% &amp; goto :cmDone
+:cmErrorLevel
+exit /b %1
+:cmDone
+if %errorlevel% neq 0 goto :VCEnd</Command>
+      <AdditionalInputs Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">D:\workspace\DevilutionX\build2\_deps\libpng-subbuild\libpng-populate-prefix\tmp\libpng-populate-cfgcmd.txt;D:\workspace\DevilutionX\build2\_deps\libpng-subbuild\libpng-populate-prefix\src\libpng-populate-stamp\Debug\libpng-populate-patch;%(AdditionalInputs)</AdditionalInputs>
+      <Outputs Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">D:\workspace\DevilutionX\build2\_deps\libpng-subbuild\libpng-populate-prefix\src\libpng-populate-stamp\Debug\libpng-populate-configure</Outputs>
+      <LinkObjects Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">false</LinkObjects>
+    </CustomBuild>
+  </ItemGroup>
+  <ItemGroup>
+    <CustomBuild Include="D:\workspace\DevilutionX\build2\_deps\libpng-subbuild\CMakeFiles\6d45cc26c499f5641c0200d6c4af0fd1\libpng-populate-build.rule">
+      <BuildInParallel Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">true</BuildInParallel>
+      <Message Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">No build step for 'libpng-populate'</Message>
+      <Command Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">setlocal
+cd D:\workspace\DevilutionX\build2\_deps\libpng-build
+if %errorlevel% neq 0 goto :cmEnd
+D:
+if %errorlevel% neq 0 goto :cmEnd
+"D:\Program Files\CMake\bin\cmake.exe" -E echo_append
+if %errorlevel% neq 0 goto :cmEnd
+"D:\Program Files\CMake\bin\cmake.exe" -E touch D:/workspace/DevilutionX/build2/_deps/libpng-subbuild/libpng-populate-prefix/src/libpng-populate-stamp/Debug/libpng-populate-build
+if %errorlevel% neq 0 goto :cmEnd
+:cmEnd
+endlocal &amp; call :cmErrorLevel %errorlevel% &amp; goto :cmDone
+:cmErrorLevel
+exit /b %1
+:cmDone
+if %errorlevel% neq 0 goto :VCEnd</Command>
+      <AdditionalInputs Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">D:\workspace\DevilutionX\build2\_deps\libpng-subbuild\libpng-populate-prefix\src\libpng-populate-stamp\Debug\libpng-populate-configure;%(AdditionalInputs)</AdditionalInputs>
+      <Outputs Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">D:\workspace\DevilutionX\build2\_deps\libpng-subbuild\libpng-populate-prefix\src\libpng-populate-stamp\Debug\libpng-populate-build</Outputs>
+      <LinkObjects Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">false</LinkObjects>
+    </CustomBuild>
+  </ItemGroup>
+  <ItemGroup>
+    <CustomBuild Include="D:\workspace\DevilutionX\build2\_deps\libpng-subbuild\CMakeFiles\6d45cc26c499f5641c0200d6c4af0fd1\libpng-populate-install.rule">
+      <BuildInParallel Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">true</BuildInParallel>
+      <Message Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">No install step for 'libpng-populate'</Message>
+      <Command Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">setlocal
+cd D:\workspace\DevilutionX\build2\_deps\libpng-build
+if %errorlevel% neq 0 goto :cmEnd
+D:
+if %errorlevel% neq 0 goto :cmEnd
+"D:\Program Files\CMake\bin\cmake.exe" -E echo_append
+if %errorlevel% neq 0 goto :cmEnd
+"D:\Program Files\CMake\bin\cmake.exe" -E touch D:/workspace/DevilutionX/build2/_deps/libpng-subbuild/libpng-populate-prefix/src/libpng-populate-stamp/Debug/libpng-populate-install
+if %errorlevel% neq 0 goto :cmEnd
+:cmEnd
+endlocal &amp; call :cmErrorLevel %errorlevel% &amp; goto :cmDone
+:cmErrorLevel
+exit /b %1
+:cmDone
+if %errorlevel% neq 0 goto :VCEnd</Command>
+      <AdditionalInputs Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">D:\workspace\DevilutionX\build2\_deps\libpng-subbuild\libpng-populate-prefix\src\libpng-populate-stamp\Debug\libpng-populate-build;%(AdditionalInputs)</AdditionalInputs>
+      <Outputs Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">D:\workspace\DevilutionX\build2\_deps\libpng-subbuild\libpng-populate-prefix\src\libpng-populate-stamp\Debug\libpng-populate-install</Outputs>
+      <LinkObjects Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">false</LinkObjects>
+    </CustomBuild>
+  </ItemGroup>
+  <ItemGroup>
+    <CustomBuild Include="D:\workspace\DevilutionX\build2\_deps\libpng-subbuild\CMakeFiles\6d45cc26c499f5641c0200d6c4af0fd1\libpng-populate-test.rule">
+      <BuildInParallel Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">true</BuildInParallel>
+      <Message Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">No test step for 'libpng-populate'</Message>
+      <Command Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">setlocal
+cd D:\workspace\DevilutionX\build2\_deps\libpng-build
+if %errorlevel% neq 0 goto :cmEnd
+D:
+if %errorlevel% neq 0 goto :cmEnd
+"D:\Program Files\CMake\bin\cmake.exe" -E echo_append
+if %errorlevel% neq 0 goto :cmEnd
+"D:\Program Files\CMake\bin\cmake.exe" -E touch D:/workspace/DevilutionX/build2/_deps/libpng-subbuild/libpng-populate-prefix/src/libpng-populate-stamp/Debug/libpng-populate-test
+if %errorlevel% neq 0 goto :cmEnd
+:cmEnd
+endlocal &amp; call :cmErrorLevel %errorlevel% &amp; goto :cmDone
+:cmErrorLevel
+exit /b %1
+:cmDone
+if %errorlevel% neq 0 goto :VCEnd</Command>
+      <AdditionalInputs Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">D:\workspace\DevilutionX\build2\_deps\libpng-subbuild\libpng-populate-prefix\src\libpng-populate-stamp\Debug\libpng-populate-install;%(AdditionalInputs)</AdditionalInputs>
+      <Outputs Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">D:\workspace\DevilutionX\build2\_deps\libpng-subbuild\libpng-populate-prefix\src\libpng-populate-stamp\Debug\libpng-populate-test</Outputs>
+      <LinkObjects Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">false</LinkObjects>
+    </CustomBuild>
+  </ItemGroup>
+  <ItemGroup>
+    <CustomBuild Include="D:\workspace\DevilutionX\build2\_deps\libpng-subbuild\CMakeFiles\0e91f04f479fc595fbb4deb0998cc206\libpng-populate-complete.rule">
+      <BuildInParallel Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">true</BuildInParallel>
+      <Message Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">Completed 'libpng-populate'</Message>
+      <Command Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">setlocal
+"D:\Program Files\CMake\bin\cmake.exe" -E make_directory D:/workspace/DevilutionX/build2/_deps/libpng-subbuild/CMakeFiles/Debug
+if %errorlevel% neq 0 goto :cmEnd
+"D:\Program Files\CMake\bin\cmake.exe" -E touch D:/workspace/DevilutionX/build2/_deps/libpng-subbuild/CMakeFiles/Debug/libpng-populate-complete
+if %errorlevel% neq 0 goto :cmEnd
+"D:\Program Files\CMake\bin\cmake.exe" -E touch D:/workspace/DevilutionX/build2/_deps/libpng-subbuild/libpng-populate-prefix/src/libpng-populate-stamp/Debug/libpng-populate-done
+if %errorlevel% neq 0 goto :cmEnd
+:cmEnd
+endlocal &amp; call :cmErrorLevel %errorlevel% &amp; goto :cmDone
+:cmErrorLevel
+exit /b %1
+:cmDone
+if %errorlevel% neq 0 goto :VCEnd</Command>
+      <AdditionalInputs Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">D:\workspace\DevilutionX\build2\_deps\libpng-subbuild\libpng-populate-prefix\src\libpng-populate-stamp\Debug\libpng-populate-install;D:\workspace\DevilutionX\build2\_deps\libpng-subbuild\libpng-populate-prefix\src\libpng-populate-stamp\Debug\libpng-populate-mkdir;D:\workspace\DevilutionX\build2\_deps\libpng-subbuild\libpng-populate-prefix\src\libpng-populate-stamp\Debug\libpng-populate-download;D:\workspace\DevilutionX\build2\_deps\libpng-subbuild\libpng-populate-prefix\src\libpng-populate-stamp\Debug\libpng-populate-update;D:\workspace\DevilutionX\build2\_deps\libpng-subbuild\libpng-populate-prefix\src\libpng-populate-stamp\Debug\libpng-populate-patch;D:\workspace\DevilutionX\build2\_deps\libpng-subbuild\libpng-populate-prefix\src\libpng-populate-stamp\Debug\libpng-populate-configure;D:\workspace\DevilutionX\build2\_deps\libpng-subbuild\libpng-populate-prefix\src\libpng-populate-stamp\Debug\libpng-populate-build;D:\workspace\DevilutionX\build2\_deps\libpng-subbuild\libpng-populate-prefix\src\libpng-populate-stamp\Debug\libpng-populate-test;%(AdditionalInputs)</AdditionalInputs>
+      <Outputs Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">D:\workspace\DevilutionX\build2\_deps\libpng-subbuild\CMakeFiles\Debug\libpng-populate-complete</Outputs>
+      <LinkObjects Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">false</LinkObjects>
+    </CustomBuild>
+  </ItemGroup>
+  <ItemGroup>
+    <CustomBuild Include="D:\workspace\DevilutionX\build2\_deps\libpng-subbuild\CMakeFiles\5d74e3b2d9de42c867ed2f4815aa4135\libpng-populate.rule">
+      <BuildInParallel Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">true</BuildInParallel>
+      <Message Condition="'$(Configuration)|$(Platform)'=='Debug|x64'"></Message>
+      <Command Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">setlocal
+:cmEnd
+endlocal &amp; call :cmErrorLevel %errorlevel% &amp; goto :cmDone
+:cmErrorLevel
+exit /b %1
+:cmDone
+if %errorlevel% neq 0 goto :VCEnd</Command>
+      <AdditionalInputs Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">D:\workspace\DevilutionX\build2\_deps\libpng-subbuild\CMakeFiles\Debug\libpng-populate-complete;%(AdditionalInputs)</AdditionalInputs>
+      <Outputs Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">D:\workspace\DevilutionX\build2\_deps\libpng-subbuild\CMakeFiles\libpng-populate</Outputs>
+      <LinkObjects Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">false</LinkObjects>
+      <VerifyInputsAndOutputsExist Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">false</VerifyInputsAndOutputsExist>
+    </CustomBuild>
+  </ItemGroup>
+  <ItemGroup>
+    <CustomBuild Include="D:\workspace\DevilutionX\build2\_deps\libpng-subbuild\CMakeLists.txt">
+      <UseUtf8Encoding>Always</UseUtf8Encoding>
+      <Message Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">Building Custom Rule D:/workspace/DevilutionX/build2/_deps/libpng-subbuild/CMakeLists.txt</Message>
+      <Command Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">setlocal
+"D:\Program Files\CMake\bin\cmake.exe" -SD:/workspace/DevilutionX/build2/_deps/libpng-subbuild -BD:/workspace/DevilutionX/build2/_deps/libpng-subbuild --check-stamp-file D:/workspace/DevilutionX/build2/_deps/libpng-subbuild/CMakeFiles/generate.stamp
+if %errorlevel% neq 0 goto :cmEnd
+:cmEnd
+endlocal &amp; call :cmErrorLevel %errorlevel% &amp; goto :cmDone
+:cmErrorLevel
+exit /b %1
+:cmDone
+if %errorlevel% neq 0 goto :VCEnd</Command>
+      <AdditionalInputs Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">D:\Program Files\CMake\share\cmake-4.0\Modules\CMakeDetermineSystem.cmake;D:\Program Files\CMake\share\cmake-4.0\Modules\CMakeGenericSystem.cmake;D:\Program Files\CMake\share\cmake-4.0\Modules\CMakeInitializeConfigs.cmake;D:\Program Files\CMake\share\cmake-4.0\Modules\CMakeSystem.cmake.in;D:\Program Files\CMake\share\cmake-4.0\Modules\CMakeSystemSpecificInformation.cmake;D:\Program Files\CMake\share\cmake-4.0\Modules\CMakeSystemSpecificInitialize.cmake;D:\Program Files\CMake\share\cmake-4.0\Modules\ExternalProject.cmake;D:\Program Files\CMake\share\cmake-4.0\Modules\ExternalProject\PatchInfo.txt.in;D:\Program Files\CMake\share\cmake-4.0\Modules\ExternalProject\RepositoryInfo.txt.in;D:\Program Files\CMake\share\cmake-4.0\Modules\ExternalProject\UpdateInfo.txt.in;D:\Program Files\CMake\share\cmake-4.0\Modules\ExternalProject\cfgcmd.txt.in;D:\Program Files\CMake\share\cmake-4.0\Modules\ExternalProject\download.cmake.in;D:\Program Files\CMake\share\cmake-4.0\Modules\ExternalProject\extractfile.cmake.in;D:\Program Files\CMake\share\cmake-4.0\Modules\ExternalProject\mkdirs.cmake.in;D:\Program Files\CMake\share\cmake-4.0\Modules\ExternalProject\shared_internal_commands.cmake;D:\Program Files\CMake\share\cmake-4.0\Modules\Platform\Windows-Initialize.cmake;D:\Program Files\CMake\share\cmake-4.0\Modules\Platform\Windows.cmake;D:\Program Files\CMake\share\cmake-4.0\Modules\Platform\WindowsPaths.cmake;D:\workspace\DevilutionX\build2\_deps\libpng-subbuild\CMakeFiles\4.0.1\CMakeSystem.cmake;D:\workspace\DevilutionX\build2\_deps\libpng-subbuild\libpng-populate-prefix\tmp\libpng-populate-mkdirs.cmake;%(AdditionalInputs)</AdditionalInputs>
+      <Outputs Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">D:\workspace\DevilutionX\build2\_deps\libpng-subbuild\CMakeFiles\generate.stamp</Outputs>
+      <LinkObjects Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">false</LinkObjects>
+    </CustomBuild>
+  </ItemGroup>
+  <ItemGroup>
+    <None Include="D:\workspace\DevilutionX\build2\_deps\libpng-subbuild\CMakeFiles\libpng-populate">
+    </None>
+  </ItemGroup>
+  <ItemGroup />
+  <ItemGroup>
+    <ProjectReference Include="D:\workspace\DevilutionX\build2\_deps\libpng-subbuild\ZERO_CHECK.vcxproj">
+      <Project>{AFB9D59D-91C1-3C4E-92B9-B3C1A21B58DA}</Project>
+      <Name>ZERO_CHECK</Name>
+      <ReferenceOutputAssembly>false</ReferenceOutputAssembly>
+      <CopyToOutputDirectory>Never</CopyToOutputDirectory>
+    </ProjectReference>
+  </ItemGroup>
+  <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />
+  <ImportGroup Label="ExtensionTargets">
+  </ImportGroup>
+</Project>

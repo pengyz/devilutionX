@@ -1,0 +1,44 @@
+﻿<?xml version="1.0" encoding="utf-8"?>
+<Project ToolsVersion="17.0" xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
+  <ItemGroup>
+    <CustomBuild Include="D:\workspace\DevilutionX\build2\_deps\lua-subbuild\CMakeFiles\a0468c506e450de1c68fee9777694f1a\lua-populate-mkdir.rule">
+      <Filter>CMake Rules</Filter>
+    </CustomBuild>
+    <CustomBuild Include="D:\workspace\DevilutionX\build2\_deps\lua-subbuild\CMakeFiles\a0468c506e450de1c68fee9777694f1a\lua-populate-download.rule">
+      <Filter>CMake Rules</Filter>
+    </CustomBuild>
+    <CustomBuild Include="D:\workspace\DevilutionX\build2\_deps\lua-subbuild\CMakeFiles\a0468c506e450de1c68fee9777694f1a\lua-populate-update.rule">
+      <Filter>CMake Rules</Filter>
+    </CustomBuild>
+    <CustomBuild Include="D:\workspace\DevilutionX\build2\_deps\lua-subbuild\CMakeFiles\a0468c506e450de1c68fee9777694f1a\lua-populate-patch.rule">
+      <Filter>CMake Rules</Filter>
+    </CustomBuild>
+    <CustomBuild Include="D:\workspace\DevilutionX\build2\_deps\lua-subbuild\CMakeFiles\a0468c506e450de1c68fee9777694f1a\lua-populate-configure.rule">
+      <Filter>CMake Rules</Filter>
+    </CustomBuild>
+    <CustomBuild Include="D:\workspace\DevilutionX\build2\_deps\lua-subbuild\CMakeFiles\a0468c506e450de1c68fee9777694f1a\lua-populate-build.rule">
+      <Filter>CMake Rules</Filter>
+    </CustomBuild>
+    <CustomBuild Include="D:\workspace\DevilutionX\build2\_deps\lua-subbuild\CMakeFiles\a0468c506e450de1c68fee9777694f1a\lua-populate-install.rule">
+      <Filter>CMake Rules</Filter>
+    </CustomBuild>
+    <CustomBuild Include="D:\workspace\DevilutionX\build2\_deps\lua-subbuild\CMakeFiles\a0468c506e450de1c68fee9777694f1a\lua-populate-test.rule">
+      <Filter>CMake Rules</Filter>
+    </CustomBuild>
+    <CustomBuild Include="D:\workspace\DevilutionX\build2\_deps\lua-subbuild\CMakeFiles\6f942c38875255561cd7ffbec699bf08\lua-populate-complete.rule">
+      <Filter>CMake Rules</Filter>
+    </CustomBuild>
+    <CustomBuild Include="D:\workspace\DevilutionX\build2\_deps\lua-subbuild\CMakeFiles\c5e4a32c32e13de7c7f8b06c47665d7b\lua-populate.rule">
+      <Filter>CMake Rules</Filter>
+    </CustomBuild>
+    <CustomBuild Include="D:\workspace\DevilutionX\build2\_deps\lua-subbuild\CMakeLists.txt" />
+  </ItemGroup>
+  <ItemGroup>
+    <None Include="D:\workspace\DevilutionX\build2\_deps\lua-subbuild\CMakeFiles\lua-populate" />
+  </ItemGroup>
+  <ItemGroup>
+    <Filter Include="CMake Rules">
+      <UniqueIdentifier>{94A07157-50D6-3825-B588-514CA7756839}</UniqueIdentifier>
+    </Filter>
+  </ItemGroup>
+</Project>

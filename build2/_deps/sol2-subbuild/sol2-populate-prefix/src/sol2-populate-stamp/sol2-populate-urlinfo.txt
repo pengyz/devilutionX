@@ -1,0 +1,12 @@
+# This is a generated file and its contents are an internal implementation detail.
+# The download step will be re-executed if anything in this file changes.
+# No other meaning or use of this file is supported.
+
+method=url
+command=D:/Program Files/CMake/bin/cmake.exe;-DCMAKE_MESSAGE_LOG_LEVEL=VERBOSE;-P;D:/workspace/DevilutionX/build2/_deps/sol2-subbuild/sol2-populate-prefix/src/sol2-populate-stamp/download-sol2-populate.cmake;COMMAND;D:/Program Files/CMake/bin/cmake.exe;-DCMAKE_MESSAGE_LOG_LEVEL=VERBOSE;-P;D:/workspace/DevilutionX/build2/_deps/sol2-subbuild/sol2-populate-prefix/src/sol2-populate-stamp/verify-sol2-populate.cmake;COMMAND;D:/Program Files/CMake/bin/cmake.exe;-DCMAKE_MESSAGE_LOG_LEVEL=VERBOSE;-P;D:/workspace/DevilutionX/build2/_deps/sol2-subbuild/sol2-populate-prefix/src/sol2-populate-stamp/extract-sol2-populate.cmake
+source_dir=D:/workspace/DevilutionX/build2/_deps/sol2-src
+work_dir=D:/workspace/DevilutionX/build2/_deps
+url(s)=https://github.com/diasurgical/sol2/archive/832ac772c2cd3d9620d447e9e77897f7b5e806e3.tar.gz
+hash=MD5=06c9c0f3242ee803f50e8fd210fdfe4e
+      no_extract=
+

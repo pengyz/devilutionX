@@ -672,8 +672,8 @@ void LoadUniqueItemDatFromFile(DataFile &dataFile, std::string_view filename, in
 		item.mappingId = currentMappingId;
 
 		// Parse setId/setPiece (default -1/-1 if empty)
-		reader.readOptionalInt("setId", item.iSetId, -1);
-		reader.readOptionalInt("setPiece", item.iSetPiece, -1);
+		reader.readOptionalInt("setId", item.iSetId);
+		reader.readOptionalInt("setPiece", item.iSetPiece);
 
 		// Parse procFlags (IPL name, parsed via existing string→enum mapper)
 		std::string pfStr;
@@ -687,7 +687,7 @@ void LoadUniqueItemDatFromFile(DataFile &dataFile, std::string_view filename, in
 				}
 			}
 		}
-		reader.readOptionalInt("procChance", item.iProcChance, 0);
+		reader.readOptionalInt("procChance", item.iProcChance);
 
 		const auto [it, inserted] = UniqueItemMappingIdsToIndices.emplace(item.mappingId, static_cast<int32_t>(UniqueItems.size()) - 1);
 		if (!inserted) {

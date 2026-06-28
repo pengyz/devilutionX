@@ -1,0 +1,3 @@
+D:/workspace/DevilutionX/build2/_deps/libpng-subbuild/CMakeFiles/libpng-populate.dir
+D:/workspace/DevilutionX/build2/_deps/libpng-subbuild/CMakeFiles/ALL_BUILD.dir
+D:/workspace/DevilutionX/build2/_deps/libpng-subbuild/CMakeFiles/ZERO_CHECK.dir

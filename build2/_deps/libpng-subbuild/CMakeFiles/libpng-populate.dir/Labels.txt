@@ -1,0 +1,14 @@
+# Target labels
+ libpng-populate
+# Source files and their labels
+D:/workspace/DevilutionX/build2/_deps/libpng-subbuild/CMakeFiles/libpng-populate
+D:/workspace/DevilutionX/build2/_deps/libpng-subbuild/CMakeFiles/5d74e3b2d9de42c867ed2f4815aa4135/libpng-populate.rule
+D:/workspace/DevilutionX/build2/_deps/libpng-subbuild/CMakeFiles/0e91f04f479fc595fbb4deb0998cc206/libpng-populate-complete.rule
+D:/workspace/DevilutionX/build2/_deps/libpng-subbuild/CMakeFiles/6d45cc26c499f5641c0200d6c4af0fd1/libpng-populate-build.rule
+D:/workspace/DevilutionX/build2/_deps/libpng-subbuild/CMakeFiles/6d45cc26c499f5641c0200d6c4af0fd1/libpng-populate-configure.rule
+D:/workspace/DevilutionX/build2/_deps/libpng-subbuild/CMakeFiles/6d45cc26c499f5641c0200d6c4af0fd1/libpng-populate-download.rule
+D:/workspace/DevilutionX/build2/_deps/libpng-subbuild/CMakeFiles/6d45cc26c499f5641c0200d6c4af0fd1/libpng-populate-install.rule
+D:/workspace/DevilutionX/build2/_deps/libpng-subbuild/CMakeFiles/6d45cc26c499f5641c0200d6c4af0fd1/libpng-populate-mkdir.rule
+D:/workspace/DevilutionX/build2/_deps/libpng-subbuild/CMakeFiles/6d45cc26c499f5641c0200d6c4af0fd1/libpng-populate-patch.rule
+D:/workspace/DevilutionX/build2/_deps/libpng-subbuild/CMakeFiles/6d45cc26c499f5641c0200d6c4af0fd1/libpng-populate-test.rule
+D:/workspace/DevilutionX/build2/_deps/libpng-subbuild/CMakeFiles/6d45cc26c499f5641c0200d6c4af0fd1/libpng-populate-update.rule

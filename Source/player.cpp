@@ -645,8 +645,8 @@ bool PlrHitMonst(Player &player, Monster &monster, bool adjacentDamage = false)
 #endif
 		ApplyMonsterDamage(DamageType::Physical, monster, dam);
 
-		// Berserker mark: sweep all enemies in attack arc when HP < 30%
-		if (HasActiveMark(player, MasterMarkId::Berserker)) {
+	// CrimsonBrand mark (replaces old Berserker): sweep all enemies when HP < 30%
+	if (HasActiveMark(player, MasterMarkId::CrimsonBrand)) {
 			int hpPercent = player._pHitPoints * 100 / std::max(player._pMaxHP, 1);
 			if (hpPercent < 30) {
 				int sweepDam = dam / 2;

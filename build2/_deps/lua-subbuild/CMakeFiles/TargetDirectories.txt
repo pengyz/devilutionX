@@ -1,0 +1,3 @@
+D:/workspace/DevilutionX/build2/_deps/lua-subbuild/CMakeFiles/lua-populate.dir
+D:/workspace/DevilutionX/build2/_deps/lua-subbuild/CMakeFiles/ALL_BUILD.dir
+D:/workspace/DevilutionX/build2/_deps/lua-subbuild/CMakeFiles/ZERO_CHECK.dir

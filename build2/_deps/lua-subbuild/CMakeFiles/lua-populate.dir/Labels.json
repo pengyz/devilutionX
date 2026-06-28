@@ -1,0 +1,46 @@
+{
+	"sources" : 
+	[
+		{
+			"file" : "D:/workspace/DevilutionX/build2/_deps/lua-subbuild/CMakeFiles/lua-populate"
+		},
+		{
+			"file" : "D:/workspace/DevilutionX/build2/_deps/lua-subbuild/CMakeFiles/c5e4a32c32e13de7c7f8b06c47665d7b/lua-populate.rule"
+		},
+		{
+			"file" : "D:/workspace/DevilutionX/build2/_deps/lua-subbuild/CMakeFiles/6f942c38875255561cd7ffbec699bf08/lua-populate-complete.rule"
+		},
+		{
+			"file" : "D:/workspace/DevilutionX/build2/_deps/lua-subbuild/CMakeFiles/a0468c506e450de1c68fee9777694f1a/lua-populate-build.rule"
+		},
+		{
+			"file" : "D:/workspace/DevilutionX/build2/_deps/lua-subbuild/CMakeFiles/a0468c506e450de1c68fee9777694f1a/lua-populate-configure.rule"
+		},
+		{
+			"file" : "D:/workspace/DevilutionX/build2/_deps/lua-subbuild/CMakeFiles/a0468c506e450de1c68fee9777694f1a/lua-populate-download.rule"
+		},
+		{
+			"file" : "D:/workspace/DevilutionX/build2/_deps/lua-subbuild/CMakeFiles/a0468c506e450de1c68fee9777694f1a/lua-populate-install.rule"
+		},
+		{
+			"file" : "D:/workspace/DevilutionX/build2/_deps/lua-subbuild/CMakeFiles/a0468c506e450de1c68fee9777694f1a/lua-populate-mkdir.rule"
+		},
+		{
+			"file" : "D:/workspace/DevilutionX/build2/_deps/lua-subbuild/CMakeFiles/a0468c506e450de1c68fee9777694f1a/lua-populate-patch.rule"
+		},
+		{
+			"file" : "D:/workspace/DevilutionX/build2/_deps/lua-subbuild/CMakeFiles/a0468c506e450de1c68fee9777694f1a/lua-populate-test.rule"
+		},
+		{
+			"file" : "D:/workspace/DevilutionX/build2/_deps/lua-subbuild/CMakeFiles/a0468c506e450de1c68fee9777694f1a/lua-populate-update.rule"
+		}
+	],
+	"target" : 
+	{
+		"labels" : 
+		[
+			"lua-populate"
+		],
+		"name" : "lua-populate"
+	}
+}

@@ -2995,8 +2995,6 @@ void CalcPlrItemVals(Player &player, bool loadgfx)
 	CalcPlrAuricBonus(player);
 	RedrawComponent(PanelDrawComponent::Mana);
 	RedrawComponent(PanelDrawComponent::Health);
-	}
-
 	// Recalculate set item bonuses on equipment change
 	CheckSetBonuses(player);
 }
@@ -3011,9 +3009,9 @@ void CheckEquipmentProcsOnHit(Player &player, int &damage)
 	if (procFlags == 0) return;
 
 	// OnHit procs
-	if ((procFlags & (PROC_FIREBALL_ONHIT | PROC_CHAINLIGHT_ONHIT)) && RandomInt(100) < 9) {
+	if ((procFlags & (PROC_FIREBALL_ONHIT | PROC_CHAINLIGHT_ONHIT)) && GenerateRnd(100) < 9) {
 		// Fireball or chain lightning on hit
-		if ((procFlags & PROC_FIREBALL_ONHIT) && RandomInt(100) < 50)
+		if ((procFlags & PROC_FIREBALL_ONHIT) && GenerateRnd(100) < 50)
 			damage += 40; // Simplified: fireball damage bonus
 		else if (procFlags & PROC_CHAINLIGHT_ONHIT)
 			damage += 30; // Simplified: chain lightning bonus
@@ -3022,7 +3020,7 @@ void CheckEquipmentProcsOnHit(Player &player, int &damage)
 		player._pMana = std::min(player._pMana + damage * 5 / 100, player._pMaxMana);
 	if (procFlags & PROC_LIFESTEAL_ONHIT)
 		player._pHitPoints = std::min(player._pHitPoints + damage * 3 / 100, player._pMaxHP);
-	if ((procFlags & PROC_CONFUSE_ONHIT) && RandomInt(100) < 8) {
+	if ((procFlags & PROC_CONFUSE_ONHIT) && GenerateRnd(100) < 8) {
 		// Apply confuse via fear buff
 		// target.buffable.Apply(BuffType::Fear, 0, 2 * 60, player.getId());
 	}
@@ -3054,12 +3052,12 @@ void CheckEquipmentProcsOnDamaged(Player &player)
 	}
 	if (procFlags == 0) return;
 
-	if ((procFlags & PROC_FROSTNOVA_ONDAM) && RandomInt(100) < 5) {
+	if ((procFlags & PROC_FROSTNOVA_ONDAM) && GenerateRnd(100) < 5) {
 		// Simplified: apply chill to nearby enemies
 	}
-	if ((procFlags & PROC_MANASHIELD_ONDAM) && RandomInt(100) < 15)
+	if ((procFlags & PROC_MANASHIELD_ONDAM) && GenerateRnd(100) < 15)
 		player.pManaShield = true;
-	if ((procFlags & PROC_HASTE_ONDAM) && RandomInt(100) < 20)
+	if ((procFlags & PROC_HASTE_ONDAM) && GenerateRnd(100) < 20)
 		player.buffable.Apply(BuffType::DamageBoost, -15, 2 * 60, -1); // Placeholder: move speed boost
 }
 

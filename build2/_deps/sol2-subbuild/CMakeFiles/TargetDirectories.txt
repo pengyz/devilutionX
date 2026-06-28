@@ -1,0 +1,3 @@
+D:/workspace/DevilutionX/build2/_deps/sol2-subbuild/CMakeFiles/sol2-populate.dir
+D:/workspace/DevilutionX/build2/_deps/sol2-subbuild/CMakeFiles/ALL_BUILD.dir
+D:/workspace/DevilutionX/build2/_deps/sol2-subbuild/CMakeFiles/ZERO_CHECK.dir

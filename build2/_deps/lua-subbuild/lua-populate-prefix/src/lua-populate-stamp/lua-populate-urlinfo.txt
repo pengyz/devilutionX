@@ -1,0 +1,12 @@
+# This is a generated file and its contents are an internal implementation detail.
+# The download step will be re-executed if anything in this file changes.
+# No other meaning or use of this file is supported.
+
+method=url
+command=D:/Program Files/CMake/bin/cmake.exe;-DCMAKE_MESSAGE_LOG_LEVEL=VERBOSE;-P;D:/workspace/DevilutionX/build2/_deps/lua-subbuild/lua-populate-prefix/src/lua-populate-stamp/download-lua-populate.cmake;COMMAND;D:/Program Files/CMake/bin/cmake.exe;-DCMAKE_MESSAGE_LOG_LEVEL=VERBOSE;-P;D:/workspace/DevilutionX/build2/_deps/lua-subbuild/lua-populate-prefix/src/lua-populate-stamp/verify-lua-populate.cmake;COMMAND;D:/Program Files/CMake/bin/cmake.exe;-DCMAKE_MESSAGE_LOG_LEVEL=VERBOSE;-P;D:/workspace/DevilutionX/build2/_deps/lua-subbuild/lua-populate-prefix/src/lua-populate-stamp/extract-lua-populate.cmake
+source_dir=D:/workspace/DevilutionX/build2/_deps/lua-src
+work_dir=D:/workspace/DevilutionX/build2/_deps
+url(s)=https://github.com/walterschell/Lua/archive/3ed55a56eaa05c9221f40b3c07d0e908eb1067b0.tar.gz
+hash=MD5=77907b8209f77c65cb681a5012f2d804
+      no_extract=
+

@@ -1,0 +1,46 @@
+{
+	"sources" : 
+	[
+		{
+			"file" : "D:/workspace/DevilutionX/build2/_deps/libpng-subbuild/CMakeFiles/libpng-populate"
+		},
+		{
+			"file" : "D:/workspace/DevilutionX/build2/_deps/libpng-subbuild/CMakeFiles/5d74e3b2d9de42c867ed2f4815aa4135/libpng-populate.rule"
+		},
+		{
+			"file" : "D:/workspace/DevilutionX/build2/_deps/libpng-subbuild/CMakeFiles/0e91f04f479fc595fbb4deb0998cc206/libpng-populate-complete.rule"
+		},
+		{
+			"file" : "D:/workspace/DevilutionX/build2/_deps/libpng-subbuild/CMakeFiles/6d45cc26c499f5641c0200d6c4af0fd1/libpng-populate-build.rule"
+		},
+		{
+			"file" : "D:/workspace/DevilutionX/build2/_deps/libpng-subbuild/CMakeFiles/6d45cc26c499f5641c0200d6c4af0fd1/libpng-populate-configure.rule"
+		},
+		{
+			"file" : "D:/workspace/DevilutionX/build2/_deps/libpng-subbuild/CMakeFiles/6d45cc26c499f5641c0200d6c4af0fd1/libpng-populate-download.rule"
+		},
+		{
+			"file" : "D:/workspace/DevilutionX/build2/_deps/libpng-subbuild/CMakeFiles/6d45cc26c499f5641c0200d6c4af0fd1/libpng-populate-install.rule"
+		},
+		{
+			"file" : "D:/workspace/DevilutionX/build2/_deps/libpng-subbuild/CMakeFiles/6d45cc26c499f5641c0200d6c4af0fd1/libpng-populate-mkdir.rule"
+		},
+		{
+			"file" : "D:/workspace/DevilutionX/build2/_deps/libpng-subbuild/CMakeFiles/6d45cc26c499f5641c0200d6c4af0fd1/libpng-populate-patch.rule"
+		},
+		{
+			"file" : "D:/workspace/DevilutionX/build2/_deps/libpng-subbuild/CMakeFiles/6d45cc26c499f5641c0200d6c4af0fd1/libpng-populate-test.rule"
+		},
+		{
+			"file" : "D:/workspace/DevilutionX/build2/_deps/libpng-subbuild/CMakeFiles/6d45cc26c499f5641c0200d6c4af0fd1/libpng-populate-update.rule"
+		}
+	],
+	"target" : 
+	{
+		"labels" : 
+		[
+			"libpng-populate"
+		],
+		"name" : "libpng-populate"
+	}
+}

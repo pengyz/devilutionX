@@ -1,0 +1,12 @@
+# This is a generated file and its contents are an internal implementation detail.
+# The download step will be re-executed if anything in this file changes.
+# No other meaning or use of this file is supported.
+
+method=url
+command=D:/Program Files/CMake/bin/cmake.exe;-DCMAKE_MESSAGE_LOG_LEVEL=VERBOSE;-P;D:/workspace/DevilutionX/build2/_deps/sdl2-subbuild/sdl2-populate-prefix/src/sdl2-populate-stamp/download-sdl2-populate.cmake;COMMAND;D:/Program Files/CMake/bin/cmake.exe;-DCMAKE_MESSAGE_LOG_LEVEL=VERBOSE;-P;D:/workspace/DevilutionX/build2/_deps/sdl2-subbuild/sdl2-populate-prefix/src/sdl2-populate-stamp/verify-sdl2-populate.cmake;COMMAND;D:/Program Files/CMake/bin/cmake.exe;-DCMAKE_MESSAGE_LOG_LEVEL=VERBOSE;-P;D:/workspace/DevilutionX/build2/_deps/sdl2-subbuild/sdl2-populate-prefix/src/sdl2-populate-stamp/extract-sdl2-populate.cmake
+source_dir=D:/workspace/DevilutionX/build2/_deps/sdl2-src
+work_dir=D:/workspace/DevilutionX/build2/_deps
+url(s)=https://github.com/libsdl-org/SDL/releases/download/release-2.32.8/SDL2-2.32.8.tar.gz
+hash=SHA256=0ca83e9c9b31e18288c7ec811108e58bac1f1bb5ec6577ad386830eac51c787e
+      no_extract=
+
