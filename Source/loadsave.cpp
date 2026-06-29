@@ -2245,10 +2245,6 @@ tl::expected<void, std::string> LoadLevel(LevelConversionData *levelConversionDa
 
 const int DiabloItemSaveSize = 397;
 const int HellfireItemSaveSize = 401;
-// Vanilla Diablo item save sizes (before engine-mod-infra field additions: procFlags, procChance, setId, setPiece, elemental damage, etc.)
-// Used only for backward-compatible stash migration.
-constexpr int VanillaDiabloItemSaveSize = 368;
-constexpr int VanillaHellfireItemSaveSize = 372;
 
 bool IsStashSizeValid(size_t stashSize, uint32_t pages, uint32_t itemCount)
 {
@@ -2585,7 +2581,7 @@ void LoadHeroItems(Player &player)
 	gbIsHellfireSaveGame = gbIsHellfire;
 }
 
-constexpr uint8_t StashVersion = 0;
+constexpr uint8_t StashVersion = 1; // 0 = vanilla item format (368/372 bytes), 1 = engine-mod-infra format (397/401 bytes)
 
 void LoadStash()
 {
@@ -2621,21 +2617,13 @@ void LoadStash()
 
 	auto itemCount = file.NextLE<uint32_t>();
 
-	// Detect old-format stash saved with vanilla Diablo item size (368→397).
-	// Header before items: version(1) + gold(4) + pages_count(4) + pages*(page_id(4)+grid(P)) + itemCount(4)
-	constexpr size_t stashGridBytesPerPage = StashGridSize.width * StashGridSize.height * sizeof(StashStruct::StashCell);
-	const int oldItemSize = gbIsHellfire ? VanillaHellfireItemSaveSize : VanillaDiabloItemSaveSize;
-	const size_t headerSize = sizeof(uint8_t) + sizeof(uint32_t) + sizeof(uint32_t) + (sizeof(uint32_t) + stashGridBytesPerPage) * pages + sizeof(uint32_t);
-	const size_t oldRemaining = static_cast<size_t>(oldItemSize) * itemCount + sizeof(uint32_t);
-	if (file.Size() >= headerSize && file.Size() - headerSize == oldRemaining) {
-		// Old format stash — items cannot be loaded with the new item parser.
-		// Silently clear the stash; it will be recreated with the new format on next save.
-		Stash = {};
-		return;
-	}
-
 	if (!IsStashSizeValid(file.Size(), pages, itemCount)) {
 		Stash = {};
+		if (version < StashVersion) {
+			// Version 0 stash with incompatible item format — silently migrate.
+			// The stash will be recreated with the current format on next save.
+			return;
+		}
 		EventPlrMsg(_("Stash size invalid. If you attempt to access your stash, data will be overwritten!!"), UiFlags::ColorRed);
 		return;
 	}
@@ -2909,6 +2897,7 @@ void SaveStash(SaveWriter &stashWriter)
 		filename = "mpstashitems";
 
 	const int itemSize = (gbIsHellfire ? HellfireItemSaveSize : DiabloItemSaveSize);
+	constexpr size_t stashGridBytesPerPage = StashGridSize.width * StashGridSize.height * sizeof(StashStruct::StashCell);
 
 	SaveHelper file(
 	    stashWriter,
@@ -2916,7 +2905,7 @@ void SaveStash(SaveWriter &stashWriter)
 	    sizeof(uint8_t)
 	        + sizeof(uint32_t)
 	        + sizeof(uint32_t)
-	        + ((sizeof(uint32_t) + 10 * 10 * sizeof(uint16_t)) * Stash.stashGrids.size())
+	        + ((sizeof(uint32_t) + stashGridBytesPerPage) * Stash.stashGrids.size())
 	        + sizeof(uint32_t)
 	        + (itemSize * Stash.stashList.size())
 	        + sizeof(uint32_t));
