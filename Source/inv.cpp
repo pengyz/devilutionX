@@ -24,6 +24,7 @@
 #include "cursor.h"
 #include "engine/backbuffer_state.hpp"
 #include "engine/clx_sprite.hpp"
+#include "engine/render/primitive_render.hpp"
 #include "engine/load_cel.hpp"
 #include "engine/palette.h"
 #include "engine/render/clx_render.hpp"
@@ -1219,9 +1220,13 @@ void DrawInv(const Surface &out)
 		}
 	}
 
+	{
+		const Point invPos = GetPanelPosition(UiPanels::Inventory);
+		DrawHalfTransparentRectTo(out, invPos.x, invPos.y + 338, 320, 14);
+	}
 	DrawString(out, StrCat(_("Gold: "), FormatInteger(myPlayer._pGold)),
-	    { GetPanelPosition(UiPanels::Inventory) + Displacement { 20, 205 }, { 100, 15 } },
-	    { .flags = UiFlags::ColorWhitegold });
+	    { GetPanelPosition(UiPanels::Inventory) + Displacement { 20, 339 }, { 280, 13 } },
+	    { .flags = UiFlags::ColorWhitegold | UiFlags::AlignRight });
 }
 
 void DrawInvBelt(const Surface &out)

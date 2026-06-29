@@ -468,7 +468,7 @@ void RightMouseDown(bool isShiftHeld)
 	if (TryIconCurs())
 		return;
 	if (invflag) {
-		Rectangle goldRect = { GetPanelPosition(UiPanels::Inventory) + Displacement { 20, 205 }, { 100, 15 } };
+		Rectangle goldRect = { GetPanelPosition(UiPanels::Inventory) + Displacement { 20, 339 }, { 280, 13 } };
 		if (goldRect.contains(MousePosition)) {
 			OpenGoldDropFromCounter();
 			return;
