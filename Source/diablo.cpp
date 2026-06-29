@@ -522,6 +522,7 @@ void PressKey(SDL_Keycode vkey, uint16_t modState)
 	if (MyPlayerIsDead) {
 		if (vkey == SDLK_ESCAPE) {
 			if (!gbIsMultiplayer) {
+				SaveGame();
 				MyPlayerIsDead = false;
 				gamemenu_off();
 				RestartTownLvl(*MyPlayer);
