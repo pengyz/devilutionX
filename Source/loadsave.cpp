@@ -2245,6 +2245,9 @@ tl::expected<void, std::string> LoadLevel(LevelConversionData *levelConversionDa
 
 const int DiabloItemSaveSize = 397;
 const int HellfireItemSaveSize = 401;
+// Old sizes from before inventory expansion (40→60) and item field additions
+constexpr int OldDiabloItemSaveSize = 368;
+constexpr int OldHellfireItemSaveSize = 372;
 
 bool IsStashSizeValid(size_t stashSize, uint32_t pages, uint32_t itemCount)
 {
@@ -2615,6 +2618,20 @@ void LoadStash()
 	}
 
 	auto itemCount = file.NextLE<uint32_t>();
+
+	// Detect old-format stash saved before DiabloItemSaveSize changed (368→397).
+	// Header before items: version(1) + gold(4) + pages_count(4) + pages*(page_id(4)+grid(200)) + itemCount(4) = 13 + 204*pages
+	// Old remaining: oldItemSize*itemCount + trailing_page(4)
+	const int oldItemSize = gbIsHellfire ? OldHellfireItemSaveSize : OldDiabloItemSaveSize;
+	const size_t headerSize = 13 + 204 * pages;
+	const size_t oldRemaining = static_cast<size_t>(oldItemSize) * itemCount + sizeof(uint32_t);
+	if (file.Size() >= headerSize && file.Size() - headerSize == oldRemaining) {
+		// Old format stash — items cannot be loaded with the new item parser.
+		// Silently clear the stash; it will be recreated with the new format on next save.
+		Stash = {};
+		return;
+	}
+
 	if (!IsStashSizeValid(file.Size(), pages, itemCount)) {
 		Stash = {};
 		EventPlrMsg(_("Stash size invalid. If you attempt to access your stash, data will be overwritten!!"), UiFlags::ColorRed);
