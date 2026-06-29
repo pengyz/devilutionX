@@ -88,22 +88,42 @@ void DrawMarkPanel(const Surface &out)
 		const auto &def = markDefs[static_cast<size_t>(mid)];
 		std::string label = (slot == 0 ? "[Primary] " : "[Secondary] ") + std::string(def.name);
 		DrawString(out, label, Point { x, y }, { .flags = UiFlags::ColorWhitegold });
-		y += 20;
+		y += 16;
+		DrawString(out, "Core: " + std::string(def.coreMechanic), Point { x + 10, y }, { .flags = UiFlags::ColorWhite });
+		y += 14;
 		DrawString(out, def.description, Point { x + 10, y }, { .flags = UiFlags::ColorWhite });
-		y += 25;
+		y += 16;
 
 		auto &state = GetMarkState(*MyPlayer, mid);
 		const char *rarityNames[] = { "Common", "Rare", "Legendary" };
 		for (int s = 0; s < 3; s++) {
 			bool locked = (slot == 1 && s >= 1);
-			std::string info = std::string(rarityNames[s]) + ": ";
-			if (locked) info += "Locked";
-			else if (state.slots[s].socketed) info += (state.slots[s].choice == 1) ? "Path A" : "Path B";
-			else info += "Empty";
-			DrawString(out, info, Point { x + 20, y }, { .flags = UiFlags::ColorWhite });
-			y += 16;
+			std::string slotLabel = std::string(rarityNames[s]);
+
+			// Show choice A
+			std::string lineA = slotLabel + " A: " + std::string(def.slotDescA[s]);
+			uint8_t choice = state.slots[s].choice;
+			if (locked)
+				lineA += " (Locked)";
+			else if (choice == 1)
+				lineA += " [SOCKETED]";
+
+			DrawString(out, lineA, Point { x + 10, y },
+			    { .flags = (choice == 1 && !locked) ? UiFlags::ColorWhitegold : UiFlags::ColorWhite });
+			y += 14;
+
+			// Show choice B
+			std::string lineB = slotLabel + " B: " + std::string(def.slotDescB[s]);
+			if (locked)
+				lineB += " (Locked)";
+			else if (choice == 2)
+				lineB += " [SOCKETED]";
+
+			DrawString(out, lineB, Point { x + 10, y },
+			    { .flags = (choice == 2 && !locked) ? UiFlags::ColorWhitegold : UiFlags::ColorWhite });
+			y += 14;
 		}
-		y += 10;
+		y += 6;
 	}
 
 	y += 10;

@@ -60,6 +60,9 @@ struct MarkState {
 struct MasterMarkDef {
 	const char *name;
 	const char *description;
+	const char *coreMechanic;
+	const char *slotDescA[3];
+	const char *slotDescB[3];
 	HeroClass requiredClass;
 };
 

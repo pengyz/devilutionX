@@ -9,18 +9,81 @@ namespace devilution {
 // === Mark Definitions (9 marks) ===
 // clang-format off
 const MasterMarkDef markDefs[MarkCount] = {
-	// Warrior
-	{ "Iron Bastion",   "Blocking stores damage. Release it in a single blow.",            HeroClass::Warrior },
-	{ "Crimson Brand",  "Blood fuels rage. Rage fuels destruction.",                       HeroClass::Warrior },
-	{ "Arms Master",    "Dual two-handers or blade-and-board — your weapons obey you.",    HeroClass::Warrior },
-	// Sorcerer
-	{ "Sanguimancer",   "Mana is an illusion. Blood is the true currency.",                HeroClass::Sorcerer },
-	{ "Spellblade",     "The staff is not a walking stick. It's a weapon.",                HeroClass::Sorcerer },
-	{ "Overcharge",     "Burn twice as bright. Accept the aftermath.",                      HeroClass::Sorcerer },
-	// Rogue
-	{ "Marksman",       "Distance is armor. Patience is the deadliest arrow.",              HeroClass::Rogue },
-	{ "Shadowstep",     "They swing at air. You are already behind them.",                  HeroClass::Rogue },
-	{ "Precision",      "Eyes open. Hands steady. Everything is a target.",                 HeroClass::Rogue },
+	// ===== Warrior =====
+	{
+	    "Iron Bastion",
+	    "Blocking stores damage. Release it in a single blow.",
+	    "Block stores dmg (cap=100% MaxHP). Release->next blow +130%.",
+	    { "Fortress: 2%/s decay after 10s idle", "Retribution: release +30% dmg", "Last Stand: fatal->survive 1HP (120s cd)" },
+	    { "Bulwark: cap +25% (125% MaxHP)", "Shockwave: 2-tile splash (50%)", "Earthshatter: 5-tile AoE at full charge" },
+	    HeroClass::Warrior
+	},
+	{
+	    "Crimson Brand",
+	    "Blood fuels rage. Rage fuels destruction.",
+	    "Attacks->Rage (20/s). On fatal: rage->HP.",
+	    { "Frenzy: atk rage x2 (40/s)", "Bloodlust: HP<30%->all x1.5", "Undying: 3s death immune + rage->HP" },
+	    { "Masochist: dmg taken->half rage", "Deathwish: HP<10%->all x3", "Iron Will: dmg->rage first (5s weak)" },
+	    HeroClass::Warrior
+	},
+	{
+	    "Arms Master",
+	    "Dual two-handers or blade-and-board — your weapons obey you.",
+	    "Dual wield 2H weapons or 1H+shield. Block penalty halved.",
+	    { "Titan: dual 2H (atk x1.3)", "Flurry: atk spd x1.5, no block penalty", "Cleave: sweeping AoE attacks" },
+	    { "Duelist: alt-strike x1.5", "Tempest: dual spd x1.8, counter 100%", "Focus: Duel mode 6s buff" },
+	    HeroClass::Warrior
+	},
+	// ===== Sorcerer =====
+	{
+	    "Sanguimancer",
+	    "Mana is an illusion. Blood is the true currency.",
+	    "Cast->spend HP (1 mana=2 HP). Kill->restore 10% MaxHP.",
+	    { "Vampiric: restore 15% on kill", "Desperation: HP<30%->1:1 ratio", "Soul Burn: HP<20%->1:1 +40% dmg +20% heal" },
+	    { "Blood Curse: curse nearby on kill", "Blood Ward: cast->temp HP=50% spent", "Last Rite: fatal->consume Ward survive" },
+	    HeroClass::Sorcerer
+	},
+	{
+	    "Spellblade",
+	    "The staff is not a walking stick. It's a weapon.",
+	    "Mana Shield toggle. Weapon Enchant: +30% elem dmg. INT->wpn dmg.",
+	    { "Absorb: mana shield 50%", "Arc Slash: 10% 3-tile AoE", "Mindblade: wpn dmg=INT x0.8" },
+	    { "Reflect: shield reflects 20%", "Venom: poison DoT 3s, stack x3", "Channel: INT->+0.5% spd, STR->+3% enchant" },
+	    HeroClass::Sorcerer
+	},
+	{
+	    "Overcharge",
+	    "Burn twice as bright. Accept the aftermath.",
+	    "Activate: 8s x2 cast spd, 0 mana. Then 10s weak (-50% dmg).",
+	    { "Combustion: +30% spell dmg during", "Recovery: weakness 5s", "Detonate: end->explode 20% total" },
+	    { "Endurance: +4s burst (12s)", "Stability: mana-15% (no speed loss)", "Renewal: after weak->full mana, 3s cd" },
+	    HeroClass::Sorcerer
+	},
+	// ===== Rogue =====
+	{
+	    "Marksman",
+	    "Distance is armor. Patience is the deadliest arrow.",
+	    "Bow +20% dmg. Aim 1s->dmg scales with dist (3%/tile, cap 30%).",
+	    { "Multishot: 3 arrows", "Longbow: 5%/tile (cap 50%)", "Arrow Rain: 10 arrows (30s cd)" },
+	    { "Pierce: 50% pierce", "Focus: +25% crit while aiming", "Heartseeker: 3s->x3 crit" },
+	    HeroClass::Rogue
+	},
+	{
+	    "Shadowstep",
+	    "They swing at air. You are already behind them.",
+	    "Dodge->teleport behind, next atk crit (4s cd). Manual: teleport (8s cd).",
+	    { "Evasion: +15% dodge", "Execute: crit 200% + kill=reset cd", "Chain: 2 teleports in 4s" },
+	    { "Decoy: leave afterimage 2s", "Venom: poison DoT on crit", "Shadow: +4 tile range, wall bypass" },
+	    HeroClass::Rogue
+	},
+	{
+	    "Precision",
+	    "Eyes open. Hands steady. Everything is a target.",
+	    "+15% melee crit (+7.5% ranged). +20% ranged hit (+10% melee).",
+	    { "Marksman: melee crit+30%, ranged hit+10%", "Weak Spot: crit->+15% dmg mark", "Versatility: ranged crit=15%" },
+	    { "Deadeye: ranged spd+10%, melee hit+10%", "Rhythm: crit->+20% atk spd 3s", "Execution: ranged->extra arrow, melee->8% lifesteal" },
+	    HeroClass::Rogue
+	},
 };
 // clang-format on
 
