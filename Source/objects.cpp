@@ -4902,16 +4902,16 @@ StringOrView Object::name() const
 
 void GetObjectStr(const Object &object)
 {
-	InfoString = object.name();
+	FloatingInfoString = object.name();
 	const ClassAttributes &classAttributes = GetClassAttributes(MyPlayer->_pClass);
 	if (HasAnyOf(classAttributes.classFlags, PlayerClassFlag::TrapSense)) {
 		if (object._oTrapFlag) {
-			InfoString = fmt::format(fmt::runtime(_(/* TRANSLATORS: {:s} will either be a chest or a door */ "Trapped {:s}")), InfoString.str());
+			FloatingInfoString = fmt::format(fmt::runtime(_(/* TRANSLATORS: {:s} will either be a chest or a door */ "Trapped {:s}")), FloatingInfoString.str());
 			InfoColor = UiFlags::ColorRed;
 		}
 	}
 	if (object.IsDisabled()) {
-		InfoString = fmt::format(fmt::runtime(_(/* TRANSLATORS: If user enabled diablo.ini setting "Disable Crippling Shrines" is set to 1; also used for Na-Kruls lever */ "{:s} (disabled)")), InfoString.str());
+		FloatingInfoString = fmt::format(fmt::runtime(_(/* TRANSLATORS: If user enabled diablo.ini setting "Disable Crippling Shrines" is set to 1; also used for Na-Kruls lever */ "{:s} (disabled)")), FloatingInfoString.str());
 		InfoColor = UiFlags::ColorRed;
 	}
 }

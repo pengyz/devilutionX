@@ -115,7 +115,7 @@ void DrawSpell(const Surface &out)
 
 void DrawSpellList(const Surface &out)
 {
-	InfoString = StringOrView {};
+	FloatingInfoString = StringOrView {};
 
 	const Player &myPlayer = *MyPlayer;
 
@@ -150,14 +150,14 @@ void DrawSpellList(const Surface &out)
 		case SpellType::Skill:
 			spellColor = PAL16_YELLOW - 46;
 			PrintSBookSpellType(out, spellListItem.location, _("Skill"), spellColor);
-			InfoString = fmt::format(fmt::runtime(_("{:s} Skill")), pgettext("spell", spellDataItem.sNameText));
+			FloatingInfoString = fmt::format(fmt::runtime(_("{:s} Skill")), pgettext("spell", spellDataItem.sNameText));
 			break;
 		case SpellType::Spell:
 			if (!myPlayer.isOnLevel(0)) {
 				spellColor = PAL16_BLUE + 5;
 			}
 			PrintSBookSpellType(out, spellListItem.location, _("Spell"), spellColor);
-			InfoString = fmt::format(fmt::runtime(_("{:s} Spell")), pgettext("spell", spellDataItem.sNameText));
+			FloatingInfoString = fmt::format(fmt::runtime(_("{:s} Spell")), pgettext("spell", spellDataItem.sNameText));
 			if (spellId == SpellID::HolyBolt) {
 				AddInfoBoxString(_("Damages undead only"));
 			}
@@ -171,7 +171,7 @@ void DrawSpellList(const Surface &out)
 				spellColor = PAL16_RED - 59;
 			}
 			PrintSBookSpellType(out, spellListItem.location, _("Scroll"), spellColor);
-			InfoString = fmt::format(fmt::runtime(_("Scroll of {:s}")), pgettext("spell", spellDataItem.sNameText));
+			FloatingInfoString = fmt::format(fmt::runtime(_("Scroll of {:s}")), pgettext("spell", spellDataItem.sNameText));
 			const int scrollCount = c_count_if(InventoryAndBeltPlayerItemsRange { myPlayer }, [spellId](const Item &item) {
 				return item.isScrollOf(spellId);
 			});
@@ -182,7 +182,7 @@ void DrawSpellList(const Surface &out)
 				spellColor = PAL16_ORANGE + 5;
 			}
 			PrintSBookSpellType(out, spellListItem.location, _("Staff"), spellColor);
-			InfoString = fmt::format(fmt::runtime(_("Staff of {:s}")), pgettext("spell", spellDataItem.sNameText));
+			FloatingInfoString = fmt::format(fmt::runtime(_("Staff of {:s}")), pgettext("spell", spellDataItem.sNameText));
 			int charges = myPlayer.InvBody[INVLOC_HAND_LEFT]._iCharges;
 			AddInfoBoxString(fmt::format(fmt::runtime(ngettext("{:d} Charge", "{:d} Charges", charges)), charges));
 		} break;

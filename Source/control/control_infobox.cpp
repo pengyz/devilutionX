@@ -18,40 +18,9 @@
 
 namespace devilution {
 
-StringOrView InfoString;
-StringOrView FloatingInfoString;
-
 namespace {
+StringOrView InfoString; // Only used by AddInfoBoxString with floatingBox=false
 
-void PrintInfo(const Surface &out)
-{
-	if (ChatFlag)
-		return;
-
-	const int space[] = { 18, 12, 6, 3, 0 };
-	Rectangle infoBox = InfoBoxRect;
-
-	SetPanelObjectPosition(UiPanels::Main, infoBox);
-
-	const auto newLineCount = static_cast<int>(c_count(InfoString.str(), '\n'));
-	const int spaceIndex = std::min(4, newLineCount);
-	const int spacing = space[spaceIndex];
-	const int lineHeight = 12 + spacing;
-
-	// Adjusting the line height to add spacing between lines
-	// will also add additional space beneath the last line
-	// which throws off the vertical centering
-	infoBox.position.y += spacing / 2;
-
-	SpeakText(InfoString);
-
-	DrawString(out, InfoString, infoBox,
-	    {
-	        .flags = InfoColor | UiFlags::AlignCenter | UiFlags::VerticalCenter | UiFlags::KerningFitSpacing,
-	        .spacing = 2,
-	        .lineHeight = lineHeight,
-	    });
-}
 
 Rectangle GetFloatingInfoRect(const int lineHeight, const int textSpacing)
 {
@@ -283,7 +252,9 @@ void PrintFloatingInfo(const Surface &out)
 
 } // namespace
 
-void AddInfoBoxString(std::string_view str, bool floatingBox /*= false*/)
+StringOrView FloatingInfoString;
+
+void AddInfoBoxString(std::string_view str, bool floatingBox /*= true*/)
 {
 	StringOrView &infoString = floatingBox ? FloatingInfoString : InfoString;
 
@@ -293,7 +264,7 @@ void AddInfoBoxString(std::string_view str, bool floatingBox /*= false*/)
 		infoString = StrCat(infoString, "\n", str);
 }
 
-void AddInfoBoxString(std::string &&str, bool floatingBox /*= false*/)
+void AddInfoBoxString(std::string &&str, bool floatingBox /*= true*/)
 {
 	StringOrView &infoString = floatingBox ? FloatingInfoString : InfoString;
 
@@ -306,7 +277,6 @@ void AddInfoBoxString(std::string &&str, bool floatingBox /*= false*/)
 void CheckPanelInfo()
 {
 	MainPanelFlag = false;
-	InfoString = StringOrView {};
 	FloatingInfoString = StringOrView {};
 
 	const int totalButtons = IsChatAvailable() ? TotalMpMainPanelButtons : TotalSpMainPanelButtons;
@@ -318,12 +288,12 @@ void CheckPanelInfo()
 
 		if (button.contains(MousePosition)) {
 			if (i != 7) {
-				InfoString = _(PanBtnStr[i]);
+				FloatingInfoString = _(PanBtnStr[i]);
 			} else {
 				if (MyPlayer->friendlyMode)
-					InfoString = _("Player friendly");
+					FloatingInfoString = _("Player friendly");
 				else
-					InfoString = _("Player attack");
+					FloatingInfoString = _("Player attack");
 			}
 			if (PanBtnHotKey[i] != nullptr) {
 				AddInfoBoxString(fmt::format(fmt::runtime(_("Hotkey: {:s}")), _(PanBtnHotKey[i])));
@@ -338,7 +308,7 @@ void CheckPanelInfo()
 	SetPanelObjectPosition(UiPanels::Main, spellSelectButton);
 
 	if (!SpellSelectFlag && spellSelectButton.contains(MousePosition)) {
-		InfoString = _("Select current spell button");
+		FloatingInfoString = _("Select current spell button");
 		InfoColor = UiFlags::ColorWhite;
 		MainPanelFlag = true;
 		AddInfoBoxString(_("Hotkey: 's'"));
@@ -382,11 +352,10 @@ void CheckPanelInfo()
 		MainPanelFlag = true;
 }
 
-void DrawInfoBox(const Surface &out)
+void UpdateTooltipContent()
 {
-	DrawPanelBox(out, MakeSdlRect(InfoBoxRect.position.x, InfoBoxRect.position.y + PanelPaddingHeight, InfoBoxRect.size.width, InfoBoxRect.size.height), GetMainPanel().position + Displacement { InfoBoxRect.position.x, InfoBoxRect.position.y });
 	if (!MainPanelFlag && !trigflag && pcursinvitem == -1 && pcursstashitem == StashStruct::EmptyCell && pcursstoreitem == -1 && pcursstorebtn == -1 && !SpellSelectFlag && pcurs != CURSOR_HOURGLASS) {
-		InfoString = StringOrView {};
+		FloatingInfoString = StringOrView {};
 		InfoColor = UiFlags::ColorWhite;
 	}
 	const Player &myPlayer = *MyPlayer;
@@ -395,11 +364,11 @@ void DrawInfoBox(const Surface &out)
 	} else if (!myPlayer.HoldItem.isEmpty()) {
 		if (myPlayer.HoldItem._itype == ItemType::Gold) {
 			const int nGold = myPlayer.HoldItem._ivalue;
-			InfoString = fmt::format(fmt::runtime(ngettext("{:s} gold piece", "{:s} gold pieces", nGold)), FormatInteger(nGold));
+			FloatingInfoString = fmt::format(fmt::runtime(ngettext("{:s} gold piece", "{:s} gold pieces", nGold)), FormatInteger(nGold));
 		} else if (!myPlayer.CanUseItem(myPlayer.HoldItem)) {
-			InfoString = _("Requirements not met");
+			FloatingInfoString = _("Requirements not met");
 		} else {
-			InfoString = myPlayer.HoldItem.getName();
+			FloatingInfoString = myPlayer.HoldItem.getName();
 			InfoColor = myPlayer.HoldItem.getTextColor();
 		}
 	} else {
@@ -411,7 +380,7 @@ void DrawInfoBox(const Surface &out)
 			if (leveltype != DTYPE_TOWN) {
 				const Monster &monster = Monsters[pcursmonst];
 				InfoColor = UiFlags::ColorWhite;
-				InfoString = monster.name();
+				FloatingInfoString = monster.name();
 				if (monster.isUnique()) {
 					InfoColor = UiFlags::ColorWhitegold;
 					PrintUniqueHistory();
@@ -419,34 +388,27 @@ void DrawInfoBox(const Surface &out)
 					PrintMonstHistory(monster.type().type);
 				}
 			} else if (pcursitem == -1) {
-				InfoString = std::string_view(Towners[pcursmonst].name);
+				FloatingInfoString = std::string_view(Towners[pcursmonst].name);
 			}
 		}
 		if (PlayerUnderCursor != nullptr) {
 			InfoColor = UiFlags::ColorWhitegold;
 			const auto &target = *PlayerUnderCursor;
-			InfoString = std::string_view(target._pName);
+			FloatingInfoString = std::string_view(target._pName);
 			AddInfoBoxString(fmt::format(fmt::runtime(_("{:s}, Level: {:d}")), target.getClassName(), target.getCharacterLevel()));
 			AddInfoBoxString(fmt::format(fmt::runtime(_("Hit Points {:d} of {:d}")), target._pHitPoints >> 6, target._pMaxHP >> 6));
 		}
 		if (PortraitIdUnderCursor != -1) {
 			InfoColor = UiFlags::ColorWhitegold;
 			auto &target = Players[PortraitIdUnderCursor];
-			InfoString = std::string_view(target._pName);
+			FloatingInfoString = std::string_view(target._pName);
 			AddInfoBoxString(_("Right click to inspect"));
 		}
 	}
-	if (!InfoString.empty())
-		PrintInfo(out);
 }
 
 void DrawFloatingInfoBox(const Surface &out)
 {
-	if (pcursinvitem == -1 && pcursstashitem == StashStruct::EmptyCell && pcursstoreitem == -1 && pcursstorebtn == -1) {
-		FloatingInfoString = StringOrView {};
-		InfoColor = UiFlags::ColorWhite;
-	}
-
 	if (!FloatingInfoString.empty())
 		PrintFloatingInfo(out);
 }

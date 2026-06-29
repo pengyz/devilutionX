@@ -38,8 +38,6 @@ namespace devilution {
 
 constexpr Size SidePanelSize { 320, 352 };
 
-constexpr Rectangle InfoBoxRect = { { 177, 46 }, { 288, 64 } };
-
 extern DVL_API_FOR_TEST bool CharPanelButton[4];
 extern DVL_API_FOR_TEST bool CharPanelButtonActive;
 
@@ -47,7 +45,6 @@ extern int SpellbookTab;
 
 extern UiFlags InfoColor;
 
-extern StringOrView InfoString;
 extern StringOrView FloatingInfoString;
 
 extern Rectangle MainPanelButtonRect[8];
@@ -131,9 +128,10 @@ void CheckMainPanelButtonUp();
 void FreeControlPan();
 
 /**
- * Sets a string to be drawn in the info box and then draws it.
+ * Updates the FloatingInfoString for world entities (items, monsters, objects, etc.)
+ * and held items. Called once per frame before DrawFloatingInfoBox.
  */
-void DrawInfoBox(const Surface &out);
+void UpdateTooltipContent();
 void DrawFloatingInfoBox(const Surface &out);
 void CheckLevelButton();
 void CheckLevelButtonUp();

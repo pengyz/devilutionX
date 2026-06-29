@@ -2272,7 +2272,7 @@ void plrctrls_after_check_curs_move()
 		return;
 	}
 	if (!invflag) {
-		InfoString = StringOrView {};
+		FloatingInfoString = StringOrView {};
 		FindActor();
 		FindItemOrObject();
 		FindTrigger();

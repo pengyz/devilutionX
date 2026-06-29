@@ -528,12 +528,10 @@ int16_t CheckVisualStoreHLight(Point mousePosition)
 			if (button.contains(mousePosition)) {
 				if (i == TabButtonBasic) {
 					if (VendorHasTabs()) {
-						InfoString = _("Basic");
 						FloatingInfoString = _("Basic");
 						AddInfoBoxString(_("Basic items"));
 						AddInfoBoxString(_("Basic items"), true);
 					} else {
-						InfoString = _("Misc");
 						FloatingInfoString = _("Misc");
 						AddInfoBoxString(_("Miscellaneous items"));
 						AddInfoBoxString(_("Miscellaneous items"), true);
@@ -542,7 +540,6 @@ int16_t CheckVisualStoreHLight(Point mousePosition)
 					pcursstorebtn = TabButtonBasic;
 					return -1;
 				} else if (i == TabButtonPremium) {
-					InfoString = _("Premium");
 					FloatingInfoString = _("Premium");
 					AddInfoBoxString(_("Premium items"));
 					AddInfoBoxString(_("Premium items"), true);
@@ -557,7 +554,6 @@ int16_t CheckVisualStoreHLight(Point mousePosition)
 					for (int j = 0; j < myPlayer._pNumInv; j++)
 						totalCost += GetRepairCost(myPlayer.InvList[j]);
 
-					InfoString = _("Repair All");
 					FloatingInfoString = _("Repair All");
 					if (totalCost > 0) {
 						AddInfoBoxString(StrCat(FormatInteger(totalCost), " Gold"));
@@ -570,7 +566,6 @@ int16_t CheckVisualStoreHLight(Point mousePosition)
 					pcursstorebtn = RepairAllBtn;
 					return -1;
 				} else if (i == RepairBtn) {
-					InfoString = _("Repair");
 					FloatingInfoString = _("Repair");
 					AddInfoBoxString(_("Repair a single item"));
 					AddInfoBoxString(_("Repair a single item"), true);
@@ -606,7 +601,6 @@ int16_t CheckVisualStoreHLight(Point mousePosition)
 				const int price = item._iIvalue;
 				const bool canAfford = PlayerCanAfford(price);
 
-				InfoString = item.getName();
 				FloatingInfoString = item.getName();
 				InfoColor = canAfford ? item.getTextColor() : UiFlags::ColorRed;
 

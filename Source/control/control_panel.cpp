@@ -405,7 +405,7 @@ tl::expected<void, std::string> InitMainPanel()
 	for (bool &buttonEnabled : CharPanelButton)
 		buttonEnabled = false;
 	CharPanelButtonActive = false;
-	InfoString = StringOrView {};
+	FloatingInfoString = StringOrView {};
 	FloatingInfoString = StringOrView {};
 	RedrawComponent(PanelDrawComponent::Health);
 	RedrawComponent(PanelDrawComponent::Mana);
@@ -431,7 +431,6 @@ tl::expected<void, std::string> InitMainPanel()
 void DrawMainPanel(const Surface &out)
 {
 	DrawPanelBox(out, MakeSdlRect(0, sgbPlrTalkTbl + PanelPaddingHeight, GetMainPanel().size.width, GetMainPanel().size.height), GetMainPanel().position);
-	DrawInfoBox(out);
 }
 
 void DrawMainPanelButtons(const Surface &out)

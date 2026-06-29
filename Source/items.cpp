@@ -3822,11 +3822,11 @@ void GetItemFrm(Item &item)
 void GetItemStr(Item &item)
 {
 	if (item._itype != ItemType::Gold) {
-		InfoString = item.getName();
+		FloatingInfoString = item.getName();
 		InfoColor = item.getTextColor();
 	} else {
 		const int nGold = item._ivalue;
-		InfoString = fmt::format(fmt::runtime(ngettext("{:s} gold piece", "{:s} gold pieces", nGold)), FormatInteger(nGold));
+		FloatingInfoString = fmt::format(fmt::runtime(ngettext("{:s} gold piece", "{:s} gold pieces", nGold)), FormatInteger(nGold));
 	}
 }
 

@@ -1446,7 +1446,6 @@ void DrawView(const Surface &out, Point startPosition)
 	DrawPlrMsg(out);
 	gmenu_draw(out);
 	doom_draw(out);
-	DrawInfoBox(out);
 	UpdateLifeManaPercent(); // Update life/mana totals before rendering any portion of the flask.
 	DrawLifeFlaskUpper(out);
 	DrawManaFlaskUpper(out);
@@ -1531,7 +1530,7 @@ void DrawMain(int dwHgt, bool drawDesc, bool drawHp, bool drawMana, bool drawSba
 				// When chat input is displayed, the belt is hidden and the chat moves up.
 				DoBlitScreen({ mainPanelPosition + Displacement { 171, 6 }, { 298, 116 } });
 			} else {
-				DoBlitScreen({ mainPanelPosition + Displacement { InfoBoxRect.position.x, InfoBoxRect.position.y }, { InfoBoxRect.size } });
+				DoBlitScreen({ mainPanelPosition + Displacement { 177, 46 }, { 288, 64 } });
 			}
 		}
 		if (drawMana) {
@@ -1893,8 +1892,8 @@ void DrawAndBlit()
 		DrawFlaskValues(out, { mainPanel.position.x + mainPanel.size.width - 138, mainPanel.position.y + 28 },
 		    (HasAnyOf(InspectPlayer->_pIFlags, ItemSpecialEffect::NoMana) || MyPlayer->hasNoMana()) ? 0 : MyPlayer->_pMana >> 6,
 		    HasAnyOf(InspectPlayer->_pIFlags, ItemSpecialEffect::NoMana) ? 0 : MyPlayer->_pMaxMana >> 6);
-	if (*GetOptions().Gameplay.floatingInfoBox)
-		DrawFloatingInfoBox(out);
+	UpdateTooltipContent();
+	DrawFloatingInfoBox(out);
 
 	if (*GetOptions().Gameplay.showMultiplayerPartyInfo && PartySidePanelOpen)
 		DrawPartyMemberInfoPanel(out);

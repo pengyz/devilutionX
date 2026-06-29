@@ -1576,7 +1576,7 @@ void TimeoutCursor(bool bTimeout)
 		if (sgnTimeoutCurs == CURSOR_NONE && sgbMouseDown == CLICK_NONE) {
 			sgnTimeoutCurs = pcurs;
 			multi_net_ping();
-			InfoString = StringOrView {};
+			FloatingInfoString = StringOrView {};
 			AddInfoBoxString(_("-- Network timeout --"));
 			AddInfoBoxString(_("-- Waiting for players --"));
 			for (uint8_t i = 0; i < Players.size(); i++) {
@@ -1612,7 +1612,7 @@ void TimeoutCursor(bool bTimeout)
 		if (pcurs == CURSOR_HOURGLASS)
 			NewCursor(sgnTimeoutCurs);
 		sgnTimeoutCurs = CURSOR_NONE;
-		InfoString = StringOrView {};
+		FloatingInfoString = StringOrView {};
 		RedrawEverything();
 	}
 }
@@ -1622,7 +1622,7 @@ void HelpKeyPressed()
 	if (HelpFlag) {
 		HelpFlag = false;
 	} else if (IsPlayerInStore()) {
-		InfoString = StringOrView {};
+		FloatingInfoString = StringOrView {};
 		AddInfoBoxString(_("No help available")); /// BUGFIX: message isn't displayed
 		AddInfoBoxString(_("while in stores"));
 		LastPlayerAction = PlayerActionType::None;
