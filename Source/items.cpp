@@ -3046,13 +3046,7 @@ void CreatePlrItems(Player &player)
 	FreeCursor();
 
 	if (loadout.gold > 0) {
-		Item &goldItem = player.InvList[player._pNumInv];
-		MakeGoldStack(goldItem, loadout.gold);
-
-		player._pNumInv++;
-		player.InvGrid[30] = player._pNumInv;
-
-		player._pGold = goldItem._ivalue;
+		player._pGold += loadout.gold;
 	}
 
 	CalcPlrItemVals(player, false);

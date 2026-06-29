@@ -20,21 +20,11 @@ namespace {
 int8_t GoldDropInvIndex;
 std::optional<NumberInputState> GoldDropInputState;
 
-void RemoveGold(Player &player, int goldIndex, int amount)
+void RemoveGold(Player &player, int /*goldIndex*/, int amount)
 {
-	const int gi = goldIndex - INVITEM_INV_FIRST;
-	player.InvList[gi]._ivalue -= amount;
-	if (player.InvList[gi]._ivalue > 0) {
-		SetPlrHandGoldCurs(player.InvList[gi]);
-		NetSyncInvItem(player, gi);
-	} else {
-		player.RemoveInvItem(gi);
-	}
-
+	player._pGold -= amount;
 	MakeGoldStack(player.HoldItem, amount);
 	NewCursor(player.HoldItem);
-
-	player._pGold = CalculateGold(player);
 }
 
 int GetGoldDropMax()

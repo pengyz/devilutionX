@@ -589,6 +589,18 @@ void LoadPlayer(LoadHelper &file, Player &player)
 
 	LoadAndValidateItemData(file, player.HoldItem);
 
+	// Migrate gold inventory items to abstract gold counter
+	for (int i = player._pNumInv - 1; i >= 0; i--) {
+		if (player.InvList[i]._itype == ItemType::Gold) {
+			player._pGold += player.InvList[i]._ivalue;
+			player.RemoveInvItem(i);
+		}
+	}
+	if (player.HoldItem._itype == ItemType::Gold) {
+		player._pGold += player.HoldItem._ivalue;
+		player.HoldItem.clear();
+	}
+
 	player._pIMinDam = file.NextLE<int32_t>();
 	player._pIMaxDam = file.NextLE<int32_t>();
 	player._pIAC = file.NextLE<int32_t>();

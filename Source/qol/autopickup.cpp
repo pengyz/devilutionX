@@ -17,22 +17,7 @@ namespace {
 
 bool HasRoomForGold()
 {
-	for (const int idx : MyPlayer->InvGrid) {
-		// Secondary item cell. No need to check those as we'll go through the main item cells anyway.
-		if (idx < 0)
-			continue;
-
-		// Empty cell. 1x1 space available.
-		if (idx == 0)
-			return true;
-
-		// Main item cell. Potentially a gold pile so check it.
-		auto item = MyPlayer->InvList[idx - 1];
-		if (item._itype == ItemType::Gold && item._ivalue < MaxGold)
-			return true;
-	}
-
-	return false;
+	return true;
 }
 
 int NumMiscItemsInInv(int iMiscId)
@@ -43,7 +28,7 @@ int NumMiscItemsInInv(int iMiscId)
 
 bool DoPickup(Item item)
 {
-	if (item._itype == ItemType::Gold && *GetOptions().Gameplay.autoGoldPickup && HasRoomForGold())
+	if (item._itype == ItemType::Gold && *GetOptions().Gameplay.autoGoldPickup)
 		return true;
 
 	if (item._itype == ItemType::Misc

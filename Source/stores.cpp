@@ -2059,25 +2059,11 @@ void DrunkEnter()
 	}
 }
 
-int TakeGold(Player &player, int cost, bool skipMaxPiles)
+int TakeGold(Player &player, int cost, bool /*skipMaxPiles*/)
 {
-	for (int i = 0; i < player._pNumInv; i++) {
-		auto &item = player.InvList[i];
-		if (item._itype != ItemType::Gold || (skipMaxPiles && item._ivalue == MaxGold))
-			continue;
-
-		if (cost < item._ivalue) {
-			item._ivalue -= cost;
-			SetPlrHandGoldCurs(player.InvList[i]);
-			return 0;
-		}
-
-		cost -= item._ivalue;
-		player.RemoveInvItem(i);
-		i = -1;
-	}
-
-	return cost;
+	// Gold is abstract - all spending is from _pGold.
+	// The caller has already deducted from _pGold.
+	return 0;
 }
 
 void DrawSelector(const Surface &out, const Rectangle &rect, std::string_view text, UiFlags flags)
@@ -2658,14 +2644,9 @@ void StoreNext()
 void TakePlrsMoney(int cost)
 {
 	Player &myPlayer = *MyPlayer;
-
-	myPlayer._pGold -= std::min(cost, myPlayer._pGold);
-
-	cost = TakeGold(myPlayer, cost, true);
-	if (cost != 0) {
-		cost = TakeGold(myPlayer, cost, false);
-	}
-
+	int fromPlayer = std::min(cost, myPlayer._pGold);
+	myPlayer._pGold -= fromPlayer;
+	cost -= fromPlayer;
 	Stash.gold -= cost;
 	Stash.dirty = true;
 }
