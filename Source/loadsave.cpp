@@ -1574,7 +1574,7 @@ void SavePlayer(SaveHelper &file, const Player &player)
 
 	// Buff serialization (appended for backward compatibility)
 	{
-		uint8_t buffCount = std::min(player.buffable.buffs.size(), Buffable::MAX_BUFFS);
+		auto buffCount = static_cast<uint8_t>(std::min(player.buffable.buffs.size(), Buffable::MAX_BUFFS));
 		file.WriteLE<uint8_t>(buffCount);
 		for (size_t i = 0; i < buffCount; i++) {
 			const auto &b = player.buffable.buffs[i];
@@ -1584,7 +1584,7 @@ void SavePlayer(SaveHelper &file, const Player &player)
 			file.WriteLE<int32_t>(b.sourceEntity);
 			file.WriteLE<uint8_t>(b.stacks);
 		}
-		uint8_t debuffCount = std::min(player.buffable.debuffs.size(), Buffable::MAX_DEBUFFS);
+		auto debuffCount = static_cast<uint8_t>(std::min(player.buffable.debuffs.size(), Buffable::MAX_DEBUFFS));
 		file.WriteLE<uint8_t>(debuffCount);
 		for (size_t i = 0; i < debuffCount; i++) {
 			const auto &d = player.buffable.debuffs[i];
@@ -2245,18 +2245,20 @@ tl::expected<void, std::string> LoadLevel(LevelConversionData *levelConversionDa
 
 const int DiabloItemSaveSize = 397;
 const int HellfireItemSaveSize = 401;
-// Old sizes from before inventory expansion (40→60) and item field additions
-constexpr int OldDiabloItemSaveSize = 368;
-constexpr int OldHellfireItemSaveSize = 372;
+// Vanilla Diablo item save sizes (before engine-mod-infra field additions: procFlags, procChance, setId, setPiece, elemental damage, etc.)
+// Used only for backward-compatible stash migration.
+constexpr int VanillaDiabloItemSaveSize = 368;
+constexpr int VanillaHellfireItemSaveSize = 372;
 
 bool IsStashSizeValid(size_t stashSize, uint32_t pages, uint32_t itemCount)
 {
 	const size_t itemSize = (gbIsHellfire ? HellfireItemSaveSize : DiabloItemSaveSize);
+	constexpr size_t stashGridBytesPerPage = StashGridSize.width * StashGridSize.height * sizeof(StashStruct::StashCell);
 
 	const size_t expectedSize = sizeof(uint8_t)
 	    + sizeof(uint32_t)
 	    + sizeof(uint32_t)
-	    + ((sizeof(uint32_t) + 10 * 10 * sizeof(uint16_t)) * pages)
+	    + ((sizeof(uint32_t) + stashGridBytesPerPage) * pages)
 	    + sizeof(uint32_t)
 	    + (itemSize * itemCount)
 	    + sizeof(uint32_t);
@@ -2619,11 +2621,11 @@ void LoadStash()
 
 	auto itemCount = file.NextLE<uint32_t>();
 
-	// Detect old-format stash saved before DiabloItemSaveSize changed (368→397).
-	// Header before items: version(1) + gold(4) + pages_count(4) + pages*(page_id(4)+grid(200)) + itemCount(4) = 13 + 204*pages
-	// Old remaining: oldItemSize*itemCount + trailing_page(4)
-	const int oldItemSize = gbIsHellfire ? OldHellfireItemSaveSize : OldDiabloItemSaveSize;
-	const size_t headerSize = 13 + 204 * pages;
+	// Detect old-format stash saved with vanilla Diablo item size (368→397).
+	// Header before items: version(1) + gold(4) + pages_count(4) + pages*(page_id(4)+grid(P)) + itemCount(4)
+	constexpr size_t stashGridBytesPerPage = StashGridSize.width * StashGridSize.height * sizeof(StashStruct::StashCell);
+	const int oldItemSize = gbIsHellfire ? VanillaHellfireItemSaveSize : VanillaDiabloItemSaveSize;
+	const size_t headerSize = sizeof(uint8_t) + sizeof(uint32_t) + sizeof(uint32_t) + (sizeof(uint32_t) + stashGridBytesPerPage) * pages + sizeof(uint32_t);
 	const size_t oldRemaining = static_cast<size_t>(oldItemSize) * itemCount + sizeof(uint32_t);
 	if (file.Size() >= headerSize && file.Size() - headerSize == oldRemaining) {
 		// Old format stash — items cannot be loaded with the new item parser.
