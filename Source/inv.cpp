@@ -1220,7 +1220,7 @@ void DrawInv(const Surface &out)
 	}
 
 	DrawString(out, StrCat(_("Gold: "), FormatInteger(myPlayer._pGold)),
-	    { GetPanelPosition(UiPanels::Inventory, { 13, 315 }), { 100, 15 } },
+	    { GetPanelPosition(UiPanels::Inventory) + Displacement { 20, 205 }, { 100, 15 } },
 	    { .flags = UiFlags::ColorWhitegold });
 }
 
