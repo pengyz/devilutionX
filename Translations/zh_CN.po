@@ -11630,3 +11630,287 @@ msgstr ","
 #~ msgstr ""
 #~ "今天​多云​凉爽。将​亡灵​之​网​撒向​虚空，降落​了​两​个​新​的​飞行​恐惧​亚种​；​一​天​的​好​工"
 #~ "作。一定​要​记得​从​艾德莉亚​订购​更​多​的​蝙蝠​粪​和​黑​蜡烛​；​我​的​血压​有点​低。"
+
+#: Source/mastermark.cpp
+msgid "Iron Bastion"
+msgstr "钢铁堡垒"
+
+msgid "Blocking stores damage. Release it in a single blow."
+msgstr "格挡储存伤害。在一次重击中释放。"
+
+msgid "Block stores dmg (cap=100% MaxHP). Release->next blow +130%."
+msgstr "格挡储存伤害(上限=100%最大生命)。释放→下一次攻击+130%。"
+
+msgid "Fortress: 2%/s decay after 10s idle"
+msgstr "堡垒：空闲10秒后每秒衰减2%"
+
+msgid "Retribution: release +30% dmg"
+msgstr "复仇：释放+30%伤害"
+
+msgid "Last Stand: fatal->survive 1HP (120s cd)"
+msgstr "背水一战：致命→存活1HP（120秒冷却）"
+
+msgid "Bulwark: cap +25% (125% MaxHP)"
+msgstr "壁垒：上限+25%（125%最大生命）"
+
+msgid "Shockwave: 2-tile splash (50%)"
+msgstr "冲击波：2格溅射（50%）"
+
+msgid "Earthshatter: 5-tile AoE at full charge"
+msgstr "裂地：满蓄力→5格范围伤害"
+
+msgid "Crimson Brand"
+msgstr "猩红烙印"
+
+msgid "Blood fuels rage. Rage fuels destruction."
+msgstr "鲜血点燃怒火。怒火带来毁灭。"
+
+msgid "Attacks->Rage (20/s). On fatal: rage->HP."
+msgstr "攻击→怒气（20/秒）。致命时：怒气→生命。"
+
+msgid "Frenzy: atk rage x2 (40/s)"
+msgstr "狂乱：攻击怒气×2（40/秒）"
+
+msgid "Bloodlust: HP<30%->all x1.5"
+msgstr "血怒：生命<30%→全效果×1.5"
+
+msgid "Undying: 3s death immune + rage->HP"
+msgstr "不死：3秒死亡免疫+怒气→生命"
+
+msgid "Masochist: dmg taken->half rage"
+msgstr "受虐：受到伤害→一半怒气"
+
+msgid "Deathwish: HP<10%->all x3"
+msgstr "死愿：生命<10%→全效果×3"
+
+msgid "Iron Will: dmg->rage first (5s weak)"
+msgstr "铁意：伤害先转怒气（5秒虚弱）"
+
+msgid "Arms Master"
+msgstr "武器大师"
+
+msgid "Dual two-handers or blade-and-board — your weapons obey you."
+msgstr "双持双手武器或剑盾——武器听从于你。"
+
+msgid "Dual wield 2H weapons or 1H+shield. Block penalty halved."
+msgstr "双持双手武器或单手+盾。格挡惩罚减半。"
+
+msgid "Titan: dual 2H (atk x1.3)"
+msgstr "泰坦：双持双手（攻击×1.3）"
+
+msgid "Duelist: alt-strike x1.5"
+msgstr "决斗者：交替攻击×1.5"
+
+msgid "Flurry: atk spd x1.5, no block penalty"
+msgstr "疾风：攻速×1.5，无格挡惩罚"
+
+msgid "Tempest: dual spd x1.8, counter 100%"
+msgstr "暴风：双持攻速×1.8，反击100%"
+
+msgid "Cleave: sweeping AoE attacks"
+msgstr "横扫：范围攻击"
+
+msgid "Focus: Duel mode 6s buff"
+msgstr "专注：决斗模式6秒增益"
+
+msgid "Sanguimancer"
+msgstr "血术师"
+
+msgid "Mana is an illusion. Blood is the true currency."
+msgstr "法力是幻象。鲜血才是真正的货币。"
+
+msgid "Cast->spend HP (1 mana=2 HP). Kill->restore 10% MaxHP."
+msgstr "施法→消耗生命（1法力=2生命）。击杀→恢复10%最大生命。"
+
+msgid "Vampiric: restore 15% on kill"
+msgstr "吸血：击杀恢复15%"
+
+msgid "Blood Curse: curse nearby on kill"
+msgstr "血咒：击杀时诅咒附近敌人"
+
+msgid "Desperation: HP<30%->1:1 ratio"
+msgstr "绝望：生命<30%→1:1比例"
+
+msgid "Blood Ward: cast->temp HP=50% spent"
+msgstr "血盾：施法→临时生命=50%消耗"
+
+msgid "Soul Burn: HP<20%->1:1 +40% dmg +20% heal"
+msgstr "魂燃：生命<20%→1:1+40%伤害+20%治疗"
+
+msgid "Last Rite: fatal->consume Ward survive"
+msgstr "临终：致命→消耗血盾存活"
+
+msgid "Spellblade"
+msgstr "魔剑士"
+
+msgid "The staff is not a walking stick. It's a weapon."
+msgstr "法杖不是拐杖。它是武器。"
+
+msgid "Mana Shield toggle. Weapon Enchant: +30% elem dmg. INT->wpn dmg."
+msgstr "法力护盾切换。武器附魔：+30%元素伤害。智力→武器伤害。"
+
+msgid "Absorb: mana shield 50%"
+msgstr "吸收：法力护盾50%"
+
+msgid "Reflect: shield reflects 20%"
+msgstr "反射：护盾反弹20%"
+
+msgid "Arc Slash: 10% 3-tile AoE"
+msgstr "奥术斩：10%概率3格范围"
+
+msgid "Venom: poison DoT 3s, stack x3"
+msgstr "毒液：中毒3秒，叠加×3"
+
+msgid "Mindblade: wpn dmg=INT x0.8"
+msgstr "心刃：武器伤害=智力×0.8"
+
+msgid "Channel: INT->+0.5% spd, STR->+3% enchant"
+msgstr "引导：智力→+0.5%攻速，力量→+3%附魔伤害"
+
+msgid "Overcharge"
+msgstr "超载"
+
+msgid "Burn twice as bright. Accept the aftermath."
+msgstr "燃烧双倍的光。承受后果。"
+
+msgid "Activate: 8s x2 cast spd, 0 mana. Then 10s weak (-50% dmg)."
+msgstr "激活：8秒双倍施法速度，0法力消耗。之后10秒虚弱（-50%伤害）。"
+
+msgid "Combustion: +30% spell dmg during"
+msgstr "燃烧：期间+30%法术伤害"
+
+msgid "Endurance: +4s burst (12s)"
+msgstr "持久：+4秒爆发（12秒）"
+
+msgid "Recovery: weakness 5s"
+msgstr "恢复：虚弱5秒"
+
+msgid "Stability: mana-15% (no speed loss)"
+msgstr "稳定：法力-15%（无速度损失）"
+
+msgid "Detonate: end->explode 20% total"
+msgstr "引爆：结束时→爆炸20%总伤害"
+
+msgid "Renewal: after weak->full mana, 3s cd"
+msgstr "重生：虚弱后→满法力，3秒冷却减半"
+
+msgid "Marksman"
+msgstr "神射手"
+
+msgid "Distance is armor. Patience is the deadliest arrow."
+msgstr "距离即护甲。耐心是最致命的箭。"
+
+msgid "Bow +20% dmg. Aim 1s->dmg scales with dist (3%/tile, cap 30%)."
+msgstr "弓+20%伤害。瞄准1秒→伤害随距离增加（3%/格，上限30%）。"
+
+msgid "Multishot: 3 arrows"
+msgstr "多重射击：3支箭"
+
+msgid "Pierce: 50% pierce"
+msgstr "穿透：50%穿透"
+
+msgid "Longbow: 5%/tile (cap 50%)"
+msgstr "长弓：5%/格（上限50%）"
+
+msgid "Focus: +25% crit while aiming"
+msgstr "专注：瞄准时+25%暴击"
+
+msgid "Arrow Rain: 10 arrows (30s cd)"
+msgstr "箭雨：10支箭（30秒冷却）"
+
+msgid "Heartseeker: 3s->x3 crit"
+msgstr "追心：3秒→×3暴击"
+
+msgid "Shadowstep"
+msgstr "影步"
+
+msgid "They swing at air. You are already behind them."
+msgstr "他们对着空气挥砍。你早已在他们身后。"
+
+msgid "Dodge->teleport behind, next atk crit (4s cd). Manual: teleport (8s cd)."
+msgstr "闪避→传送到身后，下次攻击暴击（4秒冷却）。主动：传送（8秒冷却）。"
+
+msgid "Evasion: +15% dodge"
+msgstr "闪避：+15%闪避率"
+
+msgid "Decoy: leave afterimage 2s"
+msgstr "诱饵：留下残影2秒"
+
+msgid "Execute: crit 200% + kill=reset cd"
+msgstr "处决：暴击200%+击杀=重置冷却"
+
+msgid "Venom: poison DoT on crit"
+msgstr "毒刃：暴击时中毒持续伤害"
+
+msgid "Chain: 2 teleports in 4s"
+msgstr "连环：4秒内2次传送"
+
+msgid "Shadow: +4 tile range, wall bypass"
+msgstr "暗影：+4格距离，穿墙"
+
+msgid "Precision"
+msgstr "精准"
+
+msgid "Eyes open. Hands steady. Everything is a target."
+msgstr "眼睛睁开。双手稳定。万物皆靶。"
+
+msgid "+15% melee crit (+7.5% ranged). +20% ranged hit (+10% melee)."
+msgstr "+15%近战暴击（+7.5%远程）。+20%远程命中（+10%近战）。"
+
+msgid "Marksman: melee crit+30%, ranged hit+10%"
+msgstr "射手：近战暴击+30%，远程命中+10%"
+
+msgid "Deadeye: ranged spd+10%, melee hit+10%"
+msgstr "鹰眼：远程攻速+10%，近战命中+10%"
+
+msgid "Weak Spot: crit->+15% dmg mark"
+msgstr "弱点：暴击→+15%伤害标记"
+
+msgid "Rhythm: crit->+20% atk spd 3s"
+msgstr "节奏：暴击→+20%攻速3秒"
+
+msgid "Versatility: ranged crit=15%"
+msgstr "全能：远程暴击=15%"
+
+msgid "Execution: ranged->extra arrow, melee->8% lifesteal"
+msgstr "处刑：远程→额外箭矢，近战→8%吸血"
+
+#: Source/panels/mark_panel.cpp
+msgid "Master's Marks"
+msgstr "大师印记"
+
+msgid "X"
+msgstr "✕"
+
+msgid "Slot "
+msgstr "槽位 "
+
+msgid "Empty"
+msgstr "空"
+
+msgid "[Primary] "
+msgstr "[主印记] "
+
+msgid "[Secondary] "
+msgstr "[副印记] "
+
+msgid "Core: "
+msgstr "核心："
+
+msgid "Common"
+msgstr "普通"
+
+msgid "Rare"
+msgstr "稀有"
+
+msgid "Legendary"
+msgstr "传说"
+
+msgid "Locked"
+msgstr "已锁定"
+
+msgid "[SOCKETED]"
+msgstr "[已镶嵌]"
+
+msgid "Other Marks:"
+msgstr "其他印记："

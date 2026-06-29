@@ -11,77 +11,77 @@ namespace devilution {
 const MasterMarkDef markDefs[MarkCount] = {
 	// ===== Warrior =====
 	{
-	    "Iron Bastion",
-	    "Blocking stores damage. Release it in a single blow.",
-	    "Block stores dmg (cap=100% MaxHP). Release->next blow +130%.",
-	    { "Fortress: 2%/s decay after 10s idle", "Retribution: release +30% dmg", "Last Stand: fatal->survive 1HP (120s cd)" },
-	    { "Bulwark: cap +25% (125% MaxHP)", "Shockwave: 2-tile splash (50%)", "Earthshatter: 5-tile AoE at full charge" },
+	    N_("Iron Bastion"),
+	    N_("Blocking stores damage. Release it in a single blow."),
+	    N_("Block stores dmg (cap=100% MaxHP). Release->next blow +130%."),
+	    { N_("Fortress: 2%/s decay after 10s idle"), N_("Retribution: release +30% dmg"), N_("Last Stand: fatal->survive 1HP (120s cd)") },
+	    { N_("Bulwark: cap +25% (125% MaxHP)"), N_("Shockwave: 2-tile splash (50%)"), N_("Earthshatter: 5-tile AoE at full charge") },
 	    HeroClass::Warrior
 	},
 	{
-	    "Crimson Brand",
-	    "Blood fuels rage. Rage fuels destruction.",
-	    "Attacks->Rage (20/s). On fatal: rage->HP.",
-	    { "Frenzy: atk rage x2 (40/s)", "Bloodlust: HP<30%->all x1.5", "Undying: 3s death immune + rage->HP" },
-	    { "Masochist: dmg taken->half rage", "Deathwish: HP<10%->all x3", "Iron Will: dmg->rage first (5s weak)" },
+	    N_("Crimson Brand"),
+	    N_("Blood fuels rage. Rage fuels destruction."),
+	    N_("Attacks->Rage (20/s). On fatal: rage->HP."),
+	    { N_("Frenzy: atk rage x2 (40/s)"), N_("Bloodlust: HP<30%->all x1.5"), N_("Undying: 3s death immune + rage->HP") },
+	    { N_("Masochist: dmg taken->half rage"), N_("Deathwish: HP<10%->all x3"), N_("Iron Will: dmg->rage first (5s weak)") },
 	    HeroClass::Warrior
 	},
 	{
-	    "Arms Master",
-	    "Dual two-handers or blade-and-board — your weapons obey you.",
-	    "Dual wield 2H weapons or 1H+shield. Block penalty halved.",
-	    { "Titan: dual 2H (atk x1.3)", "Flurry: atk spd x1.5, no block penalty", "Cleave: sweeping AoE attacks" },
-	    { "Duelist: alt-strike x1.5", "Tempest: dual spd x1.8, counter 100%", "Focus: Duel mode 6s buff" },
+	    N_("Arms Master"),
+	    N_("Dual two-handers or blade-and-board — your weapons obey you."),
+	    N_("Dual wield 2H weapons or 1H+shield. Block penalty halved."),
+	    { N_("Titan: dual 2H (atk x1.3)"), N_("Flurry: atk spd x1.5, no block penalty"), N_("Cleave: sweeping AoE attacks") },
+	    { N_("Duelist: alt-strike x1.5"), N_("Tempest: dual spd x1.8, counter 100%"), N_("Focus: Duel mode 6s buff") },
 	    HeroClass::Warrior
 	},
 	// ===== Sorcerer =====
 	{
-	    "Sanguimancer",
-	    "Mana is an illusion. Blood is the true currency.",
-	    "Cast->spend HP (1 mana=2 HP). Kill->restore 10% MaxHP.",
-	    { "Vampiric: restore 15% on kill", "Desperation: HP<30%->1:1 ratio", "Soul Burn: HP<20%->1:1 +40% dmg +20% heal" },
-	    { "Blood Curse: curse nearby on kill", "Blood Ward: cast->temp HP=50% spent", "Last Rite: fatal->consume Ward survive" },
+	    N_("Sanguimancer"),
+	    N_("Mana is an illusion. Blood is the true currency."),
+	    N_("Cast->spend HP (1 mana=2 HP). Kill->restore 10% MaxHP."),
+	    { N_("Vampiric: restore 15% on kill"), N_("Desperation: HP<30%->1:1 ratio"), N_("Soul Burn: HP<20%->1:1 +40% dmg +20% heal") },
+	    { N_("Blood Curse: curse nearby on kill"), N_("Blood Ward: cast->temp HP=50% spent"), N_("Last Rite: fatal->consume Ward survive") },
 	    HeroClass::Sorcerer
 	},
 	{
-	    "Spellblade",
-	    "The staff is not a walking stick. It's a weapon.",
-	    "Mana Shield toggle. Weapon Enchant: +30% elem dmg. INT->wpn dmg.",
-	    { "Absorb: mana shield 50%", "Arc Slash: 10% 3-tile AoE", "Mindblade: wpn dmg=INT x0.8" },
-	    { "Reflect: shield reflects 20%", "Venom: poison DoT 3s, stack x3", "Channel: INT->+0.5% spd, STR->+3% enchant" },
+	    N_("Spellblade"),
+	    N_("The staff is not a walking stick. It's a weapon."),
+	    N_("Mana Shield toggle. Weapon Enchant: +30% elem dmg. INT->wpn dmg."),
+	    { N_("Absorb: mana shield 50%"), N_("Arc Slash: 10% 3-tile AoE"), N_("Mindblade: wpn dmg=INT x0.8") },
+	    { N_("Reflect: shield reflects 20%"), N_("Venom: poison DoT 3s, stack x3"), N_("Channel: INT->+0.5% spd, STR->+3% enchant") },
 	    HeroClass::Sorcerer
 	},
 	{
-	    "Overcharge",
-	    "Burn twice as bright. Accept the aftermath.",
-	    "Activate: 8s x2 cast spd, 0 mana. Then 10s weak (-50% dmg).",
-	    { "Combustion: +30% spell dmg during", "Recovery: weakness 5s", "Detonate: end->explode 20% total" },
-	    { "Endurance: +4s burst (12s)", "Stability: mana-15% (no speed loss)", "Renewal: after weak->full mana, 3s cd" },
+	    N_("Overcharge"),
+	    N_("Burn twice as bright. Accept the aftermath."),
+	    N_("Activate: 8s x2 cast spd, 0 mana. Then 10s weak (-50% dmg)."),
+	    { N_("Combustion: +30% spell dmg during"), N_("Recovery: weakness 5s"), N_("Detonate: end->explode 20% total") },
+	    { N_("Endurance: +4s burst (12s)"), N_("Stability: mana-15% (no speed loss)"), N_("Renewal: after weak->full mana, 3s cd") },
 	    HeroClass::Sorcerer
 	},
 	// ===== Rogue =====
 	{
-	    "Marksman",
-	    "Distance is armor. Patience is the deadliest arrow.",
-	    "Bow +20% dmg. Aim 1s->dmg scales with dist (3%/tile, cap 30%).",
-	    { "Multishot: 3 arrows", "Longbow: 5%/tile (cap 50%)", "Arrow Rain: 10 arrows (30s cd)" },
-	    { "Pierce: 50% pierce", "Focus: +25% crit while aiming", "Heartseeker: 3s->x3 crit" },
+	    N_("Marksman"),
+	    N_("Distance is armor. Patience is the deadliest arrow."),
+	    N_("Bow +20% dmg. Aim 1s->dmg scales with dist (3%/tile, cap 30%)."),
+	    { N_("Multishot: 3 arrows"), N_("Longbow: 5%/tile (cap 50%)"), N_("Arrow Rain: 10 arrows (30s cd)") },
+	    { N_("Pierce: 50% pierce"), N_("Focus: +25% crit while aiming"), N_("Heartseeker: 3s->x3 crit") },
 	    HeroClass::Rogue
 	},
 	{
-	    "Shadowstep",
-	    "They swing at air. You are already behind them.",
-	    "Dodge->teleport behind, next atk crit (4s cd). Manual: teleport (8s cd).",
-	    { "Evasion: +15% dodge", "Execute: crit 200% + kill=reset cd", "Chain: 2 teleports in 4s" },
-	    { "Decoy: leave afterimage 2s", "Venom: poison DoT on crit", "Shadow: +4 tile range, wall bypass" },
+	    N_("Shadowstep"),
+	    N_("They swing at air. You are already behind them."),
+	    N_("Dodge->teleport behind, next atk crit (4s cd). Manual: teleport (8s cd)."),
+	    { N_("Evasion: +15% dodge"), N_("Execute: crit 200% + kill=reset cd"), N_("Chain: 2 teleports in 4s") },
+	    { N_("Decoy: leave afterimage 2s"), N_("Venom: poison DoT on crit"), N_("Shadow: +4 tile range, wall bypass") },
 	    HeroClass::Rogue
 	},
 	{
-	    "Precision",
-	    "Eyes open. Hands steady. Everything is a target.",
-	    "+15% melee crit (+7.5% ranged). +20% ranged hit (+10% melee).",
-	    { "Marksman: melee crit+30%, ranged hit+10%", "Weak Spot: crit->+15% dmg mark", "Versatility: ranged crit=15%" },
-	    { "Deadeye: ranged spd+10%, melee hit+10%", "Rhythm: crit->+20% atk spd 3s", "Execution: ranged->extra arrow, melee->8% lifesteal" },
+	    N_("Precision"),
+	    N_("Eyes open. Hands steady. Everything is a target."),
+	    N_("+15% melee crit (+7.5% ranged). +20% ranged hit (+10% melee)."),
+	    { N_("Marksman: melee crit+30%, ranged hit+10%"), N_("Weak Spot: crit->+15% dmg mark"), N_("Versatility: ranged crit=15%") },
+	    { N_("Deadeye: ranged spd+10%, melee hit+10%"), N_("Rhythm: crit->+20% atk spd 3s"), N_("Execution: ranged->extra arrow, melee->8% lifesteal") },
 	    HeroClass::Rogue
 	},
 };
