@@ -197,10 +197,12 @@ void DrawFlaskValues(const Surface &out, Point pos, int currValue, int maxValue)
 void UpdateLifeManaPercent();
 
 extern bool DropGoldFlag;
+extern bool IsDepositGoldOpen;
 
 void DrawGoldSplit(const Surface &out);
 void control_drop_gold(SDL_Keycode vkey);
 void OpenGoldDrop(int8_t invIndex, int max);
+void OpenGoldDropFromCounter();
 void CloseGoldDrop();
 bool HandleGoldDropTextInputEvent(const SDL_Event &event);
 

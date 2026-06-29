@@ -1428,6 +1428,8 @@ void DrawView(const Surface &out, Point startPosition)
 		DrawGoldSplit(out);
 	}
 	DrawGoldWithdraw(out);
+	if (IsDepositGoldOpen)
+		DrawGoldDeposit(out);
 	if (HelpFlag) {
 		DrawHelp(out);
 	}

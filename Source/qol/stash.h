@@ -74,6 +74,7 @@ extern DVL_API_FOR_TEST StashStruct Stash;
 
 extern bool IsWithdrawGoldOpen;
 extern int WithdrawGoldValue;
+extern bool IsDepositGoldOpen;
 
 inline constexpr Size StashGridSize { 10, 10 };
 inline constexpr PointsInRectangle<int> StashGridRange { { { 0, 0 }, StashGridSize } };
@@ -97,6 +98,12 @@ void WithdrawGoldKeyPress(SDL_Keycode vkey);
 void DrawGoldWithdraw(const Surface &out);
 void CloseGoldWithdraw();
 bool HandleGoldWithdrawTextInputEvent(const SDL_Event &event);
+
+void StartGoldDeposit();
+void DepositGoldKeyPress(SDL_Keycode vkey);
+void DrawGoldDeposit(const Surface &out);
+void CloseGoldDeposit();
+bool HandleGoldDepositTextInputEvent(const SDL_Event &event);
 
 /**
  * @brief Checks whether the given item can be placed on the stash.

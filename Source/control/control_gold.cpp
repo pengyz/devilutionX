@@ -113,6 +113,11 @@ void OpenGoldDrop(int8_t invIndex, int max)
 	SDLC_StartTextInput(ghMainWnd);
 }
 
+void OpenGoldDropFromCounter()
+{
+	OpenGoldDrop(-1, MyPlayer->_pGold);
+}
+
 void CloseGoldDrop()
 {
 	if (!DropGoldFlag)

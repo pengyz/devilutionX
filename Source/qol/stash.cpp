@@ -56,6 +56,7 @@ constexpr Rectangle StashButtonRect[] = {
 	{ {  19, 19 }, ButtonSize }, // 10 left
 	{ {  56, 19 }, ButtonSize }, // 1 left
 	{ {  93, 19 }, ButtonSize }, // withdraw gold
+	{ { 130, 19 }, ButtonSize }, // deposit gold
 	{ { 242, 19 }, ButtonSize }, // 1 right
 	{ { 279, 19 }, ButtonSize }  // 10 right
 	// clang-format on
@@ -329,9 +330,12 @@ void CheckStashButtonRelease(Point mousePosition)
 			StartGoldWithdraw();
 			break;
 		case 3:
-			Stash.NextPage();
+			StartGoldDeposit();
 			break;
 		case 4:
+			Stash.NextPage();
+			break;
+		case 5:
 			Stash.NextPage(10);
 			break;
 		}
@@ -344,7 +348,7 @@ void CheckStashButtonPress(Point mousePosition)
 {
 	Rectangle stashButton;
 
-	for (int i = 0; i < 5; i++) {
+	for (int i = 0; i < 6; i++) {
 		stashButton = StashButtonRect[i];
 		stashButton.position = GetPanelPosition(UiPanels::Stash, stashButton.position);
 		if (stashButton.contains(mousePosition)) {
@@ -362,7 +366,8 @@ void DrawStash(const Surface &out)
 
 	if (StashButtonPressed != -1) {
 		const Point stashButton = GetPanelPosition(UiPanels::Stash, StashButtonRect[StashButtonPressed].position);
-		RenderClxSprite(out, (*StashNavButtonArt)[StashButtonPressed], stashButton);
+		if (StashButtonPressed < static_cast<int>((*StashNavButtonArt).numSprites()))
+			RenderClxSprite(out, (*StashNavButtonArt)[StashButtonPressed], stashButton);
 	}
 
 	constexpr Displacement offset { 0, INV_SLOT_SIZE_PX - 1 };
@@ -408,6 +413,13 @@ void DrawStash(const Surface &out)
 	    { .flags = UiFlags::AlignCenter | style });
 	DrawString(out, FormatInteger(Stash.gold), { position + Displacement { 122, 19 }, { 107, textboxHeight } },
 	    { .flags = UiFlags::AlignRight | style });
+
+	// Deposit gold button label (reuse "Deposit" text)
+	{
+		const Point depositPos = GetPanelPosition(UiPanels::Stash, StashButtonRect[3].position);
+		DrawString(out, _("Dep"), { { depositPos.x + 2, depositPos.y }, { 23, ButtonSize.height - 2 } },
+		    { .flags = UiFlags::AlignCenter | style });
+	}
 }
 
 void CheckStashItem(Point mousePosition, bool isShiftHeld, bool isCtrlHeld)
@@ -669,6 +681,73 @@ void DrawGoldWithdraw(const Surface &out)
 	        .cursorPosition = static_cast<int>(cursor.position),
 	        .highlightRange = { static_cast<int>(cursor.selection.begin), static_cast<int>(cursor.selection.end) },
 	    });
+}
+
+
+void DepositGold(Player &player, int amount)
+{
+	amount = std::min(amount, player._pGold);
+	player._pGold -= amount;
+	Stash.gold += amount;
+	Stash.dirty = true;
+}
+
+bool IsDepositGoldOpen;
+char GoldDepositText[21];
+TextInputCursorState GoldDepositCursor;
+std::optional<NumberInputState> GoldDepositInputState;
+
+void StartGoldDeposit()
+{
+	CloseGoldWithdraw();
+	CloseGoldDrop();
+	IsDepositGoldOpen = true;
+	GoldDepositText[0] = '\0';
+	GoldDepositInputState.emplace(NumberInputState::Options {
+	    .textOptions {
+	        .value = GoldDepositText,
+	        .cursor = &GoldDepositCursor,
+	        .maxLength = sizeof(GoldDepositText) - 1,
+	    },
+	    .min = 0,
+	    .max = MyPlayer->_pGold,
+	});
+}
+
+void DepositGoldKeyPress(SDL_Keycode vkey)
+{
+	if (vkey == SDLK_ESCAPE) {
+		CloseGoldDeposit();
+		return;
+	}
+	if (vkey == SDLK_RETURN || vkey == SDLK_KP_ENTER) {
+		if (const int value = GoldDepositInputState->value(); value != 0) {
+			DepositGold(*MyPlayer, value);
+		}
+		CloseGoldDeposit();
+	}
+}
+
+void DrawGoldDeposit(const Surface &out)
+{
+	const Point position = GetPanelPosition(UiPanels::Stash, { 17, 42 });
+	DrawString(out, StrCat(_("Deposit Gold: "), GoldDepositText),
+	    { position, { 286, 21 } },
+	    { .flags = UiFlags::VerticalCenter | UiFlags::ColorWhite | UiFlags::PentaCursor,
+	      .cursorPosition = static_cast<int>(GoldDepositCursor.position),
+	      .highlightRange = { static_cast<int>(GoldDepositCursor.selection.begin),
+	                         static_cast<int>(GoldDepositCursor.selection.end) } });
+}
+
+void CloseGoldDeposit()
+{
+	IsDepositGoldOpen = false;
+	GoldDepositInputState = std::nullopt;
+}
+
+bool HandleGoldDepositTextInputEvent(const SDL_Event &event)
+{
+	return HandleNumberInputEvent(event, *GoldDepositInputState);
 }
 
 void CloseGoldWithdraw()

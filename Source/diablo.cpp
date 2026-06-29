@@ -384,7 +384,7 @@ void LeftMouseDown(uint16_t modState)
 				if (!DropGoldFlag)
 					CheckInvItem(isShiftHeld, isCtrlHeld);
 			} else if (IsStashOpen && GetLeftPanel().contains(MousePosition)) {
-				if (!IsWithdrawGoldOpen)
+				if (!IsWithdrawGoldOpen && !IsDepositGoldOpen)
 					CheckStashItem(MousePosition, isShiftHeld, isCtrlHeld);
 				CheckStashButtonPress(MousePosition);
 			} else if (IsVisualStoreOpen && GetLeftPanel().contains(MousePosition)) {
@@ -467,6 +467,13 @@ void RightMouseDown(bool isShiftHeld)
 		return;
 	if (TryIconCurs())
 		return;
+	if (invflag) {
+		Rectangle goldRect = { GetPanelPosition(UiPanels::Inventory, { 13, 315 }), { 100, 15 } };
+		if (goldRect.contains(MousePosition)) {
+			OpenGoldDropFromCounter();
+			return;
+		}
+	}
 	if (pcursinvitem != -1 && UseInvItem(pcursinvitem))
 		return;
 	if (pcursstashitem != StashStruct::EmptyCell && UseStashItem(pcursstashitem))
@@ -558,6 +565,10 @@ void PressKey(SDL_Keycode vkey, uint16_t modState)
 	}
 	if (IsWithdrawGoldOpen) {
 		WithdrawGoldKeyPress(vkey);
+		return;
+	}
+	if (IsDepositGoldOpen) {
+		DepositGoldKeyPress(vkey);
 		return;
 	}
 
@@ -774,6 +785,9 @@ void GameEventHandler(const SDL_Event &event, uint16_t modState)
 		return;
 	}
 	if (IsWithdrawGoldOpen && HandleGoldWithdrawTextInputEvent(event)) {
+		return;
+	}
+	if (IsDepositGoldOpen && HandleGoldDepositTextInputEvent(event)) {
 		return;
 	}
 
@@ -1795,7 +1809,7 @@ bool CanPlayerTakeAction()
 bool CanAutomapBeToggledOff()
 {
 	// check if every window is closed - if yes, automap can be toggled off
-	return !QuestLogIsOpen && !IsWithdrawGoldOpen && !IsStashOpen && !IsVisualStoreOpen && !CharFlag
+	return !QuestLogIsOpen && !IsWithdrawGoldOpen && !IsDepositGoldOpen && !IsStashOpen && !IsVisualStoreOpen && !CharFlag
 	    && !SpellbookFlag && !invflag && !isGameMenuOpen && !qtextflag && !SpellSelectFlag
 	    && !ChatLogFlag && !HelpFlag;
 }
@@ -2999,6 +3013,9 @@ bool PressEscKey()
 		rv = true;
 	}
 
+	if (IsDepositGoldOpen) {
+		CloseGoldDeposit();
+	}
 	if (IsWithdrawGoldOpen) {
 		WithdrawGoldKeyPress(SDLK_ESCAPE);
 		rv = true;
