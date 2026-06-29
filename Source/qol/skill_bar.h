@@ -39,11 +39,13 @@ public:
     void LoadFromPlayer(const Player &player);
     void Draw(const Surface &out, Point position);
     void Free();
+    void MarkDirty();
 
     [[nodiscard]] const SkillSlot &GetSlot(int index) const;
 
 private:
     SkillSlot slots_[SlotCount];
+    bool dirty_ = true;
 };
 
 } // namespace devilution

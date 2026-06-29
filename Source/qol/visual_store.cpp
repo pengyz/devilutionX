@@ -529,11 +529,9 @@ int16_t CheckVisualStoreHLight(Point mousePosition)
 				if (i == TabButtonBasic) {
 					if (VendorHasTabs()) {
 						FloatingInfoString = _("Basic");
-						AddInfoBoxString(_("Basic items"));
 						AddInfoBoxString(_("Basic items"), true);
 					} else {
 						FloatingInfoString = _("Misc");
-						AddInfoBoxString(_("Miscellaneous items"));
 						AddInfoBoxString(_("Miscellaneous items"), true);
 					}
 					InfoColor = UiFlags::ColorWhite;
@@ -541,7 +539,6 @@ int16_t CheckVisualStoreHLight(Point mousePosition)
 					return -1;
 				} else if (i == TabButtonPremium) {
 					FloatingInfoString = _("Premium");
-					AddInfoBoxString(_("Premium items"));
 					AddInfoBoxString(_("Premium items"), true);
 					InfoColor = UiFlags::ColorWhite;
 					pcursstorebtn = TabButtonPremium;
@@ -556,10 +553,8 @@ int16_t CheckVisualStoreHLight(Point mousePosition)
 
 					FloatingInfoString = _("Repair All");
 					if (totalCost > 0) {
-						AddInfoBoxString(StrCat(FormatInteger(totalCost), " Gold"));
 						AddInfoBoxString(StrCat(FormatInteger(totalCost), " Gold"), true);
 					} else {
-						AddInfoBoxString(_("Nothing to repair"));
 						AddInfoBoxString(_("Nothing to repair"), true);
 					}
 					InfoColor = UiFlags::ColorWhite;
@@ -567,7 +562,6 @@ int16_t CheckVisualStoreHLight(Point mousePosition)
 					return -1;
 				} else if (i == RepairBtn) {
 					FloatingInfoString = _("Repair");
-					AddInfoBoxString(_("Repair a single item"));
 					AddInfoBoxString(_("Repair a single item"), true);
 					InfoColor = UiFlags::ColorWhite;
 					pcursstorebtn = RepairBtn;

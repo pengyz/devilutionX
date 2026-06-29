@@ -114,5 +114,6 @@ void FreeLargeSpellIcons();
 
 tl::expected<void, std::string> LoadSmallSpellIcons();
 void FreeSmallSpellIcons();
+bool AreSmallSpellIconsLoaded();
 
 } // namespace devilution

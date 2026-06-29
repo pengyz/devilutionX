@@ -16,6 +16,27 @@ std::string SkillSlot::GetChargeText() const
 
 void SkillBar::LoadFromPlayer(const Player &player)
 {
+	// Quick check: if hotkeys and ready spell haven't changed, skip copy
+	bool changed = false;
+	for (int i = 0; i < SlotCount; i++) {
+		if (slots_[i].spellId != player._pSplHotKey[i]
+		    || slots_[i].spellType != player._pSplTHotKey[i]) {
+			changed = true;
+			break;
+		}
+	}
+	bool activeChanged = false;
+	for (int i = 0; i < SlotCount; i++) {
+		bool nowActive = (player._pRSpell == player._pSplHotKey[i])
+		              && (player._pRSplType == player._pSplTHotKey[i]);
+		if (slots_[i].isActive != nowActive) {
+			activeChanged = true;
+			break;
+		}
+	}
+	if (!changed && !activeChanged)
+		return;
+
 	for (int i = 0; i < SlotCount; i++) {
 		if (player._pSplHotKey[i] != SpellID::Null) {
 			slots_[i].spellId = player._pSplHotKey[i];
@@ -32,6 +53,9 @@ void SkillBar::LoadFromPlayer(const Player &player)
 
 void SkillBar::Draw(const Surface &out, Point basePosition)
 {
+	if (!AreSmallSpellIconsLoaded())
+		return;
+
 	constexpr int slotSize = 28;
 	constexpr int slotSpacing = 6;
 	constexpr int startX = 200;

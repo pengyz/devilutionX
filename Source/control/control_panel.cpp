@@ -406,7 +406,6 @@ tl::expected<void, std::string> InitMainPanel()
 		buttonEnabled = false;
 	CharPanelButtonActive = false;
 	FloatingInfoString = StringOrView {};
-	FloatingInfoString = StringOrView {};
 	RedrawComponent(PanelDrawComponent::Health);
 	RedrawComponent(PanelDrawComponent::Mana);
 	CloseCharPanel();

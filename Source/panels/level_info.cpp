@@ -2,6 +2,7 @@
 
 #include <fmt/format.h>
 
+#include "diablo.h"
 #include "engine/render/text_render.hpp"
 #include "engine/surface.hpp"
 #include "game_mode.hpp"
@@ -41,7 +42,10 @@ std::string LevelInfoBar::GetDifficultyText() const
 
 void LevelInfoBar::Draw(const Surface &out, Point basePosition)
 {
-    constexpr int xOffset = 177;
+	if (!gbRunGame)
+		return;
+
+	constexpr int xOffset = 177;
     constexpr int yOffset = 50;
     constexpr int lineHeight = 14;
     constexpr int spacing = 2;
