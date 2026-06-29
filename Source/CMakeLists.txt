@@ -127,6 +127,7 @@ set(libdevilutionx_SRCS
   panels/charpanel.cpp
   panels/console.cpp
   panels/info_box.cpp
+  panels/level_info.cpp
   panels/mainpanel.cpp
   panels/partypanel.cpp
   panels/spell_book.cpp

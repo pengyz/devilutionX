@@ -55,6 +55,7 @@
 #include "options.h"
 #include "panels/charpanel.hpp"
 #include "panels/console.hpp"
+#include "panels/level_info.h"
 #include "panels/partypanel.hpp"
 #include "panels/spell_list.hpp"
 #include "plrmsg.h"
@@ -62,6 +63,7 @@
 #include "qol/floatingnumbers.h"
 #include "qol/itemlabels.h"
 #include "qol/monhealthbar.h"
+#include "qol/skill_bar.h"
 #include "qol/stash.h"
 #include "qol/visual_store.h"
 #include "qol/xpbar.h"
@@ -1894,6 +1896,17 @@ void DrawAndBlit()
 		    HasAnyOf(InspectPlayer->_pIFlags, ItemSpecialEffect::NoMana) ? 0 : MyPlayer->_pMaxMana >> 6);
 	UpdateTooltipContent();
 	DrawFloatingInfoBox(out);
+
+	{
+		static SkillBar skillBar;
+		skillBar.LoadFromPlayer(*MyPlayer);
+		skillBar.Draw(out, mainPanel.position);
+	}
+
+	{
+		static LevelInfoBar levelInfo;
+		levelInfo.Draw(out, mainPanel.position);
+	}
 
 	if (*GetOptions().Gameplay.showMultiplayerPartyInfo && PartySidePanelOpen)
 		DrawPartyMemberInfoPanel(out);
