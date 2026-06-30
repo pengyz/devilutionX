@@ -63,7 +63,6 @@
 #include "qol/floatingnumbers.h"
 #include "qol/itemlabels.h"
 #include "qol/monhealthbar.h"
-#include "qol/skill_bar.h"
 #include "qol/stash.h"
 #include "qol/visual_store.h"
 #include "qol/xpbar.h"
@@ -1898,12 +1897,6 @@ void DrawAndBlit()
 		    HasAnyOf(InspectPlayer->_pIFlags, ItemSpecialEffect::NoMana) ? 0 : MyPlayer->_pMaxMana >> 6);
 	UpdateTooltipContent();
 	DrawFloatingInfoBox(out);
-
-	{
-		static SkillBar skillBar;
-		skillBar.LoadFromPlayer(*MyPlayer);
-		skillBar.Draw(out, mainPanel.position);
-	}
 
 	{
 		static LevelInfoBar levelInfo;

@@ -130,11 +130,6 @@ void FreeSmallSpellIcons()
 	SmallSpellIcons = std::nullopt;
 }
 
-bool AreSmallSpellIconsLoaded()
-{
-	return SmallSpellIcons.has_value();
-}
-
 uint8_t GetSpellIconFrame(SpellID spell)
 {
 	return static_cast<uint8_t>(SpellITbl[static_cast<int8_t>(spell)]);

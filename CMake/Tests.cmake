@@ -50,7 +50,6 @@ set(tests
   spell_ui_test
   char_panel_test
   game_menu_test
-  skill_bar_test
 )
 set(standalone_tests
   codec_test

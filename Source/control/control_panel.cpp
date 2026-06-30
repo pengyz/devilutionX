@@ -429,7 +429,15 @@ tl::expected<void, std::string> InitMainPanel()
 
 void DrawMainPanel(const Surface &out)
 {
-	DrawPanelBox(out, MakeSdlRect(0, sgbPlrTalkTbl + PanelPaddingHeight, GetMainPanel().size.width, GetMainPanel().size.height), GetMainPanel().position);
+	const Point panelPos = GetMainPanel().position;
+	const int panelW = GetMainPanel().size.width;
+	const int panelH = GetMainPanel().size.height;
+	const int tbl = sgbPlrTalkTbl + PanelPaddingHeight;
+
+	// Left portion of the panel (0 to 177)
+	DrawPanelBox(out, MakeSdlRect(0, tbl, 177, panelH), panelPos);
+	// Right portion of the panel (465 to 640), leaving the info box area transparent
+	DrawPanelBox(out, MakeSdlRect(465, tbl, panelW - 465, panelH), panelPos + Displacement { 465, 0 });
 }
 
 void DrawMainPanelButtons(const Surface &out)

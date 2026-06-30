@@ -145,7 +145,6 @@ set(libdevilutionx_SRCS
   qol/floatingnumbers.cpp
   qol/itemlabels.cpp
   qol/monhealthbar.cpp
-  qol/skill_bar.cpp
   qol/stash.cpp
   qol/visual_store.cpp
   qol/xpbar.cpp
