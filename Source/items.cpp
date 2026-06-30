@@ -4208,17 +4208,22 @@ void PrintItemComparison(const Item &item)
 		return;
 
 	AddInfoBoxString(std::string {});
-	AddItemInfoBoxString(fmt::format(fmt::runtime(_("Equipped: {:s}")), equipped->getName()));
+	AddInfoBoxString(fmt::format(fmt::runtime(_("Equipped: {:s}")), equipped->getName()));
 
-	if (item._iClass == ICLASS_WEAPON && equipped->_iClass == ICLASS_WEAPON) {
-		int dmgNew = (item._iMinDam + item._iMaxDam) / 2;
-		int dmgOld = (equipped->_iMinDam + equipped->_iMaxDam) / 2;
-		int delta = dmgNew - dmgOld;
-		AddItemInfoBoxString(fmt::format(fmt::runtime(_("Damage: {:d}-{:d} ({:+d})")), item._iMinDam, item._iMaxDam, delta));
-	} else if (item._iClass == ICLASS_ARMOR && equipped->_iClass == ICLASS_ARMOR) {
-		int delta = item._iAC - equipped->_iAC;
-		AddItemInfoBoxString(fmt::format(fmt::runtime(_("Armor: {:d} ({:+d})")), item._iAC, delta));
+	// Show equipped item's full stats for comparison
+	if (equipped->_iClass == ICLASS_WEAPON) {
+		if (equipped->_iMinDam == equipped->_iMaxDam)
+			AddInfoBoxString(fmt::format(fmt::runtime(_("damage: {:d}")), equipped->_iMinDam));
+		else
+			AddInfoBoxString(fmt::format(fmt::runtime(_("damage: {:d}-{:d}")), equipped->_iMinDam, equipped->_iMaxDam));
 	}
+	if (equipped->_iClass == ICLASS_ARMOR) {
+		AddInfoBoxString(fmt::format(fmt::runtime(_("armor: {:d}")), equipped->_iAC));
+	}
+	if (equipped->_iPrePower != -1)
+		AddInfoBoxString(PrintItemPower(equipped->_iPrePower, *equipped));
+	if (equipped->_iSufPower != -1)
+		AddInfoBoxString(PrintItemPower(equipped->_iSufPower, *equipped));
 }
 
 void PrintItemDur(const Item &item)
