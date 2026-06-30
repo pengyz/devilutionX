@@ -14,6 +14,5 @@ extern DVL_API_FOR_TEST bool gbIsHellfire;
 extern DVL_API_FOR_TEST bool gbVanilla;
 /** Whether the Hellfire mode is required (forced). */
 extern bool forceHellfire;
-extern bool gbExportPanel;
 
 } // namespace devilution
