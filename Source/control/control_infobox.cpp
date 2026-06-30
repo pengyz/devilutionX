@@ -375,6 +375,8 @@ void UpdateTooltipContent()
 	} else {
 		if (pcursitem != -1) {
 			GetItemStr(Items[pcursitem]);
+			if (Items[pcursitem]._itype != ItemType::Gold)
+				AddInfoBoxString(fmt::format(fmt::runtime(_("Type: {:s}")), ItemTypeToString(Items[pcursitem]._itype)));
 			PrintItemDetails(Items[pcursitem]);
 			PrintItemComparison(Items[pcursitem]);
 		}
