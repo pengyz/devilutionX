@@ -4207,6 +4207,7 @@ void PrintItemComparison(const Item &item)
 	if (equipped == nullptr)
 		return;
 
+	AddInfoBoxString(std::string {});
 	AddItemInfoBoxString(fmt::format(fmt::runtime(_("Equipped: {:s}")), equipped->getName()));
 
 	if (item._iClass == ICLASS_WEAPON && equipped->_iClass == ICLASS_WEAPON) {
