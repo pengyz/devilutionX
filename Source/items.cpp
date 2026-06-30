@@ -4202,8 +4202,11 @@ void PrintItemComparison(const Item &item)
 		break;
 	}
 
-	if (equipped == nullptr)
+	if (equipped == nullptr) {
+		AddInfoBoxString(std::string {});
+		AddInfoBoxString(_("(nothing equipped)"));
 		return;
+	}
 
 	AddInfoBoxString(std::string {});
 	AddInfoBoxString(fmt::format(fmt::runtime(_("Equipped: {:s}")), equipped->getName()));
