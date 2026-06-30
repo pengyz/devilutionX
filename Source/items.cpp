@@ -4158,6 +4158,68 @@ void PrintItemDetails(const Item &item)
 	PrintItemInfo(item);
 }
 
+void PrintItemComparison(const Item &item)
+{
+	if (HeadlessMode)
+		return;
+	if (!item._iIdentified)
+		return;
+
+	const Player &player = *MyPlayer;
+	const Item *equipped = nullptr;
+
+	switch (item._itype) {
+	case ItemType::Sword:
+	case ItemType::Axe:
+	case ItemType::Mace:
+	case ItemType::Staff:
+	case ItemType::Bow:
+		if (!player.InvBody[INVLOC_HAND_LEFT].isEmpty())
+			equipped = &player.InvBody[INVLOC_HAND_LEFT];
+		else if (!player.InvBody[INVLOC_HAND_RIGHT].isEmpty())
+			equipped = &player.InvBody[INVLOC_HAND_RIGHT];
+		break;
+	case ItemType::Shield:
+		if (!player.InvBody[INVLOC_HAND_RIGHT].isEmpty())
+			equipped = &player.InvBody[INVLOC_HAND_RIGHT];
+		break;
+	case ItemType::LightArmor:
+	case ItemType::MediumArmor:
+	case ItemType::HeavyArmor:
+		equipped = player.InvBody[INVLOC_CHEST].isEmpty() ? nullptr : &player.InvBody[INVLOC_CHEST];
+		break;
+	case ItemType::Helm:
+		equipped = player.InvBody[INVLOC_HEAD].isEmpty() ? nullptr : &player.InvBody[INVLOC_HEAD];
+		break;
+	case ItemType::Ring:
+		if (!player.InvBody[INVLOC_RING_LEFT].isEmpty())
+			equipped = &player.InvBody[INVLOC_RING_LEFT];
+		else if (!player.InvBody[INVLOC_RING_RIGHT].isEmpty())
+			equipped = &player.InvBody[INVLOC_RING_RIGHT];
+		break;
+	case ItemType::Amulet:
+		equipped = player.InvBody[INVLOC_AMULET].isEmpty() ? nullptr : &player.InvBody[INVLOC_AMULET];
+		break;
+	default:
+		break;
+	}
+
+	if (equipped == nullptr)
+		return;
+
+	AddItemInfoBoxString(fmt::format(fmt::runtime(_("Equipped: {:s}")), equipped->getName()));
+
+	if (item._iClass == ICLASS_WEAPON && equipped->_iClass == ICLASS_WEAPON) {
+		int dmgNew = (item._iMinDam + item._iMaxDam) / 2;
+		int dmgOld = (equipped->_iMinDam + equipped->_iMaxDam) / 2;
+		int delta = dmgNew - dmgOld;
+		AddItemInfoBoxString(fmt::format(fmt::runtime(_("Damage: {:d}-{:d} ({:+d})")), item._iMinDam, item._iMaxDam, delta));
+	} else if (item._iClass == ICLASS_ARMOR && equipped->_iClass == ICLASS_ARMOR) {
+		int delta = item._iAC - equipped->_iAC;
+		AddItemInfoBoxString(fmt::format(fmt::runtime(_("Armor: {:d} ({:+d})")), item._iAC, delta));
+	}
+}
+
 void PrintItemDur(const Item &item)
 {
 	if (HeadlessMode)

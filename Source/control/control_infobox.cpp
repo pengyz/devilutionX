@@ -3,6 +3,7 @@
 
 #include "engine/render/primitive_render.hpp"
 #include "inv.h"
+#include "items.h"
 #include "levels/trigs.h"
 #include "panels/partypanel.hpp"
 #include "qol/stash.h"
@@ -372,8 +373,11 @@ void UpdateTooltipContent()
 			InfoColor = myPlayer.HoldItem.getTextColor();
 		}
 	} else {
-		if (pcursitem != -1)
+		if (pcursitem != -1) {
 			GetItemStr(Items[pcursitem]);
+			PrintItemDetails(Items[pcursitem]);
+			PrintItemComparison(Items[pcursitem]);
+		}
 		else if (ObjectUnderCursor != nullptr)
 			GetObjectStr(*ObjectUnderCursor);
 		if (pcursmonst != -1) {
