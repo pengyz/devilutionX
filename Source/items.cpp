@@ -1629,14 +1629,12 @@ void ItemDoppel()
 
 void AddItemInfoBoxString(const std::string_view str)
 {
-	const bool floatingInfoBoxEnabled = *GetOptions().Gameplay.floatingInfoBox;
-	AddInfoBoxString(str, floatingInfoBoxEnabled);
+	AddInfoBoxString(str, true);
 }
 
 void AddItemInfoBoxString(std::string &&str)
 {
-	const bool floatingInfoBoxEnabled = *GetOptions().Gameplay.floatingInfoBox;
-	AddInfoBoxString(std::move(str), floatingInfoBoxEnabled);
+	AddInfoBoxString(std::move(str), true);
 }
 
 void PrintItemOil(char iDidx)
@@ -4202,11 +4200,8 @@ void PrintItemComparison(const Item &item)
 		break;
 	}
 
-	if (equipped == nullptr) {
-		AddInfoBoxString(std::string {});
-		AddInfoBoxString(_("(nothing equipped)"));
+	if (equipped == nullptr)
 		return;
-	}
 
 	AddInfoBoxString(std::string {});
 	AddInfoBoxString(fmt::format(fmt::runtime(_("Equipped: {:s}")), equipped->getName()));
