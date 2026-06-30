@@ -1169,6 +1169,8 @@ void DiabloParseFlags(int argc, char **argv)
 			forceDiablo = true;
 		} else if (arg == "--hellfire") {
 			forceHellfire = true;
+		} else if (arg == "--export-panel") {
+			gbExportPanel = true;
 		} else if (arg == "--vanilla") {
 			gbVanilla = true;
 		} else if (arg == "--verbose") {
@@ -1829,6 +1831,7 @@ void OptionLanguageCodeChanged()
 const auto OptionChangeHandlerLanguage = (GetOptions().Language.code.SetValueChangedCallback(OptionLanguageCodeChanged), true);
 
 } // namespace
+
 
 void InitKeymapActions()
 {

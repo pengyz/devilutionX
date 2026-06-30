@@ -15,6 +15,7 @@
 #include "headless_mode.hpp"
 #include "minitext.h"
 #include "options.h"
+#include "utils/surface_to_png.hpp"
 #include "panels/charpanel.hpp"
 #include "panels/mainpanel.hpp"
 #include "panels/partypanel.hpp"
@@ -363,6 +364,16 @@ tl::expected<void, std::string> InitMainPanel()
 		RETURN_IF_ERROR(LoadLargeSpellIcons());
 		{
 			ASSIGN_OR_RETURN(const OwnedClxSpriteList sprite, LoadCelWithStatus("ctrlpan\\panel8", GetMainPanel().size.width));
+			if (gbExportPanel) {
+				const ClxSprite panelSprite = sprite[0];
+				OwnedSurface tmp(panelSprite.width(), panelSprite.height());
+				SDL_memset(tmp.at(0, 0), 0, tmp.pitch() * tmp.h());
+				ClxDraw(tmp, { 0, 0 }, panelSprite);
+				SDL_IOStream *io = SDL_IOFromFile("panel8.png", "wb");
+				if (io) WriteSurfaceToFilePng(tmp, io);
+				SDL_Log("Panel exported to panel8.png — exiting.");
+				exit(0);
+			}
 			ClxDraw(*BottomBuffer, { 0, (GetMainPanel().size.height + PanelPaddingHeight) - 1 }, sprite[0]);
 		}
 		{
