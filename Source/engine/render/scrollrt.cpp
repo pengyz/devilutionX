@@ -1843,7 +1843,7 @@ void DrawAndBlit()
 	bool drawControlButtons = IsRedrawComponent(PanelDrawComponent::ControlButtons);
 	bool drawBelt = IsRedrawComponent(PanelDrawComponent::Belt);
 	const bool drawChatInput = ChatFlag;
-	bool drawInfoBox = false;
+
 	bool drawCtrlPan = false;
 
 	const Rectangle &mainPanel = GetMainPanel();
@@ -1853,11 +1853,9 @@ void DrawAndBlit()
 		drawMana = true;
 		drawControlButtons = true;
 		drawBelt = true;
-		drawInfoBox = false;
 		drawCtrlPan = true;
 		hgt = gnScreenHeight;
 	} else if (IsRedrawViewport()) {
-		drawInfoBox = true;
 		drawCtrlPan = false;
 		hgt = gnViewportHeight;
 	}
@@ -1912,7 +1910,7 @@ void DrawAndBlit()
 
 	lua::GameDrawComplete();
 
-	DrawMain(hgt, drawInfoBox, drawHealth, drawMana, drawBelt, drawControlButtons);
+	DrawMain(hgt, false, drawHealth, drawMana, drawBelt, drawControlButtons);
 
 #ifdef _DEBUG
 	DrawConsole(out);
