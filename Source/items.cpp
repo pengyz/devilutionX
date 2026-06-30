@@ -4162,8 +4162,6 @@ void PrintItemComparison(const Item &item)
 {
 	if (HeadlessMode)
 		return;
-	if (!item._iIdentified)
-		return;
 
 	const Player &player = *MyPlayer;
 	const Item *equipped = nullptr;
