@@ -1919,6 +1919,75 @@ int8_t CheckInvHLight()
 		} else {
 			PrintItemDur(*pi);
 		}
+		// Build a separate right-side tooltip for the equipped item (D2-style dual tooltip)
+		if (r >= SLOTXY_INV_FIRST) {
+			const Player &player = *MyPlayer;
+			const Item *equipped = nullptr;
+			switch (pi->_itype) {
+			case ItemType::Sword:
+			case ItemType::Axe:
+			case ItemType::Mace:
+			case ItemType::Staff:
+			case ItemType::Bow: {
+				// Only match if the equipped item is also a weapon, not a shield
+				auto isWeapon = [](const Item &item) {
+					return item._itype == ItemType::Sword
+					    || item._itype == ItemType::Axe
+					    || item._itype == ItemType::Mace
+					    || item._itype == ItemType::Staff
+					    || item._itype == ItemType::Bow;
+				};
+				if (!player.InvBody[INVLOC_HAND_LEFT].isEmpty() && isWeapon(player.InvBody[INVLOC_HAND_LEFT]))
+					equipped = &player.InvBody[INVLOC_HAND_LEFT];
+				else if (!player.InvBody[INVLOC_HAND_RIGHT].isEmpty() && isWeapon(player.InvBody[INVLOC_HAND_RIGHT]))
+					equipped = &player.InvBody[INVLOC_HAND_RIGHT];
+				break;
+			}
+			case ItemType::Shield:
+				if (!player.InvBody[INVLOC_HAND_RIGHT].isEmpty())
+					equipped = &player.InvBody[INVLOC_HAND_RIGHT];
+				break;
+			case ItemType::LightArmor:
+			case ItemType::MediumArmor:
+			case ItemType::HeavyArmor:
+				equipped = player.InvBody[INVLOC_CHEST].isEmpty() ? nullptr : &player.InvBody[INVLOC_CHEST];
+				break;
+			case ItemType::Helm:
+				equipped = player.InvBody[INVLOC_HEAD].isEmpty() ? nullptr : &player.InvBody[INVLOC_HEAD];
+				break;
+			case ItemType::Ring:
+				if (!player.InvBody[INVLOC_RING_LEFT].isEmpty())
+					equipped = &player.InvBody[INVLOC_RING_LEFT];
+				else if (!player.InvBody[INVLOC_RING_RIGHT].isEmpty())
+					equipped = &player.InvBody[INVLOC_RING_RIGHT];
+				break;
+			case ItemType::Amulet:
+				equipped = player.InvBody[INVLOC_AMULET].isEmpty() ? nullptr : &player.InvBody[INVLOC_AMULET];
+				break;
+			default:
+				break;
+			}
+			if (equipped != nullptr) {
+				// Use save/restore to build equipped tooltip into ComparisonInfoString
+				StringOrView saved = std::move(FloatingInfoString);
+				FloatingInfoString = StringOrView {};
+				{
+					Item equippedCopy = *equipped;
+					GetItemStr(equippedCopy);
+					if (equippedCopy._iIdentified) {
+						PrintItemDetails(equippedCopy);
+					} else {
+						PrintItemDur(equippedCopy);
+					}
+				}
+				ComparisonInfoString = std::move(FloatingInfoString);
+				FloatingInfoString = std::move(saved);
+			} else {
+				ComparisonInfoString = StringOrView {};
+			}
+		} else {
+			ComparisonInfoString = StringOrView {};
+		}
 	}
 
 	return rv;
