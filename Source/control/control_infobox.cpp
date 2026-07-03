@@ -1,7 +1,9 @@
 #include "control.hpp"
 #include "control_panel.hpp"
 
+#include "diablo.h"
 #include "engine/render/primitive_render.hpp"
+#include "engine/render/scrollrt.h"
 #include "inv.h"
 #include "items.h"
 #include "levels/trigs.h"
@@ -168,7 +170,38 @@ Rectangle GetFloatingInfoRect(const int lineHeight, const int textSpacing)
 		return { GetVisualBtnCoord(pcursstorebtn).position, { maxW, totalH } };
 	}
 
-	return { { 0, 0 }, { 0, 0 } };
+	// 6) World entities: position above the entity
+	// The rendering offset for entities centers the sprite at
+	// tileCenter = GetScreenPosition(tile) + TILE_WIDTH/2 (see CalculateSpriteTileCenterX).
+	// We center the tooltip box on tileCenter so the text aligns with the sprite.
+	if (pcursmonst != -1) {
+		Point entityPos;
+		if (leveltype != DTYPE_TOWN) {
+			const auto &monster = Monsters[pcursmonst];
+			entityPos = GetScreenPosition(monster.position.tile);
+		} else {
+			const auto &towner = Towners[pcursmonst];
+			entityPos = GetScreenPosition(towner.position);
+		}
+		// Center on the sprite's visual center (CalculateSpriteTileCenterX puts center at TILE_WIDTH/2)
+		// Y offset: the ClampAboveOrBelow function in PrintFloatingInfo will
+		// re-adjust this (yBelow = anchorY + 5). We compute anchorY so that
+		// yBelow + totalH ≈ entityPos.y - 10 (just above the entity sprite).
+		entityPos += Displacement { -maxW / 2 + TILE_WIDTH / 2, -(totalH + TILE_HEIGHT) };
+		return { entityPos, { maxW, totalH } };
+	}
+	if (PlayerUnderCursor != nullptr) {
+		Point playerPos = GetScreenPosition(PlayerUnderCursor->position.tile);
+		playerPos += Displacement { -maxW / 2 + TILE_WIDTH / 2, -(totalH + TILE_HEIGHT) };
+		return { playerPos, { maxW, totalH } };
+	}
+	if (ObjectUnderCursor != nullptr) {
+		Point objectPos = GetScreenPosition(ObjectUnderCursor->position);
+		objectPos += Displacement { -maxW / 2 + TILE_WIDTH / 2, -(totalH + TILE_HEIGHT) };
+		return { objectPos, { maxW, totalH } };
+	}
+	// 7) Default fallback: position at mouse cursor
+	return { MousePosition, { maxW, totalH } };
 }
 
 int GetHoverSpriteHeight()
