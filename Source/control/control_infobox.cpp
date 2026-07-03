@@ -287,6 +287,7 @@ void PrintFloatingInfo(const Surface &out)
 } // namespace
 
 StringOrView FloatingInfoString;
+StringOrView ComparisonInfoString;
 
 void AddInfoBoxString(std::string_view str, bool floatingBox /*= true*/)
 {
@@ -392,6 +393,9 @@ void UpdateTooltipContent()
 		FloatingInfoString = StringOrView {};
 		InfoColor = UiFlags::ColorWhite;
 	}
+	// Clear comparison string whenever we're not hovering over a backpack inventry item
+	if (pcursinvitem == -1 || pcursinvitem < INVITEM_INV_FIRST)
+		ComparisonInfoString = StringOrView {};
 	const Player &myPlayer = *MyPlayer;
 	if (SpellSelectFlag || trigflag || pcurs == CURSOR_HOURGLASS) {
 		InfoColor = UiFlags::ColorWhite;
@@ -450,8 +454,62 @@ void UpdateTooltipContent()
 
 void DrawFloatingInfoBox(const Surface &out)
 {
-	if (!FloatingInfoString.empty())
-		PrintFloatingInfo(out);
+	// Only show comparison when hovering over a backpack item
+	if (pcursinvitem < INVITEM_INV_FIRST)
+		ComparisonInfoString = StringOrView {};
+
+	if (FloatingInfoString.empty())
+		return;
+
+	Rectangle mainBoxRect = GetFloatingInfoRect(12 + 3, 2);
+	// mainBoxRect gets its final Y in PrintFloatingInfo via ClampAboveOrBelow.
+	// To top-align the comparison box, we call PrintFloatingInfo first (it mutates the rect),
+	// then position the comparison box using the same Y.
+
+	PrintFloatingInfo(out);
+
+	// Draw the comparison tooltip (equipped item) to the right (D2-style dual tooltip)
+	if (!ComparisonInfoString.empty()) {
+		const int textSpacing = 2;
+		const int hPadding = 5;
+		const int vPadding = 4;
+
+		// Compute comparison box size from its text
+		const std::string txt = std::string(ComparisonInfoString);
+		auto lines = SplitByChar(txt, '\n');
+		int maxW = 0;
+		for (const auto &line : lines) {
+			const int w = GetLineWidth(line, GameFont12, textSpacing, nullptr);
+			maxW = std::max(maxW, w);
+		}
+		const auto lineCount = 1 + static_cast<int>(c_count(ComparisonInfoString.str(), '\n'));
+		const int totalH = lineCount * (12 + 3);
+
+		// Compute main box's final position (same as PrintFloatingInfo does internally)
+		mainBoxRect.position.x = std::clamp(mainBoxRect.position.x, hPadding, GetScreenWidth() - (mainBoxRect.size.width + hPadding));
+		const int spriteH = GetHoverSpriteHeight();
+		mainBoxRect.position.y = ClampAboveOrBelow(mainBoxRect.position.y, spriteH, mainBoxRect.size.height, vPadding, 3);
+
+		// Position comparison box to the right, top-aligned with main box
+		const int gap = 10;
+		Rectangle compRect = { { mainBoxRect.position.x + mainBoxRect.size.width + gap, mainBoxRect.position.y }, { maxW, totalH } };
+		compRect.position.x = std::clamp(compRect.position.x, hPadding, GetScreenWidth() - (compRect.size.width + hPadding));
+
+		// Draw comparison box
+		for (int i = 0; i < 3; i++)
+			DrawHalfTransparentRectTo(out, compRect.position.x - hPadding, compRect.position.y - vPadding, compRect.size.width + (hPadding * 2), compRect.size.height + (vPadding * 2));
+		DrawHalfTransparentVerticalLine(out, { compRect.position.x - hPadding - 1, compRect.position.y - vPadding - 1 }, compRect.size.height + (vPadding * 2) + 2, PAL16_GRAY + 10);
+		DrawHalfTransparentVerticalLine(out, { compRect.position.x + hPadding + compRect.size.width, compRect.position.y - vPadding - 1 }, compRect.size.height + (vPadding * 2) + 2, PAL16_GRAY + 10);
+		DrawHalfTransparentHorizontalLine(out, { compRect.position.x - hPadding, compRect.position.y - vPadding - 1 }, compRect.size.width + (hPadding * 2), PAL16_GRAY + 10);
+		DrawHalfTransparentHorizontalLine(out, { compRect.position.x - hPadding, compRect.position.y + vPadding + compRect.size.height }, compRect.size.width + (hPadding * 2), PAL16_GRAY + 10);
+
+		DrawString(out, ComparisonInfoString, compRect,
+		    {
+		        .flags = InfoColor | UiFlags::AlignCenter | UiFlags::VerticalCenter,
+		        .spacing = textSpacing,
+		        .lineHeight = 12 + 3,
+		    });
+	}
 }
 
 } // namespace devilution

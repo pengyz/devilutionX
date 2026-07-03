@@ -46,6 +46,7 @@ extern int SpellbookTab;
 extern UiFlags InfoColor;
 
 extern StringOrView FloatingInfoString;
+extern StringOrView ComparisonInfoString;
 
 extern Rectangle MainPanelButtonRect[8];
 extern DVL_API_FOR_TEST Rectangle CharPanelButtonRect[4];
