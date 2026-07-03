@@ -5,6 +5,8 @@
 #include <utility>
 #include <variant>
 
+#include <fmt/format.h>
+
 namespace devilution {
 
 class StringOrView {
@@ -61,3 +63,11 @@ private:
 };
 
 } // namespace devilution
+
+template <>
+struct fmt::formatter<devilution::StringOrView> : fmt::formatter<std::string_view> {
+	auto format(const devilution::StringOrView &s, fmt::format_context &ctx) const
+	{
+		return fmt::formatter<std::string_view>::format(s.str(), ctx);
+	}
+};
