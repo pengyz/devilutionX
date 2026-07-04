@@ -87,8 +87,8 @@ void ToggleCharPanel();
 	return GetScreenWidth() <= mainPanel.size.width && GetScreenHeight() <= SidePanelSize.height + mainPanel.size.height;
 }
 
-void AddInfoBoxString(std::string_view str, bool floatingBox = false);
-void AddInfoBoxString(std::string &&str, bool floatingBox = false);
+void AddInfoBoxString(std::string_view str, bool floatingBox = true);
+void AddInfoBoxString(std::string &&str, bool floatingBox = true);
 void DrawPanelBox(const Surface &out, SDL_Rect srcRect, Point targetPosition);
 Point GetPanelPosition(UiPanels panel, Point offset = { 0, 0 });
 
