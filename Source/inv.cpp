@@ -1220,13 +1220,44 @@ void DrawInv(const Surface &out)
 		}
 	}
 
+	// Bottom bar — RightPanel extended by 34px, sits below the original panel
 	{
 		const Point invPos = GetPanelPosition(UiPanels::Inventory);
-		DrawHalfTransparentRectTo(out, invPos.x, invPos.y + 338, 320, 14);
+		constexpr int BarY = 354;
+		constexpr int BarH = 30;
+		constexpr int BarW = 320;
+
+		// Tile the bottom 2px of the panel texture to fill the extended area
+		for (int y = 0; y < BarH; y += 2) {
+			DrawPanelBox(out,
+			    MakeSdlRect(0, SidePanelSize.height - 2, BarW, 2),
+			    invPos + Displacement { 0, BarY + y });
+		}
+
+		constexpr int TextH = 13;
+		const UiFlags styleWhite = UiFlags::VerticalCenter | UiFlags::ColorWhite;
+
+		DrawString(out, StrCat(_("Gold: "), FormatInteger(myPlayer._pGold)),
+		    { invPos + Displacement { 14, BarY + (BarH - TextH) / 2 }, { 180, TextH } },
+		    { .flags = styleWhite });
+
+		// Drop Gold button
+		constexpr int BtnW = 78;
+		constexpr int BtnH = 22;
+		constexpr int BtnX = BarW - BtnW - 14;
+		const Rectangle btnRect = { invPos + Displacement { BtnX, BarY + (BarH - BtnH) / 2 }, { BtnW, BtnH } };
+		const bool hovered = btnRect.contains(MousePosition);
+
+		if (hovered) {
+			DrawHalfTransparentRectTo(out, btnRect.position.x, btnRect.position.y, btnRect.size.width, btnRect.size.height);
+		}
+		DrawHalfTransparentVerticalLine(out, { btnRect.position.x - 1, btnRect.position.y }, btnRect.size.height, PAL16_GRAY + 10);
+		DrawHalfTransparentHorizontalLine(out, { btnRect.position.x - 1, btnRect.position.y - 1 }, btnRect.size.width + 2, PAL16_GRAY + 10);
+		DrawHalfTransparentHorizontalLine(out, { btnRect.position.x - 1, btnRect.position.y + btnRect.size.height }, btnRect.size.width + 2, PAL16_GRAY + 10);
+
+		DrawString(out, _("Drop Gold"), btnRect,
+		    { .flags = (hovered ? UiFlags::ColorWhite : UiFlags::ColorWhitegold) | UiFlags::AlignCenter | UiFlags::VerticalCenter });
 	}
-	DrawString(out, StrCat(_("Gold: "), FormatInteger(myPlayer._pGold)),
-	    { GetPanelPosition(UiPanels::Inventory) + Displacement { 20, 339 }, { 280, 13 } },
-	    { .flags = UiFlags::ColorWhitegold | UiFlags::AlignRight });
 }
 
 void DrawInvBelt(const Surface &out)

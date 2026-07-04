@@ -251,7 +251,7 @@ void CalculatePanelAreas()
 	};
 	RightPanel = {
 		{ 0, 0 },
-		SidePanelSize
+		{ SidePanelSize.width, SidePanelSize.height + 34 }
 	};
 
 	if (ControlMode == ControlTypes::VirtualGamepad) {

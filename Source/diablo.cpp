@@ -468,8 +468,10 @@ void RightMouseDown(bool isShiftHeld)
 	if (TryIconCurs())
 		return;
 	if (invflag) {
-		Rectangle goldRect = { GetPanelPosition(UiPanels::Inventory) + Displacement { 20, 339 }, { 280, 13 } };
-		if (goldRect.contains(MousePosition)) {
+		constexpr Displacement DropBtnOffset { 320 - 78 - 14, 354 + (30 - 22) / 2 };
+		constexpr Size DropBtnSize { 78, 22 };
+		Rectangle dropBtn = { GetPanelPosition(UiPanels::Inventory) + DropBtnOffset, DropBtnSize };
+		if (dropBtn.contains(MousePosition)) {
 			OpenGoldDropFromCounter();
 			return;
 		}
