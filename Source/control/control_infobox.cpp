@@ -410,31 +410,12 @@ void UpdateTooltipContent()
 			InfoColor = myPlayer.HoldItem.getTextColor();
 		}
 	} else {
-		if (pcursitem != -1) {
-			GetItemStr(Items[pcursitem]);
-			if (Items[pcursitem]._itype != ItemType::Gold) {
-				std::string_view typeName = ItemTypeToString(Items[pcursitem]._itype);
-				AddInfoBoxString(fmt::format(fmt::runtime(_("Type: {:s}")), typeName));
-			}
-			PrintItemDetails(Items[pcursitem]);
-			PrintItemComparison(Items[pcursitem]);
-		}
-		else if (ObjectUnderCursor != nullptr)
+		// Ground items have QOL item labels, monsters have health bar → no floating tooltip needed.
+		// Objects (chests, shrines, doors, levers) need floating tooltip since the old infobox is gone.
+		if (ObjectUnderCursor != nullptr)
 			GetObjectStr(*ObjectUnderCursor);
-		if (pcursmonst != -1) {
-			if (leveltype != DTYPE_TOWN) {
-				const Monster &monster = Monsters[pcursmonst];
-				InfoColor = UiFlags::ColorWhite;
-				FloatingInfoString = monster.name();
-				if (monster.isUnique()) {
-					InfoColor = UiFlags::ColorWhitegold;
-					PrintUniqueHistory();
-				} else {
-					PrintMonstHistory(monster.type().type);
-				}
-			} else if (pcursitem == -1) {
-				FloatingInfoString = std::string_view(Towners[pcursmonst].name);
-			}
+		if (pcursmonst != -1 && leveltype == DTYPE_TOWN && pcursitem == -1) {
+			FloatingInfoString = std::string_view(Towners[pcursmonst].name);
 		}
 		if (PlayerUnderCursor != nullptr) {
 			InfoColor = UiFlags::ColorWhitegold;
