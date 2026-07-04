@@ -6,49 +6,24 @@ if(NOT DEFINED DEVILUTIONX_ASSETS_OUTPUT_DIRECTORY)
 endif()
 
 set(devilutionx_langs be bg cs da de el es et fi fr he hr hu it ja ko pl pt_BR ro ru uk sv tr zh_CN zh_TW)
-
-# Try to find gettext tools (msgfmt) first
-if(DEFINED VCPKG_TARGET_TRIPLET)
+if(USE_GETTEXT_FROM_VCPKG)
+  # vcpkg doesn't add its own tools directory to the search path
   list(APPEND Gettext_ROOT ${CMAKE_CURRENT_BINARY_DIR}/vcpkg_installed/${VCPKG_TARGET_TRIPLET}/tools/gettext/bin)
 endif()
-find_package(Gettext QUIET)
-
-if(Gettext_FOUND)
-  set(_compile_cmd "${GETTEXT_MSGFMT_EXECUTABLE}" -o)
-else()
-  # Fallback: use Python polib if gettext is not available
-  find_package(Python3 COMPONENTS Interpreter QUIET)
-  if(Python3_FOUND)
-    execute_process(COMMAND ${Python3_EXECUTABLE} -c "import polib" RESULT_VARIABLE _polib_ok)
-    if(_polib_ok EQUAL 0)
-      set(_compile_cmd ${Python3_EXECUTABLE} "${CMAKE_CURRENT_SOURCE_DIR}/tools/compile_po_to_gmo.py")
-    endif()
-  endif()
-endif()
-
-if(_compile_cmd)
+find_package(Gettext)
+if (Gettext_FOUND)
   file(MAKE_DIRECTORY "${DEVILUTIONX_ASSETS_OUTPUT_DIRECTORY}")
   foreach(lang ${devilutionx_langs})
     set(_po_file "${CMAKE_CURRENT_SOURCE_DIR}/Translations/${lang}.po")
     set(_gmo_file "${DEVILUTIONX_ASSETS_OUTPUT_DIRECTORY}/${lang}.gmo")
     set(_lang_target devilutionx_lang_${lang})
-    if(Gettext_FOUND)
-      add_custom_command(
-        COMMAND ${_compile_cmd} "${_gmo_file}" "${_po_file}"
-        WORKING_DIRECTORY "${CMAKE_CURRENT_SOURCE_DIR}"
-        OUTPUT "${_gmo_file}"
-        MAIN_DEPENDENCY "${_po_file}"
-        VERBATIM
-      )
-    else()
-      add_custom_command(
-        COMMAND ${_compile_cmd} "${_po_file}" "${_gmo_file}"
-        WORKING_DIRECTORY "${CMAKE_CURRENT_SOURCE_DIR}"
-        OUTPUT "${_gmo_file}"
-        MAIN_DEPENDENCY "${_po_file}"
-        VERBATIM
-      )
-    endif()
+    add_custom_command(
+      COMMAND "${GETTEXT_MSGFMT_EXECUTABLE}" -o "${_gmo_file}" "${_po_file}"
+      WORKING_DIRECTORY "${CMAKE_CURRENT_SOURCE_DIR}"
+      OUTPUT "${_gmo_file}"
+      MAIN_DEPENDENCY "${_po_file}"
+      VERBATIM
+    )
     add_custom_target("${_lang_target}" DEPENDS "${_gmo_file}")
     list(APPEND devilutionx_lang_targets "${_lang_target}")
     list(APPEND devilutionx_lang_files "${_gmo_file}")
@@ -66,8 +41,6 @@ if(_compile_cmd)
       list(APPEND VITA_TRANSLATIONS_LIST "FILE" "${_gmo_file}" "assets/${lang}.gmo")
     endif()
   endforeach()
-else()
-  message(STATUS "Translations disabled: no msgfmt or Python polib found")
 endif()
 
 set(devilutionx_assets

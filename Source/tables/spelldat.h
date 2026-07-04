@@ -225,6 +225,7 @@ use_enum_as_flags(SpellDataFlags);
 
 struct SpellData {
 	std::string sNameText;
+	std::string sDescription;
 	SfxID sSFX;
 	uint16_t bookCost10;
 	uint8_t staffCost10;

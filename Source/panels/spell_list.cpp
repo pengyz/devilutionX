@@ -189,6 +189,11 @@ void DrawSpellList(const Surface &out)
 		case SpellType::Invalid:
 			break;
 		}
+		// Append spell description if available (translated via gettext)
+		if (!spellDataItem.sDescription.empty()) {
+			AddInfoBoxString(pgettext("spell_description", spellDataItem.sDescription.c_str()));
+		}
+
 		std::optional<std::string_view> fullHotkeyName = GetHotkeyName(spellId, spellListItem.type);
 		if (fullHotkeyName) {
 			AddInfoBoxString(fmt::format(fmt::runtime(_("Spell Hotkey {:s}")), *fullHotkeyName));

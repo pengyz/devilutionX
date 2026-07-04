@@ -152,6 +152,10 @@ void DrawSpellBook(const Surface &out)
 
 	int yp = 12;
 	const int textPaddingTop = 7;
+
+	// Hover tooltip state
+	bool hoveredSpellFound = false;
+
 	for (size_t pageEntry = 0; pageEntry < SpellBookPageEntries; pageEntry++) {
 		const SpellID sn = GetSpellFromSpellPage(SpellbookTab, pageEntry);
 		if (IsValidSpell(sn) && (spl & GetSpellBitmask(sn)) != 0) {
@@ -186,6 +190,34 @@ void DrawSpellBook(const Surface &out)
 			} break;
 			}
 		}
+
+		// Hover detection for floating tooltip
+		if (!hoveredSpellFound && IsValidSpell(sn) && (spl & GetSpellBitmask(sn)) != 0) {
+			const Point panelPos = GetPanelPosition(UiPanels::Spell);
+			const Rectangle entryRect = { panelPos + Displacement { 11, yp + SpellBookDescription.height }, SpellBookDescription };
+			if (entryRect.contains(MousePosition)) {
+				hoveredSpellFound = true;
+				const SpellData &sd = GetSpellData(sn);
+				const int lvl = player.GetSpellLevel(sn);
+
+				FloatingInfoString = pgettext("spell", sd.sNameText);
+				if (!sd.sDescription.empty()) {
+					AddInfoBoxString(pgettext("spell_description", sd.sDescription.c_str()));
+				}
+				AddInfoBoxString(fmt::format(fmt::runtime(_("Level {:d} / 15")), lvl));
+				if (lvl > 0 && lvl < MaxSpellLevel) {
+					const StringOrView curText = GetSpellPowerText(sn, lvl);
+					const StringOrView nextText = GetSpellPowerText(sn, lvl + 1);
+					AddInfoBoxString(fmt::format(fmt::runtime(_("Next: {:s} → {:s}")),
+					    !curText.empty() ? curText.str() : "",
+					    !nextText.empty() ? nextText.str() : ""));
+				}
+				if (sn == SpellID::ItemRepair) {
+					AddInfoBoxString(_("Warning: reduces max durability!"));
+				}
+			}
+		}
+
 		yp += SpellBookDescription.height;
 	}
 }

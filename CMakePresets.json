@@ -1,0 +1,30 @@
+{
+	"version": 6,
+	"configurePresets": [
+		{
+			"name": "default",
+			"displayName": "vcpkg + Ninja (Debug)",
+			"description": "Default Windows build with vcpkg manifest",
+			"generator": "Ninja",
+			"binaryDir": "${sourceDir}/build",
+			"cacheVariables": {
+				"CMAKE_TOOLCHAIN_FILE": "$env{VCPKG_ROOT}/scripts/buildsystems/vcpkg.cmake",
+				"CMAKE_BUILD_TYPE": "Debug",
+				"BUILD_TESTING": "ON"
+			}
+		},
+		{
+			"name": "vs18",
+			"displayName": "vcpkg + Ninja (Debug, build_vs18)",
+			"description": "Existing build_vs18 directory with vcpkg manifest",
+			"generator": "Ninja",
+			"binaryDir": "${sourceDir}/build_vs18",
+			"cacheVariables": {
+				"CMAKE_TOOLCHAIN_FILE": "C:/vcpkg/scripts/buildsystems/vcpkg.cmake",
+				"CMAKE_MAKE_PROGRAM": "C:/Users/Slaye/AppData/Local/Programs/Python/Python312/Scripts/ninja.exe",
+				"CMAKE_BUILD_TYPE": "Debug",
+				"BUILD_TESTING": "ON"
+			}
+		}
+	]
+}
