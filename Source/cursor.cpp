@@ -826,12 +826,8 @@ bool CheckPlayerState(const Point currentTile, const Player &myPlayer)
 bool CheckPanelsAndFlags(Rectangle mainPanel)
 {
 	if (mainPanel.contains(MousePosition)) {
-		// Transparent info box area — let clicks pass through to game world
-		Rectangle infoArea = { mainPanel.position + Displacement { 177, 46 }, { 288, 64 } };
-		if (!infoArea.contains(MousePosition)) {
-			CheckPanelInfo();
-			return true;
-		}
+		CheckPanelInfo();
+		return true;
 	}
 	if (DoomFlag) {
 		return true;
