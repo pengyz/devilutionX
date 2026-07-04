@@ -194,7 +194,7 @@ void DrawSpellBook(const Surface &out)
 		// Hover detection for floating tooltip
 		if (!hoveredSpellFound && IsValidSpell(sn) && (spl & GetSpellBitmask(sn)) != 0) {
 			const Point panelPos = GetPanelPosition(UiPanels::Spell);
-			const Rectangle entryRect = { panelPos + Displacement { 11, yp + SpellBookDescription.height }, SpellBookDescription };
+			const Rectangle entryRect = { panelPos + Displacement { 11, yp + textPaddingTop }, { SpellBookDescription.width, SpellBookDescription.height } };
 			if (entryRect.contains(MousePosition)) {
 				hoveredSpellFound = true;
 				const SpellData &sd = GetSpellData(sn);

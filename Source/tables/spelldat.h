@@ -266,7 +266,7 @@ struct SpellData {
 	}
 };
 
-extern std::vector<SpellData> SpellsData;
+extern DVL_API_FOR_TEST std::vector<SpellData> SpellsData;
 
 inline const SpellData &GetSpellData(SpellID spellId)
 {
