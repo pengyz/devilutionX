@@ -87,6 +87,7 @@
 #include "panels/partypanel.hpp"
 #include "panels/spell_book.hpp"
 #include "panels/spell_list.hpp"
+#include "spell_tooltip.h"
 #include "pfile.h"
 #include "plrmsg.h"
 #include "qol/chatlog.h"
@@ -2785,6 +2786,7 @@ int DiabloMain(int argc, char **argv)
 
 	// TODO: We can probably load this much later (when the game is starting).
 	LoadSpellData();
+	LoadSpellDescData();
 	LoadMissileData();
 	LoadMonsterData();
 	LoadItemData();
