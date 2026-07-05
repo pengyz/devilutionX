@@ -212,8 +212,8 @@ TEST_F(SpellTooltipTest, FormatStoneCurseDuration)
 	ASSERT_NE(durLine, nullptr);
 	std::string result = FormatDescLine(*durLine, *MyPlayer, SpellID::StoneCurse, 5);
 	EXPECT_THAT(result, testing::HasSubstr("Duration"));
-	// level 5: min(5+6, 15) = 11
-	EXPECT_THAT(result, testing::HasSubstr("11"));
+	// level 5: min(5+6, 15) * 16 / 20 = 8 seconds
+	EXPECT_THAT(result, testing::HasSubstr("8"));
 }
 
 // ---- Layer 4: BuildSpellTooltip / BuildSpellListTooltip ----

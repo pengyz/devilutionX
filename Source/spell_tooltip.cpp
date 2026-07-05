@@ -404,11 +404,6 @@ std::string FormatDescLine(const SpellDescLine &line, const Player &player, Spel
 	// Translate textKey for display
 	std::string_view label = line.textKey.empty() ? std::string_view {} : pgettext("spell_tooltip", line.textKey.c_str());
 
-	// Alt key: show formula text if available
-	if (!line.formulaText.empty() && (SDL_GetModState() & KMOD_ALT) != 0) {
-		return fmt::format("{:s}: {:s}", label, line.formulaText);
-	}
-
 	switch (line.format) {
 	case DescFormat::LevelDisplay:
 		return fmt::format(fmt::runtime(_("Level {:d} / {:d}")), level, MaxSpellLevel);
