@@ -400,7 +400,7 @@ SpellTooltip BuildSpellTooltip(const Player &player, SpellID spell)
 		std::string text = FormatDescLine(*line, player, spell, level);
 		if (text.empty()) continue;
 		if (!hasSecondary) {
-			tooltip.lines.emplace_back("", UiFlags::None); // Empty line separator
+			tooltip.lines.emplace_back(" ", UiFlags::ColorWhite); // Spacer line (non-empty to avoid skipping)
 			hasSecondary = true;
 		}
 		tooltip.lines.emplace_back(std::move(text), UiFlags::ColorWhite);
@@ -411,7 +411,7 @@ SpellTooltip BuildSpellTooltip(const Player &player, SpellID spell)
 		if (line->format != DescFormat::Text) continue;
 		std::string text = FormatDescLine(*line, player, spell, level);
 		if (text.empty()) continue;
-		tooltip.lines.emplace_back("", UiFlags::None); // Empty line separator
+		tooltip.lines.emplace_back(" ", UiFlags::ColorWhite); // Spacer line
 		tooltip.lines.emplace_back(std::move(text), UiFlags::ColorWhite);
 	}
 
@@ -434,7 +434,7 @@ SpellTooltip BuildSpellTooltip(const Player &player, SpellID spell)
 					upgradeTexts.emplace_back("  " + std::move(text), UiFlags::ColorYellow);
 			}
 			if (!upgradeTexts.empty()) {
-				tooltip.lines.emplace_back("", UiFlags::None); // Empty line separator
+				tooltip.lines.emplace_back(" ", UiFlags::ColorWhite); // Spacer line
 				tooltip.lines.emplace_back(std::string(_("Next Level:")), UiFlags::ColorYellow);
 				for (auto &entry : upgradeTexts)
 					tooltip.lines.push_back(std::move(entry));
@@ -483,7 +483,7 @@ SpellTooltip BuildSpellListTooltip(const Player &player, SpellID spell)
 		std::string text = FormatDescLine(*line, player, spell, level);
 		if (text.empty()) continue;
 		if (!hasSecondary) {
-			tooltip.lines.emplace_back("", UiFlags::None); // Empty line separator
+			tooltip.lines.emplace_back(" ", UiFlags::ColorWhite); // Spacer line
 			hasSecondary = true;
 		}
 		tooltip.lines.emplace_back(std::move(text), UiFlags::ColorWhite);
@@ -494,7 +494,7 @@ SpellTooltip BuildSpellListTooltip(const Player &player, SpellID spell)
 		if (line->format != DescFormat::Text) continue;
 		std::string text = FormatDescLine(*line, player, spell, level);
 		if (text.empty()) continue;
-		tooltip.lines.emplace_back("", UiFlags::None); // Empty line separator
+		tooltip.lines.emplace_back(" ", UiFlags::ColorWhite); // Spacer line
 		tooltip.lines.emplace_back(std::move(text), UiFlags::ColorWhite);
 	}
 
