@@ -134,6 +134,7 @@ set(libdevilutionx_SRCS
   panels/spell_book.cpp
   panels/spell_icons.cpp
   panels/spell_list.cpp
+  spell_tooltip.cpp
 
   platform/locale.cpp
 

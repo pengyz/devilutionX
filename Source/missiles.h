@@ -245,6 +245,11 @@ struct DamageRange {
 DamageRange GetDamageAmt(SpellID spell, int spellLevel);
 
 /**
+ * @brief Compound 8% per-level damage scaling (used by Fireball, Guardian, etc.).
+ */
+int ScaleSpellEffect(int base, int spellLevel);
+
+/**
  * @brief Returns the direction a vector from p1(x1, y1) to p2(x2, y2) is pointing to.
  *
  * @code{.unparsed}

@@ -122,6 +122,8 @@ int AddClassHealingBonus(int hp, HeroClass heroClass)
 	}
 }
 
+} // namespace
+
 int ScaleSpellEffect(int base, int spellLevel)
 {
 	for (int i = 0; i < spellLevel; i++) {
@@ -130,6 +132,8 @@ int ScaleSpellEffect(int base, int spellLevel)
 
 	return base;
 }
+
+namespace {
 
 int GenerateRndSum(int range, int iterations)
 {
