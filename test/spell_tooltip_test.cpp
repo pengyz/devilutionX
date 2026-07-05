@@ -85,4 +85,51 @@ TEST_F(SpellTooltipTest, EvaluateMagic)
 	EXPECT_EQ(result.value, MyPlayer->_pMagic);
 }
 
+TEST_F(SpellTooltipTest, LoadSpellDescDataSucceeds)
+{
+	auto result = LoadSpellDescData();
+	ASSERT_TRUE(result.has_value()) << result.error();
+}
+
+TEST_F(SpellTooltipTest, DescLinesExistForFirebolt)
+{
+	LoadSpellDescData();
+	auto lines = GetSpellDescLines(SpellID::Firebolt, DescSection::Desc);
+	ASSERT_GE(lines.size(), 2u); // at least damage + mana
+}
+
+TEST_F(SpellTooltipTest, UpgradeLinesExistForFirebolt)
+{
+	LoadSpellDescData();
+	auto lines = GetSpellDescLines(SpellID::Firebolt, DescSection::Upgrade);
+	EXPECT_FALSE(lines.empty());
+}
+
+TEST_F(SpellTooltipTest, UnknownSpellReturnsEmpty)
+{
+	LoadSpellDescData();
+	auto lines = GetSpellDescLines(SpellID::Invalid, DescSection::Desc);
+	EXPECT_TRUE(lines.empty());
+}
+
+TEST_F(SpellTooltipTest, LinesOrderedByPriority)
+{
+	LoadSpellDescData();
+	auto lines = GetSpellDescLines(SpellID::Firebolt, DescSection::Desc);
+	for (size_t i = 1; i < lines.size(); i++) {
+		EXPECT_GE(lines[i]->priority, lines[i - 1]->priority);
+	}
+}
+
+TEST_F(SpellTooltipTest, UtilitySpellHasManaLine)
+{
+	LoadSpellDescData();
+	auto lines = GetSpellDescLines(SpellID::TownPortal, DescSection::Desc);
+	bool hasMana = false;
+	for (const auto *line : lines) {
+		if (line->format == DescFormat::Mana) hasMana = true;
+	}
+	EXPECT_TRUE(hasMana);
+}
+
 } // namespace devilution
