@@ -1,21 +1,18 @@
 spellId	section	priority	formatType	source	textKey	formulaText
 Firebolt	desc	1	level_display	none
 Firebolt	desc	2	damage_range	damage	Damage	Magic/8 + Lvl + 1
-Firebolt	desc	3	mana	mana	Mana	Base - (Lvl-1) * Adj
+Firebolt	desc	3	mana	mana	Mana
 Firebolt	desc	4	value_single	speed	Speed (px/tick)	Base + 2*Lvl (cap 63)
-Firebolt	desc	5	text	none
 Firebolt	upgrade	1	damage_delta	damage	Damage
 Firebolt	upgrade	2	mana_delta	mana	Mana
 Healing	desc	1	level_display	none
 Healing	desc	2	heal_range	damage	Heals	CLvl+Lvl+1 to 4*CLvl+6*Lvl+10
 Healing	desc	3	mana	mana	Mana
-Healing	desc	4	text	none
 Healing	upgrade	1	heal_delta	damage	Heals
 Healing	upgrade	2	mana_delta	mana	Mana
 Lightning	desc	1	level_display	none
 Lightning	desc	2	damage_range	damage	Damage	2 to 2+CLvl
 Lightning	desc	3	mana	mana	Mana
-Lightning	desc	4	text	none
 Lightning	upgrade	1	damage_delta	damage	Damage
 Lightning	upgrade	2	mana_delta	mana	Mana
 Flash	desc	1	level_display	none
@@ -26,7 +23,6 @@ Flash	upgrade	1	damage_delta	damage	Damage
 Flash	upgrade	2	mana_delta	mana	Mana
 Identify	desc	1	level_display	none
 Identify	desc	2	mana	mana	Mana
-Identify	desc	3	text	none
 FireWall	desc	1	level_display	none
 FireWall	desc	2	damage_range	damage	Damage	2*CLvl+4 to 2*CLvl+40 per tick
 FireWall	desc	3	mana	mana	Mana
@@ -35,7 +31,6 @@ FireWall	upgrade	1	damage_delta	damage	Damage
 FireWall	upgrade	2	mana_delta	mana	Mana
 TownPortal	desc	1	level_display	none
 TownPortal	desc	2	mana	mana	Mana
-TownPortal	desc	3	text	none
 StoneCurse	desc	1	level_display	none
 StoneCurse	desc	2	mana	mana	Mana
 StoneCurse	desc	3	value_single	duration	Duration (ticks/16)	Cap at level 9 = 12s

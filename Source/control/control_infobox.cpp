@@ -290,8 +290,9 @@ void PrintFloatingInfo(const Surface &out)
 
 	for (int i = 0; i < totalLines; i++) {
 		UiFlags lineColor = InfoColor;
-		if (i < static_cast<int>(FloatingInfoLineColors.size()))
-			lineColor = FloatingInfoLineColors[i];
+		// First line (title) uses InfoColor, rest use FloatingInfoLineColors
+		if (i > 0 && (i - 1) < static_cast<int>(FloatingInfoLineColors.size()))
+			lineColor = FloatingInfoLineColors[i - 1];
 
 		Rectangle lineRect = {
 			{ floatingInfoBox.position.x, yOffset },

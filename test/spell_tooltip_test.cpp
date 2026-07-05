@@ -229,6 +229,7 @@ TEST_F(SpellTooltipTest, BuildTooltipTitle)
 TEST_F(SpellTooltipTest, BuildTooltipHasLines)
 {
 	LoadSpellDescData();
+	MyPlayer->_pSplLvl[static_cast<size_t>(SpellID::Firebolt)] = 5;
 	auto tooltip = BuildSpellTooltip(*MyPlayer, SpellID::Firebolt);
 	EXPECT_GE(tooltip.lines.size(), 2u);
 }

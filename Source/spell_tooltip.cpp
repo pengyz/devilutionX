@@ -323,18 +323,21 @@ std::string FormatDescLine(const SpellDescLine &line, const Player &player, Spel
 	case DescFormat::ValueDelta: {
 		int cur = GetSourceValue(line.source, player, spell, level);
 		int next = GetSourceValue(line.source, player, spell, level + 1);
+		if (cur == next) return ""; // No change, skip
 		return fmt::format("{:s}: {:d} -> {:d}", label, cur, next);
 	}
 
 	case DescFormat::DamageDelta: {
 		DamageRange cur = GetSpellDamage(spell, level);
 		DamageRange next = GetSpellDamage(spell, level + 1);
+		if (cur.min == next.min && cur.max == next.max) return ""; // No change, skip
 		return fmt::format("{:s}: {:d}-{:d} -> {:d}-{:d}", label, cur.min, cur.max, next.min, next.max);
 	}
 
 	case DescFormat::HealDelta: {
 		DamageRange cur = GetSpellDamage(spell, level);
 		DamageRange next = GetSpellDamage(spell, level + 1);
+		if (cur.min == next.min && cur.max == next.max) return ""; // No change, skip
 		return fmt::format("{:s}: {:d}-{:d} -> {:d}-{:d}", label, cur.min, cur.max, next.min, next.max);
 	}
 	}
@@ -391,17 +394,28 @@ SpellTooltip BuildSpellTooltip(const Player &player, SpellID spell)
 			tooltip.lines.emplace_back(std::string(_("Spell Level 0 - Unusable")), UiFlags::ColorRed);
 			continue;
 		}
+		std::string text = FormatDescLine(*line, player, spell, level);
+		if (text.empty()) continue; // Skip empty lines (e.g. no-change deltas)
 		UiFlags color = GetLineColor(line->format, line->section);
-		tooltip.lines.emplace_back(FormatDescLine(*line, player, spell, level), color);
+		tooltip.lines.emplace_back(std::move(text), color);
 	}
 
 	// Upgrade section (only if level > 0 and < max)
 	if (level > 0 && level < MaxSpellLevel) {
 		auto upgradeLines = GetSpellDescLines(spell, DescSection::Upgrade);
 		if (!upgradeLines.empty()) {
-			tooltip.lines.emplace_back(std::string(_("Next Level:")), UiFlags::ColorYellow);
+			// Collect non-empty upgrade lines first
+			std::vector<std::pair<std::string, UiFlags>> upgradeTexts;
 			for (const auto *line : upgradeLines) {
-				tooltip.lines.emplace_back("  " + FormatDescLine(*line, player, spell, level), UiFlags::ColorYellow);
+				std::string text = FormatDescLine(*line, player, spell, level);
+				if (!text.empty())
+					upgradeTexts.emplace_back("  " + std::move(text), UiFlags::ColorYellow);
+			}
+			// Only show "Next Level:" if there are actual changes
+			if (!upgradeTexts.empty()) {
+				tooltip.lines.emplace_back(std::string(_("Next Level:")), UiFlags::ColorYellow);
+				for (auto &entry : upgradeTexts)
+					tooltip.lines.push_back(std::move(entry));
 			}
 		}
 	}
@@ -431,8 +445,10 @@ SpellTooltip BuildSpellListTooltip(const Player &player, SpellID spell)
 			tooltip.lines.emplace_back(std::string(_("Spell Level 0 - Unusable")), UiFlags::ColorRed);
 			continue;
 		}
+		std::string text = FormatDescLine(*line, player, spell, level);
+		if (text.empty()) continue; // Skip empty lines (e.g. no-change deltas)
 		UiFlags color = GetLineColor(line->format, line->section);
-		tooltip.lines.emplace_back(FormatDescLine(*line, player, spell, level), color);
+		tooltip.lines.emplace_back(std::move(text), color);
 	}
 
 	// Warning section
