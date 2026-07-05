@@ -37,6 +37,20 @@ bool IsAltOnlySource(DescSource source)
 	case DescSource::Absorb:
 	case DescSource::HPDamage:
 	case DescSource::GuardianLife:
+	case DescSource::GolemArmor:
+	case DescSource::GolemToHit:
+	case DescSource::ChainRadius:
+	case DescSource::FireWallLength:
+	case DescSource::FireWallDur:
+	case DescSource::NovaRadius:
+	case DescSource::FlameWaveWidth:
+	case DescSource::TeleportRange:
+	case DescSource::PhasingMinDist:
+	case DescSource::TownPortalDur:
+	case DescSource::ResurrectHP:
+	case DescSource::RingOfFireRadius:
+	case DescSource::RageDuration:
+	case DescSource::RageHPCost:
 		return true;
 	default:
 		return false;
@@ -105,6 +119,48 @@ int GetGolemHP(int level, int maxMana)
 	return 2 * (320 * level + maxMana / 3);
 }
 
+int GetGolemArmor()
+{
+	// monster.cpp:3299 — armor class = 25 (flat)
+	return 25;
+}
+
+int GetGolemToHit(int level, int charLevel)
+{
+	// monster.cpp:3300 — toHit = 5 * (spellLevel + 8) + 2 * charLevel
+	return 5 * (level + 8) + 2 * charLevel;
+}
+
+int GetChainRadius(int level)
+{
+	// missiles.cpp:3589 — radius = min(spellLevel + 3, MaxCrawlRadius=18)
+	return std::min(level + 3, 18);
+}
+
+int GetFireWallDuration(int level)
+{
+	// missiles.cpp:1971-1976 — duration = 160 * (spellLevel + 1) ticks, /16 for display
+	return 160 * (level + 1) / 16;
+}
+
+int GetFlameWaveWidth(int level)
+{
+	// missiles.cpp:3900 — width = 2 * (spellLevel/2 + 2) + 1
+	return 2 * (level / 2 + 2) + 1;
+}
+
+int GetRageDuration(int charLevel)
+{
+	// missiles.cpp:2596 — duration = 245 + charLevel * 2 ticks, /16 for display
+	return (245 + charLevel * 2) / 16;
+}
+
+int GetRageHPCost(int charLevel)
+{
+	// missiles.cpp:2595 — HP cost = charLevel * 6
+	return charLevel * 6;
+}
+
 // ---- Get a single int value from source ----
 
 int GetSourceValue(DescSource source, const Player &player, SpellID spell, int level)
@@ -127,6 +183,34 @@ int GetSourceValue(DescSource source, const Player &player, SpellID spell, int l
 		return GetGuardianLifetime(level, player.getCharacterLevel());
 	case DescSource::GolemHP:
 		return GetGolemHP(level, player._pMaxMana >> 6);
+	case DescSource::GolemArmor:
+		return GetGolemArmor();
+	case DescSource::GolemToHit:
+		return GetGolemToHit(level, player.getCharacterLevel());
+	case DescSource::ChainRadius:
+		return GetChainRadius(level);
+	case DescSource::FireWallLength:
+		return 13; // Fixed length
+	case DescSource::FireWallDur:
+		return GetFireWallDuration(level);
+	case DescSource::NovaRadius:
+		return 4; // Fixed radius
+	case DescSource::FlameWaveWidth:
+		return GetFlameWaveWidth(level);
+	case DescSource::TeleportRange:
+		return 5; // Fixed range
+	case DescSource::PhasingMinDist:
+		return 4; // Fixed minimum distance
+	case DescSource::TownPortalDur:
+		return 100 / 16; // 100 ticks / 16
+	case DescSource::ResurrectHP:
+		return 10; // Fixed 10 HP
+	case DescSource::RingOfFireRadius:
+		return 3; // Fixed radius
+	case DescSource::RageDuration:
+		return GetRageDuration(player.getCharacterLevel());
+	case DescSource::RageHPCost:
+		return GetRageHPCost(player.getCharacterLevel());
 	default:
 		return 0;
 	}
@@ -146,6 +230,23 @@ DescSource ParseDescSource(std::string_view value)
 	if (value == "speed") return DescSource::Speed;
 	if (value == "guardian_life") return DescSource::GuardianLife;
 	if (value == "golem_hp") return DescSource::GolemHP;
+	if (value == "golem_armor") return DescSource::GolemArmor;
+	if (value == "golem_tohit") return DescSource::GolemToHit;
+	if (value == "chain_radius") return DescSource::ChainRadius;
+	if (value == "chain_targets") return DescSource::ChainTargets;
+	if (value == "firewall_length") return DescSource::FireWallLength;
+	if (value == "firewall_dur") return DescSource::FireWallDur;
+	if (value == "nova_radius") return DescSource::NovaRadius;
+	if (value == "flamewave_width") return DescSource::FlameWaveWidth;
+	if (value == "teleport_range") return DescSource::TeleportRange;
+	if (value == "phasing_mindist") return DescSource::PhasingMinDist;
+	if (value == "townportal_dur") return DescSource::TownPortalDur;
+	if (value == "resurrect_hp") return DescSource::ResurrectHP;
+	if (value == "reflect_count") return DescSource::ReflectCount;
+	if (value == "reflect_pct") return DescSource::ReflectPct;
+	if (value == "ringoffire_radius") return DescSource::RingOfFireRadius;
+	if (value == "rage_duration") return DescSource::RageDuration;
+	if (value == "rage_hpcost") return DescSource::RageHPCost;
 	app_fatal(fmt::format("Unknown DescSource: {}", value));
 	return DescSource::None;
 }

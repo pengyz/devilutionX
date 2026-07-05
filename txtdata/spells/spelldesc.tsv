@@ -27,10 +27,15 @@ FireWall	desc	1	level_display	none
 FireWall	desc	2	damage_range	damage	Damage	2*CLvl+4 to 2*CLvl+40 per tick
 FireWall	desc	3	mana	mana	Mana
 FireWall	desc	4	special	none	Damages enemies crossing it
+FireWall	desc	5	value_single	firewall_length	Length (tiles)	Fixed 13 tiles
+FireWall	desc	6	value_single	firewall_dur	Duration (ticks/16)	160*(Lvl+1)/16
 FireWall	upgrade	1	damage_delta	damage	Damage
 FireWall	upgrade	2	mana_delta	mana	Mana
+FireWall	upgrade	3	value_delta	firewall_dur	Duration (ticks/16)
 TownPortal	desc	1	level_display	none
 TownPortal	desc	2	mana	mana	Mana
+TownPortal	desc	3	value_single	townportal_dur	Duration (ticks/16)	100 ticks fixed
+TownPortal	desc	4	special	none	Other players can use it
 StoneCurse	desc	1	level_display	none
 StoneCurse	desc	2	mana	mana	Mana
 StoneCurse	desc	3	value_single	duration	Duration (ticks/16)	Cap at level 9 = 12s
@@ -42,7 +47,8 @@ Infravision	desc	2	mana	mana	Mana
 Infravision	desc	3	special	none	Reveals enemies on automap
 Phasing	desc	1	level_display	none
 Phasing	desc	2	mana	mana	Mana
-Phasing	desc	3	special	none	Random teleport to visible tile
+Phasing	desc	3	value_single	phasing_mindist	Min distance (tiles)	At least 4 tiles away
+Phasing	desc	4	special	none	Random teleport to visible tile
 ManaShield	desc	1	level_display	none
 ManaShield	desc	2	mana	mana	Mana
 ManaShield	desc	3	value_single	absorb	Mana absorbs (%)	Divisor: 24 - min(Lvl,7)*3
@@ -69,14 +75,18 @@ ChainLightning	desc	1	level_display	none
 ChainLightning	desc	2	damage_range	damage	Damage	4 to 4+2*CLvl per target
 ChainLightning	desc	3	mana	mana	Mana
 ChainLightning	desc	4	special	none	Chains to nearby enemies
+ChainLightning	desc	5	value_single	chain_radius	Search radius (tiles)	min(Lvl+3, 18)
 ChainLightning	upgrade	1	damage_delta	damage	Damage
 ChainLightning	upgrade	2	mana_delta	mana	Mana
+ChainLightning	upgrade	3	value_delta	chain_radius	Search radius (tiles)
 FlameWave	desc	1	level_display	none
 FlameWave	desc	2	damage_range	damage	Damage	6*(CLvl+1) to 6*(CLvl+1)+54
 FlameWave	desc	3	mana	mana	Mana
 FlameWave	desc	4	special	none	Wave travels forward
+FlameWave	desc	5	value_single	flamewave_width	Width (tiles)	2*(Lvl/2+2)+1
 FlameWave	upgrade	1	damage_delta	damage	Damage
 FlameWave	upgrade	2	mana_delta	mana	Mana
+FlameWave	upgrade	3	value_delta	flamewave_width	Width (tiles)
 DoomSerpents	desc	1	level_display	none
 DoomSerpents	desc	2	mana	mana	Mana
 BloodRitual	desc	1	level_display	none
@@ -84,7 +94,7 @@ BloodRitual	desc	2	mana	mana	Mana
 Nova	desc	1	level_display	none
 Nova	desc	2	damage_range	damage	Damage	Scale(CLvl)*5, all around caster
 Nova	desc	3	mana	mana	Mana
-Nova	desc	4	special	none	Hits all enemies in radius
+Nova	desc	4	value_single	nova_radius	Radius (tiles)	Fixed 4 tiles
 Nova	upgrade	1	damage_delta	damage	Damage
 Nova	upgrade	2	mana_delta	mana	Mana
 Invisibility	desc	1	level_display	none
@@ -100,14 +110,18 @@ Golem	desc	1	level_display	none
 Golem	desc	2	damage_range	damage	Damage	11 to 17 per hit
 Golem	desc	3	mana	mana	Mana
 Golem	desc	4	value_single	golem_hp	Golem HP	2*(320*Lvl + MaxMana/3)
-Golem	desc	5	special	none	HP scales with spell level
+Golem	desc	5	value_single	golem_armor	Armor	Fixed 25
+Golem	desc	6	value_single	golem_tohit	To Hit	5*(Lvl+8)+2*CLvl
 Golem	upgrade	1	mana_delta	mana	Mana
 Rage	desc	1	level_display	none
 Rage	desc	2	mana	mana	Mana
 Rage	desc	3	special	none	+Berserk, -Defense, costs HP
+Rage	desc	4	value_single	rage_duration	Duration (ticks/16)	(245+CLvl*2)/16
+Rage	desc	5	value_single	rage_hpcost	HP Cost	CLvl * 6
 Teleport	desc	1	level_display	none
 Teleport	desc	2	mana	mana	Mana
-Teleport	desc	3	special	none	Teleport to cursor position
+Teleport	desc	3	value_single	teleport_range	Range (tiles)	Fixed 5 tiles
+Teleport	desc	4	special	none	Teleport to cursor position
 Apocalypse	desc	1	level_display	none
 Apocalypse	desc	2	damage_range	damage	Damage	CLvl to CLvl*6, all on screen
 Apocalypse	desc	3	mana	mana	Mana
@@ -148,7 +162,8 @@ HolyBolt	upgrade	1	damage_delta	damage	Damage
 HolyBolt	upgrade	2	mana_delta	mana	Mana
 Resurrect	desc	1	level_display	none
 Resurrect	desc	2	mana	mana	Mana
-Resurrect	desc	3	special	none	Revive dead player with full HP
+Resurrect	desc	3	value_single	resurrect_hp	HP Restored	Fixed 10 HP
+Resurrect	desc	4	special	none	Mana set to 0 after use
 Telekinesis	desc	1	level_display	none
 Telekinesis	desc	2	mana	mana	Mana
 Telekinesis	desc	3	special	none	Open doors/chests from distance

@@ -23,6 +23,23 @@ enum class DescSource : uint8_t {
 	Speed,          // Projectile speed (px/tick) -> int
 	GuardianLife,    // Guardian lifetime (ticks/16) -> int
 	GolemHP,        // Golem hit points -> int
+	GolemArmor,     // Golem armor class -> int
+	GolemToHit,     // Golem attack accuracy -> int
+	ChainRadius,    // Chain Lightning search radius (tiles) -> int
+	ChainTargets,   // Chain Lightning max targets -> string (unlimited)
+	FireWallLength, // Fire Wall length (tiles) -> int
+	FireWallDur,    // Fire Wall duration per tile (ticks/16) -> int
+	NovaRadius,     // Nova radius (tiles) -> int
+	FlameWaveWidth, // Flame Wave width (tiles) -> int
+	TeleportRange,  // Teleport range (tiles) -> int
+	PhasingMinDist, // Phasing minimum distance (tiles) -> int
+	TownPortalDur,  // Town Portal duration (ticks/16) -> int
+	ResurrectHP,    // Resurrect HP restored -> int
+	ReflectCount,   // Reflect hit count -> int
+	ReflectPct,     // Reflect damage % -> string
+	RingOfFireRadius, // Ring of Fire radius (tiles) -> int
+	RageDuration,   // Rage duration (ticks/16) -> int
+	RageHPCost,     // Rage HP cost -> int
 };
 
 enum class DescFormat : uint8_t {

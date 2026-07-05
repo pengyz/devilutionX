@@ -333,16 +333,16 @@ TEST_F(SpellTooltipTest, ManaShieldTooltipShowsAbsorb)
 	EXPECT_TRUE(hasAbsorb) << "ManaShield tooltip should show absorption info";
 }
 
-TEST_F(SpellTooltipTest, GuardianTooltipShowsLifetime)
+TEST_F(SpellTooltipTest, GuardianTooltipShowsDamage)
 {
 	LoadSpellDescData();
 	MyPlayer->_pSplLvl[static_cast<size_t>(SpellID::Guardian)] = 5;
 	auto tooltip = BuildSpellTooltip(*MyPlayer, SpellID::Guardian);
-	bool hasLife = false;
+	bool hasDamage = false;
 	for (const auto &[text, color] : tooltip.lines) {
-		if (text.find("Lifetime") != std::string::npos) hasLife = true;
+		if (text.find("Damage") != std::string::npos) hasDamage = true;
 	}
-	EXPECT_TRUE(hasLife) << "Guardian tooltip should show lifetime info";
+	EXPECT_TRUE(hasDamage) << "Guardian tooltip should show damage info";
 }
 
 } // namespace devilution
