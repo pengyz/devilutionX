@@ -137,7 +137,8 @@ ChargedBolt	desc	3	mana	mana	Mana
 ChargedBolt	desc	4	value_single	bolts	Bolts fired	Base + Lvl/3
 ChargedBolt	desc	5	special	none	Bolts ricochet randomly
 ChargedBolt	upgrade	1	damage_delta	damage	Damage
-ChargedBolt	upgrade	2	value_delta	bolts	Bolts
+ChargedBolt	upgrade	2	mana_delta	mana	Mana
+ChargedBolt	upgrade	3	value_delta	bolts	Bolts
 HolyBolt	desc	1	level_display	none
 HolyBolt	desc	2	damage_range	damage	Damage	CLvl+9 to CLvl+18
 HolyBolt	desc	3	mana	mana	Mana
