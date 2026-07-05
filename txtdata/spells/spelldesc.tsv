@@ -16,7 +16,7 @@ Lightning	desc	3	mana	mana	Mana
 Lightning	upgrade	1	damage_delta	damage	Damage
 Lightning	upgrade	2	mana_delta	mana	Mana
 Flash	desc	1	level_display	none
-Flash	desc	2	damage_range	damage	Damage	Scale(CLvl) per target
+Flash	desc	2	damage_range	damage	Damage	Scale(CLvl)
 Flash	desc	3	mana	mana	Mana
 Flash	desc	4	special	none	Hits all nearby enemies
 Flash	upgrade	1	damage_delta	damage	Damage
@@ -28,20 +28,20 @@ FireWall	desc	2	damage_range	damage	Damage	2*CLvl+4 to 2*CLvl+40 per tick
 FireWall	desc	3	mana	mana	Mana
 FireWall	desc	4	special	none	Damages enemies crossing it
 FireWall	desc	5	value_single	firewall_length	Length (tiles)	Fixed 13 tiles
-FireWall	desc	6	value_single	firewall_dur	Duration (ticks/16)	160*(Lvl+1)/16
+FireWall	desc	6	value_single	firewall_dur	Duration (sec)	160*(Lvl+1)/20
 FireWall	upgrade	1	damage_delta	damage	Damage
 FireWall	upgrade	2	mana_delta	mana	Mana
-FireWall	upgrade	3	value_delta	firewall_dur	Duration (ticks/16)
+FireWall	upgrade	3	value_delta	firewall_dur	Duration (sec)
 TownPortal	desc	1	level_display	none
 TownPortal	desc	2	mana	mana	Mana
-TownPortal	desc	3	value_single	townportal_dur	Duration (ticks/16)	100 ticks fixed
+TownPortal	desc	3	value_single	townportal_dur	Duration (sec)	Fixed 5 sec
 TownPortal	desc	4	special	none	Other players can use it
 StoneCurse	desc	1	level_display	none
 StoneCurse	desc	2	mana	mana	Mana
-StoneCurse	desc	3	value_single	duration	Duration (ticks/16)	Cap at level 9 = 12s
+StoneCurse	desc	3	value_single	duration	Duration (sec)	Cap at level 9 = 12s
 StoneCurse	desc	4	special	none	Immune: Golem, Diablo, Nakrul
 StoneCurse	upgrade	1	mana_delta	mana	Mana
-StoneCurse	upgrade	2	value_delta	duration	Duration (ticks/16)
+StoneCurse	upgrade	2	value_delta	duration	Duration (sec)
 Infravision	desc	1	level_display	none
 Infravision	desc	2	mana	mana	Mana
 Infravision	desc	3	special	none	Reveals enemies on automap
@@ -67,7 +67,7 @@ Fireball	upgrade	2	mana_delta	mana	Mana
 Guardian	desc	1	level_display	none
 Guardian	desc	2	damage_range	damage	Damage	Scale(CLvl/2+1) to Scale(CLvl/2+10)
 Guardian	desc	3	mana	mana	Mana
-Guardian	desc	4	value_single	guardian_life	Lifetime (ticks/16)	Max 30 = 24s, fires 1/sec
+Guardian	desc	4	value_single	guardian_life	Lifetime (sec)	Max 30 = 24s, fires 1/sec
 Guardian	desc	5	special	none	Bolt dmg = Magic/8 + Lvl + 1
 Guardian	upgrade	1	damage_delta	damage	Damage
 Guardian	upgrade	2	mana_delta	mana	Mana
@@ -116,7 +116,7 @@ Golem	upgrade	1	mana_delta	mana	Mana
 Rage	desc	1	level_display	none
 Rage	desc	2	mana	mana	Mana
 Rage	desc	3	special	none	+Berserk, -Defense, costs HP
-Rage	desc	4	value_single	rage_duration	Duration (ticks/16)	(245+CLvl*2)/16
+Rage	desc	4	value_single	rage_duration	Duration (sec)	(245+CLvl*2)/20
 Rage	desc	5	value_single	rage_hpcost	HP Cost	CLvl * 6
 Teleport	desc	1	level_display	none
 Teleport	desc	2	mana	mana	Mana

@@ -4791,8 +4791,8 @@ msgstr "速度 (像素/帧)"
 #. TRANSLATORS: Spell tooltip - spell duration
 #: Source/spell_tooltip.cpp
 msgctxt "spell_tooltip"
-msgid "Duration (ticks/16)"
-msgstr "持续时间 (帧/16)"
+msgid "Duration (sec)"
+msgstr "持续时间 (秒)"
 
 #. TRANSLATORS: Spell tooltip - ManaShield absorption
 #: Source/spell_tooltip.cpp
@@ -4809,8 +4809,8 @@ msgstr "生命承受 (%)"
 #. TRANSLATORS: Spell tooltip - Guardian lifetime
 #: Source/spell_tooltip.cpp
 msgctxt "spell_tooltip"
-msgid "Lifetime (ticks/16)"
-msgstr "存活时间 (帧/16)"
+msgid "Lifetime (sec)"
+msgstr "存活时间 (秒)"
 
 #. TRANSLATORS: Spell tooltip - ChargedBolt count
 #: Source/spell_tooltip.cpp
@@ -5004,6 +5004,85 @@ msgstr "每个目标"
 msgctxt "spell_tooltip"
 msgid "per hit"
 msgstr "每次命中"
+
+#. TRANSLATORS: Spell tooltip - Fire Wall length
+#: Source/spell_tooltip.cpp
+msgctxt "spell_tooltip"
+msgid "Length (tiles)"
+msgstr "长度 (码)"
+
+#. TRANSLATORS: Spell tooltip - Phasing minimum distance
+#: Source/spell_tooltip.cpp
+msgctxt "spell_tooltip"
+msgid "Min distance (tiles)"
+msgstr "最小距离 (码)"
+
+#. TRANSLATORS: Spell tooltip - Chain Lightning search radius
+#: Source/spell_tooltip.cpp
+msgctxt "spell_tooltip"
+msgid "Search radius (tiles)"
+msgstr "搜索半径 (码)"
+
+#. TRANSLATORS: Spell tooltip - Flame Wave width
+#: Source/spell_tooltip.cpp
+msgctxt "spell_tooltip"
+msgid "Width (tiles)"
+msgstr "宽度 (码)"
+
+#. TRANSLATORS: Spell tooltip - Nova radius
+#: Source/spell_tooltip.cpp
+msgctxt "spell_tooltip"
+msgid "Radius (tiles)"
+msgstr "半径 (码)"
+
+#. TRANSLATORS: Spell tooltip - Teleport range
+#: Source/spell_tooltip.cpp
+msgctxt "spell_tooltip"
+msgid "Range (tiles)"
+msgstr "范围 (码)"
+
+#. TRANSLATORS: Spell tooltip - Golem HP
+#: Source/spell_tooltip.cpp
+msgctxt "spell_tooltip"
+msgid "Golem HP"
+msgstr "石魔生命"
+
+#. TRANSLATORS: Spell tooltip - Golem armor
+#: Source/spell_tooltip.cpp
+msgctxt "spell_tooltip"
+msgid "Armor"
+msgstr "护甲"
+
+#. TRANSLATORS: Spell tooltip - Golem to hit
+#: Source/spell_tooltip.cpp
+msgctxt "spell_tooltip"
+msgid "To Hit"
+msgstr "命中率"
+
+#. TRANSLATORS: Spell tooltip - Rage duration
+#. TRANSLATORS: Spell tooltip - Rage HP cost
+#: Source/spell_tooltip.cpp
+msgctxt "spell_tooltip"
+msgid "HP Cost"
+msgstr "生命消耗"
+
+#. TRANSLATORS: Spell tooltip - Resurrect HP restored
+#: Source/spell_tooltip.cpp
+msgctxt "spell_tooltip"
+msgid "HP Restored"
+msgstr "恢复生命"
+
+#. TRANSLATORS: Spell tooltip - Town Portal other players
+#: Source/spell_tooltip.cpp
+msgctxt "spell_tooltip"
+msgid "Other players can use it"
+msgstr "其他玩家可使用"
+
+#. TRANSLATORS: Spell tooltip - Resurrect mana penalty
+#: Source/spell_tooltip.cpp
+msgctxt "spell_tooltip"
+msgid "Mana set to 0 after use"
+msgstr "施法后法力归零"
 
 #: Source/pfile.cpp:762
 msgid "Unable to open archive"

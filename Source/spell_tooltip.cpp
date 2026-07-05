@@ -85,8 +85,8 @@ int GetManaShieldHPDamage(int level)
 
 int GetStoneCurseDuration(int level)
 {
-	// missiles.cpp:2409 — duration = min(level + 6, 15) * 16 ticks
-	return std::min(level + 6, 15);
+	// missiles.cpp:2409 — duration = min(level + 6, 15) * 16 ticks, 20 ticks/sec
+	return std::min(level + 6, 15) * 16 / 20;
 }
 
 int GetChargedBoltCount(int level, const SpellData &sd)
@@ -109,8 +109,8 @@ int GetFireballSpeed(int level)
 
 int GetGuardianLifetime(int level, int charLevel)
 {
-	// missiles.cpp:2223 — duration = min(level + charLevel/2, 30)
-	return std::min(level + charLevel / 2, 30);
+	// missiles.cpp:2223 — duration = min(level + charLevel/2, 30) * 16 ticks, 20 ticks/sec
+	return std::min(level + charLevel / 2, 30) * 16 / 20;
 }
 
 int GetGolemHP(int level, int maxMana)
@@ -139,8 +139,8 @@ int GetChainRadius(int level)
 
 int GetFireWallDuration(int level)
 {
-	// missiles.cpp:1971-1976 — duration = 160 * (spellLevel + 1) ticks, /16 for display
-	return 160 * (level + 1) / 16;
+	// missiles.cpp:1971-1976 — duration = 160 * (spellLevel + 1) ticks, 20 ticks/sec
+	return 160 * (level + 1) / 20;
 }
 
 int GetFlameWaveWidth(int level)
@@ -151,8 +151,8 @@ int GetFlameWaveWidth(int level)
 
 int GetRageDuration(int charLevel)
 {
-	// missiles.cpp:2596 — duration = 245 + charLevel * 2 ticks, /16 for display
-	return (245 + charLevel * 2) / 16;
+	// missiles.cpp:2596 — duration = 245 + charLevel * 2 ticks, 20 ticks/sec
+	return (245 + charLevel * 2) / 20;
 }
 
 int GetRageHPCost(int charLevel)
@@ -202,7 +202,7 @@ int GetSourceValue(DescSource source, const Player &player, SpellID spell, int l
 	case DescSource::PhasingMinDist:
 		return 4; // Fixed minimum distance
 	case DescSource::TownPortalDur:
-		return 100 / 16; // 100 ticks / 16
+		return 100 / 20; // 100 ticks, 20 ticks/sec
 	case DescSource::ResurrectHP:
 		return 10; // Fixed 10 HP
 	case DescSource::RingOfFireRadius:
