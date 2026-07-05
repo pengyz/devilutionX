@@ -207,7 +207,7 @@ TEST_F(SpellTooltipTest, FormatValueDelta)
 	}
 	ASSERT_NE(manaDelta, nullptr);
 	std::string result = FormatDescLine(*manaDelta, *MyPlayer, SpellID::Firebolt, 5);
-	EXPECT_THAT(result, testing::HasSubstr("\xe2\x86\x92")); // -> UTF-8
+	EXPECT_THAT(result, testing::HasSubstr("->")); // delta arrow
 }
 
 TEST_F(SpellTooltipTest, FormatTextShowsDescription)
@@ -265,7 +265,7 @@ TEST_F(SpellTooltipTest, BuildTooltipIncludesUpgrade)
 	auto tooltip = BuildSpellTooltip(*MyPlayer, SpellID::Firebolt);
 	bool hasArrow = false;
 	for (const auto &line : tooltip.lines) {
-		if (line.find("\xe2\x86\x92") != std::string::npos) hasArrow = true;
+		if (line.find("->") != std::string::npos) hasArrow = true;
 	}
 	EXPECT_TRUE(hasArrow) << "Tooltip at level 5 should include upgrade arrows";
 }
@@ -276,7 +276,7 @@ TEST_F(SpellTooltipTest, BuildListTooltipNoUpgrade)
 	MyPlayer->_pSplLvl[static_cast<size_t>(SpellID::Firebolt)] = 5;
 	auto tooltip = BuildSpellListTooltip(*MyPlayer, SpellID::Firebolt);
 	for (const auto &line : tooltip.lines) {
-		EXPECT_EQ(line.find("\xe2\x86\x92"), std::string::npos) << "Upgrade line in list tooltip: " << line;
+		EXPECT_EQ(line.find("->"), std::string::npos) << "Upgrade line in list tooltip: " << line;
 	}
 }
 

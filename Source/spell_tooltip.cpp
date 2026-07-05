@@ -269,7 +269,7 @@ std::string FormatDescLine(const SpellDescLine &line, const Player &player, Spel
 	case DescFormat::ManaDelta: {
 		int curMana = EvaluateSpellExpr(line.expression.empty() ? "mana" : line.expression, player, spell, level).value;
 		int nextMana = EvaluateSpellExpr(line.expression.empty() ? "mana" : line.expression, player, spell, level + 1).value;
-		return fmt::format("{:s}: {:d} \xe2\x86\x92 {:d}", line.textKey, curMana, nextMana);
+		return fmt::format("{:s}: {:d} -> {:d}", line.textKey, curMana, nextMana);
 	}
 
 	case DescFormat::DamageRange: {
@@ -294,23 +294,23 @@ std::string FormatDescLine(const SpellDescLine &line, const Player &player, Spel
 	case DescFormat::ValueDelta: {
 		ExprResult cur = EvaluateSpellExpr(line.expression, player, spell, level);
 		ExprResult next = EvaluateSpellExpr(line.expression, player, spell, level + 1);
-		return fmt::format("{:s}: {:d} \xe2\x86\x92 {:d}", line.textKey, cur.value, next.value);
+		return fmt::format("{:s}: {:d} -> {:d}", line.textKey, cur.value, next.value);
 	}
 
 	case DescFormat::DamageDelta: {
 		ExprResult cur = EvaluateSpellExpr(line.expression, player, spell, level);
 		ExprResult next = EvaluateSpellExpr(line.expression, player, spell, level + 1);
 		if (cur.isRange && next.isRange)
-			return fmt::format("{:s}: {:d}-{:d} \xe2\x86\x92 {:d}-{:d}", line.textKey, cur.minValue, cur.maxValue, next.minValue, next.maxValue);
-		return fmt::format("{:s}: {:d} \xe2\x86\x92 {:d}", line.textKey, cur.value, next.value);
+			return fmt::format("{:s}: {:d}-{:d} -> {:d}-{:d}", line.textKey, cur.minValue, cur.maxValue, next.minValue, next.maxValue);
+		return fmt::format("{:s}: {:d} -> {:d}", line.textKey, cur.value, next.value);
 	}
 
 	case DescFormat::HealDelta: {
 		ExprResult cur = EvaluateSpellExpr(line.expression, player, spell, level);
 		ExprResult next = EvaluateSpellExpr(line.expression, player, spell, level + 1);
 		if (cur.isRange && next.isRange)
-			return fmt::format("{:s}: {:d}-{:d} \xe2\x86\x92 {:d}-{:d}", line.textKey, cur.minValue, cur.maxValue, next.minValue, next.maxValue);
-		return fmt::format("{:s}: {:d} \xe2\x86\x92 {:d}", line.textKey, cur.value, next.value);
+			return fmt::format("{:s}: {:d}-{:d} -> {:d}-{:d}", line.textKey, cur.minValue, cur.maxValue, next.minValue, next.maxValue);
+		return fmt::format("{:s}: {:d} -> {:d}", line.textKey, cur.value, next.value);
 	}
 	}
 	return "";
