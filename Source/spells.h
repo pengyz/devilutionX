@@ -24,6 +24,7 @@ bool IsValidSpellFrom(int spellFrom);
 bool IsWallSpell(SpellID spl);
 bool TargetsMonster(SpellID id);
 int GetManaAmount(const Player &player, SpellID sn);
+int GetManaAmount(const Player &player, SpellID sn, int overrideSpellLevel);
 void ConsumeSpell(Player &player, SpellID sn);
 SpellCheckResult CheckSpell(const Player &player, SpellID sn, SpellType st, bool manaonly);
 

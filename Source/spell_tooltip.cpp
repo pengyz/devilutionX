@@ -141,7 +141,7 @@ ExprResult EvaluateSpellExpr(const std::string &expr, const Player &player, Spel
 	ctx["lvl"] = level;
 	ctx["charLevel"] = player.getCharacterLevel();
 	ctx["magic"] = player._pMagic;
-	ctx["mana"] = GetManaAmount(player, spell) >> 6;
+	ctx["mana"] = GetManaAmount(player, spell, level) >> 6;
 
 	auto [min, max] = GetDamageAmt(spell, level);
 	ctx["damage"] = lua.create_table_with("min", min, "max", max);

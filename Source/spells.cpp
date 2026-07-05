@@ -100,7 +100,7 @@ bool TargetsMonster(SpellID id)
 	    || id == SpellID::FlameWave;
 }
 
-int GetManaAmount(const Player &player, SpellID sn)
+int GetManaAmount(const Player &player, SpellID sn, int overrideSpellLevel)
 {
 	int ma; // mana amount
 
@@ -108,7 +108,7 @@ int GetManaAmount(const Player &player, SpellID sn)
 	int adj = 0;
 
 	// spell level
-	const int sl = std::max(player.GetSpellLevel(sn) - 1, 0);
+	const int sl = std::max(overrideSpellLevel - 1, 0);
 
 	if (sl > 0) {
 		adj = sl * GetSpellData(sn).sManaAdj;
@@ -142,6 +142,11 @@ int GetManaAmount(const Player &player, SpellID sn)
 	}
 
 	return ma;
+}
+
+int GetManaAmount(const Player &player, SpellID sn)
+{
+	return GetManaAmount(player, sn, player.GetSpellLevel(sn));
 }
 
 void ConsumeSpell(Player &player, SpellID sn)
