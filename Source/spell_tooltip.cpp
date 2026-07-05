@@ -5,6 +5,12 @@
 #include <cmath>
 #include <string>
 
+#ifdef USE_SDL3
+#include <SDL3/SDL_keycode.h>
+#else
+#include <SDL.h>
+#endif
+
 #include <fmt/format.h>
 #include <sol/sol.hpp>
 
@@ -249,6 +255,11 @@ std::vector<const SpellDescLine *> GetSpellDescLines(SpellID spell, DescSection 
 
 std::string FormatDescLine(const SpellDescLine &line, const Player &player, SpellID spell, int level)
 {
+	// Alt key: show formula text if available
+	if (!line.formulaText.empty() && (SDL_GetModState() & KMOD_ALT) != 0) {
+		return fmt::format("{:s}: {:s}", line.textKey, line.formulaText);
+	}
+
 	switch (line.format) {
 	case DescFormat::LevelDisplay:
 		return fmt::format("Level {:d} / {:d}", level, MaxSpellLevel);
