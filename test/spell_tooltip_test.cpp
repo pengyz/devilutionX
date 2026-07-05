@@ -238,8 +238,8 @@ TEST_F(SpellTooltipTest, BuildTooltipLevelZeroShowsUnusable)
 	LoadSpellDescData();
 	auto tooltip = BuildSpellTooltip(*MyPlayer, SpellID::Firebolt);
 	bool hasUnusable = false;
-	for (const auto &line : tooltip.lines) {
-		if (line.find("Unusable") != std::string::npos) hasUnusable = true;
+	for (const auto &[text, color] : tooltip.lines) {
+		if (text.find("Unusable") != std::string::npos) hasUnusable = true;
 	}
 	EXPECT_TRUE(hasUnusable) << "Level 0 tooltip should contain 'Unusable'";
 }
@@ -250,8 +250,8 @@ TEST_F(SpellTooltipTest, BuildTooltipIncludesUpgrade)
 	MyPlayer->_pSplLvl[static_cast<size_t>(SpellID::Firebolt)] = 5;
 	auto tooltip = BuildSpellTooltip(*MyPlayer, SpellID::Firebolt);
 	bool hasArrow = false;
-	for (const auto &line : tooltip.lines) {
-		if (line.find("->") != std::string::npos) hasArrow = true;
+	for (const auto &[text, color] : tooltip.lines) {
+		if (text.find("->") != std::string::npos) hasArrow = true;
 	}
 	EXPECT_TRUE(hasArrow) << "Tooltip at level 5 should include upgrade arrows";
 }
@@ -261,8 +261,8 @@ TEST_F(SpellTooltipTest, BuildListTooltipNoUpgrade)
 	LoadSpellDescData();
 	MyPlayer->_pSplLvl[static_cast<size_t>(SpellID::Firebolt)] = 5;
 	auto tooltip = BuildSpellListTooltip(*MyPlayer, SpellID::Firebolt);
-	for (const auto &line : tooltip.lines) {
-		EXPECT_EQ(line.find("->"), std::string::npos) << "Upgrade line in list tooltip: " << line;
+	for (const auto &[text, color] : tooltip.lines) {
+		EXPECT_EQ(text.find("->"), std::string::npos) << "Upgrade line in list tooltip: " << text;
 	}
 }
 
@@ -271,8 +271,8 @@ TEST_F(SpellTooltipTest, UtilitySpellNoDamageLine)
 	LoadSpellDescData();
 	MyPlayer->_pSplLvl[static_cast<size_t>(SpellID::TownPortal)] = 3;
 	auto tooltip = BuildSpellTooltip(*MyPlayer, SpellID::TownPortal);
-	for (const auto &line : tooltip.lines) {
-		EXPECT_EQ(line.find("Damage"), std::string::npos) << "Damage line for utility spell: " << line;
+	for (const auto &[text, color] : tooltip.lines) {
+		EXPECT_EQ(text.find("Damage"), std::string::npos) << "Damage line for utility spell: " << text;
 	}
 }
 
@@ -282,8 +282,8 @@ TEST_F(SpellTooltipTest, BoneSpiritSpecialLine)
 	MyPlayer->_pSplLvl[static_cast<size_t>(SpellID::BoneSpirit)] = 3;
 	auto tooltip = BuildSpellTooltip(*MyPlayer, SpellID::BoneSpirit);
 	bool hasSpecial = false;
-	for (const auto &line : tooltip.lines) {
-		if (line.find("1/3 target HP") != std::string::npos) hasSpecial = true;
+	for (const auto &[text, color] : tooltip.lines) {
+		if (text.find("1/3 target HP") != std::string::npos) hasSpecial = true;
 	}
 	EXPECT_TRUE(hasSpecial) << "BoneSpirit tooltip should contain special '1/3 target HP'";
 }
@@ -294,8 +294,8 @@ TEST_F(SpellTooltipTest, ItemRepairWarningLine)
 	MyPlayer->_pSplLvl[static_cast<size_t>(SpellID::ItemRepair)] = 1;
 	auto tooltip = BuildSpellTooltip(*MyPlayer, SpellID::ItemRepair);
 	bool hasWarning = false;
-	for (const auto &line : tooltip.lines) {
-		if (line.find("reduces max durability") != std::string::npos) hasWarning = true;
+	for (const auto &[text, color] : tooltip.lines) {
+		if (text.find("reduces max durability") != std::string::npos) hasWarning = true;
 	}
 	EXPECT_TRUE(hasWarning) << "ItemRepair tooltip should contain durability warning";
 }
@@ -314,8 +314,8 @@ TEST_F(SpellTooltipTest, BuildListTooltipIncludesWarning)
 	MyPlayer->_pSplLvl[static_cast<size_t>(SpellID::ItemRepair)] = 1;
 	auto tooltip = BuildSpellListTooltip(*MyPlayer, SpellID::ItemRepair);
 	bool hasWarning = false;
-	for (const auto &line : tooltip.lines) {
-		if (line.find("reduces max durability") != std::string::npos) hasWarning = true;
+	for (const auto &[text, color] : tooltip.lines) {
+		if (text.find("reduces max durability") != std::string::npos) hasWarning = true;
 	}
 	EXPECT_TRUE(hasWarning) << "List tooltip should include warnings";
 }
@@ -326,8 +326,8 @@ TEST_F(SpellTooltipTest, ManaShieldTooltipShowsAbsorb)
 	MyPlayer->_pSplLvl[static_cast<size_t>(SpellID::ManaShield)] = 3;
 	auto tooltip = BuildSpellTooltip(*MyPlayer, SpellID::ManaShield);
 	bool hasAbsorb = false;
-	for (const auto &line : tooltip.lines) {
-		if (line.find("absorbs") != std::string::npos) hasAbsorb = true;
+	for (const auto &[text, color] : tooltip.lines) {
+		if (text.find("absorbs") != std::string::npos) hasAbsorb = true;
 	}
 	EXPECT_TRUE(hasAbsorb) << "ManaShield tooltip should show absorption info";
 }
@@ -338,8 +338,8 @@ TEST_F(SpellTooltipTest, GuardianTooltipShowsLifetime)
 	MyPlayer->_pSplLvl[static_cast<size_t>(SpellID::Guardian)] = 5;
 	auto tooltip = BuildSpellTooltip(*MyPlayer, SpellID::Guardian);
 	bool hasLife = false;
-	for (const auto &line : tooltip.lines) {
-		if (line.find("Lifetime") != std::string::npos) hasLife = true;
+	for (const auto &[text, color] : tooltip.lines) {
+		if (text.find("Lifetime") != std::string::npos) hasLife = true;
 	}
 	EXPECT_TRUE(hasLife) << "Guardian tooltip should show lifetime info";
 }

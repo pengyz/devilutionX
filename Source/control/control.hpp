@@ -89,6 +89,8 @@ void ToggleCharPanel();
 
 void AddInfoBoxString(std::string_view str, bool floatingBox = true);
 void AddInfoBoxString(std::string &&str, bool floatingBox = true);
+void AddInfoBoxStringColored(std::string_view str, UiFlags color);
+extern std::vector<UiFlags> FloatingInfoLineColors;
 void DrawPanelBox(const Surface &out, SDL_Rect srcRect, Point targetPosition);
 Point GetPanelPosition(UiPanels panel, Point offset = { 0, 0 });
 

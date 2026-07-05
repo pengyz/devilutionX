@@ -276,18 +276,43 @@ void PrintFloatingInfo(const Surface &out)
 	DrawHalfTransparentHorizontalLine(out, { floatingInfoBox.position.x - hPadding, floatingInfoBox.position.y - vPadding - 1 }, floatingInfoBox.size.width + (hPadding * 2), PAL16_GRAY + 10);
 	DrawHalfTransparentHorizontalLine(out, { floatingInfoBox.position.x - hPadding, floatingInfoBox.position.y + vPadding + floatingInfoBox.size.height }, floatingInfoBox.size.width + (hPadding * 2), PAL16_GRAY + 10);
 
-	DrawString(out, FloatingInfoString, floatingInfoBox,
-	    {
-	        .flags = InfoColor | UiFlags::AlignCenter | UiFlags::VerticalCenter,
-	        .spacing = textSpacing,
-	        .lineHeight = lineHeight,
-	    });
+	// Render per-line with individual colors
+	const std::string txt = std::string(FloatingInfoString);
+	std::vector<std::string_view> lines;
+	for (auto line : SplitByChar(txt, '\n')) {
+		lines.push_back(line);
+	}
+	const int totalLines = static_cast<int>(lines.size());
+
+	// Vertically center the text block
+	const int totalTextHeight = totalLines * lineHeight;
+	int yOffset = floatingInfoBox.position.y + (floatingInfoBox.size.height - totalTextHeight) / 2;
+
+	for (int i = 0; i < totalLines; i++) {
+		UiFlags lineColor = InfoColor;
+		if (i < static_cast<int>(FloatingInfoLineColors.size()))
+			lineColor = FloatingInfoLineColors[i];
+
+		Rectangle lineRect = {
+			{ floatingInfoBox.position.x, yOffset },
+			{ floatingInfoBox.size.width, lineHeight }
+		};
+
+		DrawString(out, lines[i], lineRect,
+		    {
+		        .flags = lineColor | UiFlags::AlignCenter,
+		        .spacing = textSpacing,
+		    });
+
+		yOffset += lineHeight;
+	}
 }
 
 } // namespace
 
 StringOrView FloatingInfoString;
 StringOrView ComparisonInfoString;
+std::vector<UiFlags> FloatingInfoLineColors;
 
 void AddInfoBoxString(std::string_view str, bool floatingBox /*= true*/)
 {
@@ -297,6 +322,9 @@ void AddInfoBoxString(std::string_view str, bool floatingBox /*= true*/)
 		infoString = str;
 	else
 		infoString = StrCat(infoString, "\n", str);
+
+	if (floatingBox)
+		FloatingInfoLineColors.push_back(UiFlags::ColorWhite);
 }
 
 void AddInfoBoxString(std::string &&str, bool floatingBox /*= true*/)
@@ -307,12 +335,25 @@ void AddInfoBoxString(std::string &&str, bool floatingBox /*= true*/)
 		infoString = std::move(str);
 	else
 		infoString = StrCat(infoString, "\n", str);
+
+	if (floatingBox)
+		FloatingInfoLineColors.push_back(UiFlags::ColorWhite);
+}
+
+void AddInfoBoxStringColored(std::string_view str, UiFlags color)
+{
+	if (FloatingInfoString.empty())
+		FloatingInfoString = str;
+	else
+		FloatingInfoString = StrCat(FloatingInfoString, "\n", str);
+	FloatingInfoLineColors.push_back(color);
 }
 
 void CheckPanelInfo()
 {
 	MainPanelFlag = false;
 	FloatingInfoString = StringOrView {};
+	FloatingInfoLineColors.clear();
 
 	const int totalButtons = IsChatAvailable() ? TotalMpMainPanelButtons : TotalSpMainPanelButtons;
 
@@ -391,6 +432,7 @@ void UpdateTooltipContent()
 {
 	if (!MainPanelFlag && !trigflag && pcursinvitem == -1 && pcursstashitem == StashStruct::EmptyCell && pcursstoreitem == -1 && pcursstorebtn == -1 && !SpellSelectFlag && !SpellbookFlag && pcurs != CURSOR_HOURGLASS) {
 		FloatingInfoString = StringOrView {};
+	FloatingInfoLineColors.clear();
 		InfoColor = UiFlags::ColorWhite;
 	}
 	// Clear comparison string whenever we're not hovering over a backpack inventry item

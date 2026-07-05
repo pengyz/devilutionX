@@ -4759,11 +4759,6 @@ msgctxt "spell_tooltip"
 msgid "Level {:d} / {:d}"
 msgstr "等级 {:d} / {:d}"
 
-#. TRANSLATORS: Spell tooltip - unusable spell at level 0
-#: Source/spell_tooltip.cpp
-msgid "Spell Level 0 - Unusable"
-msgstr "法术等级 0 - 无法使用"
-
 #. TRANSLATORS: Spell tooltip - upgrade preview header
 #: Source/spell_tooltip.cpp
 msgid "Next Level:"
@@ -4943,11 +4938,6 @@ msgstr "在目标周围火焰爆炸"
 msgctxt "spell_tooltip"
 msgid "Bolts ricochet randomly"
 msgstr "弹体随机反弹"
-
-#: Source/spell_tooltip.cpp
-msgctxt "spell_tooltip"
-msgid "Damages undead only"
-msgstr "只能伤害亡灵"
 
 #: Source/spell_tooltip.cpp
 msgctxt "spell_tooltip"

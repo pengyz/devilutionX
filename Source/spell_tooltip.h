@@ -6,6 +6,7 @@
 
 #include <expected.hpp>
 
+#include "engine/render/text_render.hpp"
 #include "player.h"
 #include "tables/spelldat.h"
 
@@ -59,9 +60,15 @@ tl::expected<void, std::string> LoadSpellDescData();
 std::vector<const SpellDescLine *> GetSpellDescLines(SpellID spell, DescSection section);
 std::string FormatDescLine(const SpellDescLine &line, const Player &player, SpellID spell, int level);
 
+struct TooltipLine {
+	std::string text;
+	UiFlags color;
+};
+
 struct SpellTooltip {
 	std::string title;
-	std::vector<std::string> lines;
+	UiFlags titleColor;
+	std::vector<std::pair<std::string, UiFlags>> lines;
 };
 
 SpellTooltip BuildSpellTooltip(const Player &player, SpellID spell);

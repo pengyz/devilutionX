@@ -117,6 +117,7 @@ void DrawSpell(const Surface &out)
 void DrawSpellList(const Surface &out)
 {
 	FloatingInfoString = StringOrView {};
+	FloatingInfoLineColors.clear();
 
 	const Player &myPlayer = *MyPlayer;
 
@@ -173,8 +174,9 @@ void DrawSpellList(const Surface &out)
 
 		SpellTooltip tooltip = BuildSpellListTooltip(myPlayer, spellId);
 		FloatingInfoString = tooltip.title;
-		for (const auto &line : tooltip.lines)
-			AddInfoBoxString(line);
+		InfoColor = tooltip.titleColor;
+		for (const auto &[text, color] : tooltip.lines)
+			AddInfoBoxStringColored(text, color);
 
 		if (spellListItem.type == SpellType::Scroll) {
 			const int scrollCount = c_count_if(InventoryAndBeltPlayerItemsRange { myPlayer }, [spellId](const Item &item) {

@@ -200,8 +200,9 @@ void DrawSpellBook(const Surface &out)
 				hoveredSpellFound = true;
 				SpellTooltip tooltip = BuildSpellTooltip(player, sn);
 				FloatingInfoString = pgettext("spell", GetSpellData(sn).sNameText);
-				for (const auto &line : tooltip.lines)
-					AddInfoBoxString(line);
+				InfoColor = tooltip.titleColor;
+				for (const auto &[text, color] : tooltip.lines)
+					AddInfoBoxStringColored(text, color);
 			}
 		}
 
@@ -209,8 +210,10 @@ void DrawSpellBook(const Surface &out)
 	}
 
 	// Clear tooltip if no spell entry is hovered (UpdateTooltipContent skips clearing when SpellbookFlag is set)
-	if (!hoveredSpellFound)
+	if (!hoveredSpellFound) {
 		FloatingInfoString = StringOrView {};
+		FloatingInfoLineColors.clear();
+	}
 }
 
 void CheckSBook()
