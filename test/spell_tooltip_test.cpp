@@ -261,7 +261,7 @@ TEST_F(SpellTooltipTest, BuildListTooltipNoUpgrade)
 {
 	LoadSpellDescData();
 	MyPlayer->_pSplLvl[static_cast<size_t>(SpellID::Firebolt)] = 5;
-	auto tooltip = BuildSpellListTooltip(*MyPlayer, SpellID::Firebolt);
+	auto tooltip = BuildSpellListTooltip(*MyPlayer, SpellID::Firebolt, SpellType::Spell);
 	for (const auto &[text, color] : tooltip.lines) {
 		EXPECT_EQ(text.find("->"), std::string::npos) << "Upgrade line in list tooltip: " << text;
 	}
@@ -304,7 +304,7 @@ TEST_F(SpellTooltipTest, ItemRepairWarningLine)
 TEST_F(SpellTooltipTest, BuildListTooltipTitle)
 {
 	LoadSpellDescData();
-	auto tooltip = BuildSpellListTooltip(*MyPlayer, SpellID::Firebolt);
+	auto tooltip = BuildSpellListTooltip(*MyPlayer, SpellID::Firebolt, SpellType::Spell);
 	EXPECT_FALSE(tooltip.title.empty());
 	EXPECT_THAT(tooltip.title, testing::HasSubstr("Firebolt"));
 }
@@ -313,7 +313,7 @@ TEST_F(SpellTooltipTest, BuildListTooltipIncludesWarning)
 {
 	LoadSpellDescData();
 	MyPlayer->_pSplLvl[static_cast<size_t>(SpellID::ItemRepair)] = 1;
-	auto tooltip = BuildSpellListTooltip(*MyPlayer, SpellID::ItemRepair);
+	auto tooltip = BuildSpellListTooltip(*MyPlayer, SpellID::ItemRepair, SpellType::Spell);
 	bool hasWarning = false;
 	for (const auto &[text, color] : tooltip.lines) {
 		if (text.find("reduces max durability") != std::string::npos) hasWarning = true;

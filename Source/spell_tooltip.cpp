@@ -452,24 +452,51 @@ SpellTooltip BuildSpellTooltip(const Player &player, SpellID spell)
 	return tooltip;
 }
 
-SpellTooltip BuildSpellListTooltip(const Player &player, SpellID spell)
+SpellTooltip BuildSpellListTooltip(const Player &player, SpellID spell, SpellType type)
 {
 	const SpellData &sd = GetSpellData(spell);
 	const int level = player.GetSpellLevel(spell);
 
 	SpellTooltip tooltip;
-	tooltip.title = pgettext("spell", sd.sNameText);
 	tooltip.titleColor = UiFlags::ColorGold;
 
-	if (level == 0) {
+	// Title varies by source type
+	switch (type) {
+	case SpellType::Skill:
+		tooltip.title = fmt::format(fmt::runtime(_("{:s} Skill")), pgettext("spell", sd.sNameText));
+		break;
+	case SpellType::Spell:
+		tooltip.title = fmt::format(fmt::runtime(_("{:s} Spell")), pgettext("spell", sd.sNameText));
+		break;
+	case SpellType::Scroll:
+		tooltip.title = fmt::format(fmt::runtime(_("Scroll of {:s}")), pgettext("spell", sd.sNameText));
+		break;
+	case SpellType::Charges:
+		tooltip.title = fmt::format(fmt::runtime(_("Staff of {:s}")), pgettext("spell", sd.sNameText));
+		break;
+	default:
+		tooltip.title = pgettext("spell", sd.sNameText);
+		break;
+	}
+
+	// Determine what to show based on source type
+	const bool isSkill = (type == SpellType::Skill);
+	const bool isConsumable = (type == SpellType::Scroll || type == SpellType::Charges);
+	const bool showMana = !isSkill && !isConsumable; // Skills don't cost mana, consumables use charges/scrolls
+	const bool showLevel = !isConsumable; // Consumables don't have spell levels
+
+	if (level == 0 && !isConsumable) {
 		tooltip.lines.emplace_back(std::string(_("Spell Level 0 - Unusable")), UiFlags::ColorRed);
 		return tooltip;
 	}
 
-	// Core stats (white)
+	// Core stats (white) — damage/healing always shown, mana only for Spells
 	for (const auto *line : GetSpellDescLines(spell, DescSection::Desc)) {
 		if (line->format == DescFormat::Text || line->format == DescFormat::Special) continue;
 		if (line->format == DescFormat::ValueSingle || line->format == DescFormat::ValueDelta) continue;
+		if (line->format == DescFormat::LevelDisplay && !showLevel) continue;
+		if (line->format == DescFormat::Mana && !showMana) continue;
+		if (line->format == DescFormat::ManaDelta && !showMana) continue;
 		std::string text = FormatDescLine(*line, player, spell, level);
 		if (text.empty()) continue;
 		tooltip.lines.emplace_back(std::move(text), UiFlags::ColorWhite);

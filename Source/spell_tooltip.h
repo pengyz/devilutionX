@@ -72,6 +72,6 @@ struct SpellTooltip {
 };
 
 SpellTooltip BuildSpellTooltip(const Player &player, SpellID spell);
-SpellTooltip BuildSpellListTooltip(const Player &player, SpellID spell);
+SpellTooltip BuildSpellListTooltip(const Player &player, SpellID spell, SpellType type);
 
 } // namespace devilution

@@ -172,7 +172,7 @@ void DrawSpellList(const Surface &out)
 			break;
 		}
 
-		SpellTooltip tooltip = BuildSpellListTooltip(myPlayer, spellId);
+		SpellTooltip tooltip = BuildSpellListTooltip(myPlayer, spellId, spellListItem.type);
 		FloatingInfoString = tooltip.title;
 		InfoColor = tooltip.titleColor;
 		for (const auto &[text, color] : tooltip.lines)
