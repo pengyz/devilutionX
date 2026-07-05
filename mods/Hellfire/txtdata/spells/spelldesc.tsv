@@ -1,0 +1,178 @@
+spellId	section	priority	formatType	expression	textKey	formulaText
+Firebolt	desc	1	level_display
+Firebolt	desc	2	damage_range	damage	Damage
+Firebolt	desc	3	mana	mana	Mana
+Firebolt	desc	4	text
+Firebolt	upgrade	1	damage_delta	damage	Damage
+Firebolt	upgrade	2	mana_delta	mana	Mana
+Healing	desc	1	level_display
+Healing	desc	2	heal_range	damage	Heals
+Healing	desc	3	mana	mana	Mana
+Healing	desc	4	text
+Healing	upgrade	1	heal_delta	damage	Heals
+Healing	upgrade	2	mana_delta	mana	Mana
+Lightning	desc	1	level_display
+Lightning	desc	2	damage_range	damage	Damage
+Lightning	desc	3	mana	mana	Mana
+Lightning	desc	4	text
+Lightning	upgrade	1	damage_delta	damage	Damage
+Lightning	upgrade	2	mana_delta	mana	Mana
+Flash	desc	1	level_display
+Flash	desc	2	damage_range	damage	Damage
+Flash	desc	3	mana	mana	Mana
+Flash	upgrade	1	damage_delta	damage	Damage
+Flash	upgrade	2	mana_delta	mana	Mana
+Identify	desc	1	level_display
+Identify	desc	2	mana	mana	Mana
+Identify	desc	3	text
+FireWall	desc	1	level_display
+FireWall	desc	2	damage_range	damage	Damage
+FireWall	desc	3	mana	mana	Mana
+FireWall	upgrade	1	damage_delta	damage	Damage
+FireWall	upgrade	2	mana_delta	mana	Mana
+TownPortal	desc	1	level_display
+TownPortal	desc	2	mana	mana	Mana
+TownPortal	desc	3	text
+StoneCurse	desc	1	level_display
+StoneCurse	desc	2	mana	mana	Mana
+StoneCurse	desc	3	value_single	par1 + (lvl - 1) * par5	Duration (frames)
+StoneCurse	upgrade	1	mana_delta	mana	Mana
+StoneCurse	upgrade	2	value_delta	par1 + (lvl - 1) * par5	Duration
+Infravision	desc	1	level_display
+Infravision	desc	2	mana	mana	Mana
+Phasing	desc	1	level_display
+Phasing	desc	2	mana	mana	Mana
+ManaShield	desc	1	level_display
+ManaShield	desc	2	mana	mana	Mana
+ManaShield	upgrade	1	mana_delta	mana	Mana
+Fireball	desc	1	level_display
+Fireball	desc	2	damage_range	damage	Damage
+Fireball	desc	3	mana	mana	Mana
+Fireball	upgrade	1	damage_delta	damage	Damage
+Fireball	upgrade	2	mana_delta	mana	Mana
+Guardian	desc	1	level_display
+Guardian	desc	2	damage_range	damage	Damage
+Guardian	desc	3	mana	mana	Mana
+Guardian	upgrade	1	damage_delta	damage	Damage
+Guardian	upgrade	2	mana_delta	mana	Mana
+ChainLightning	desc	1	level_display
+ChainLightning	desc	2	damage_range	damage	Damage
+ChainLightning	desc	3	mana	mana	Mana
+ChainLightning	upgrade	1	damage_delta	damage	Damage
+ChainLightning	upgrade	2	mana_delta	mana	Mana
+FlameWave	desc	1	level_display
+FlameWave	desc	2	damage_range	damage	Damage
+FlameWave	desc	3	mana	mana	Mana
+FlameWave	upgrade	1	damage_delta	damage	Damage
+FlameWave	upgrade	2	mana_delta	mana	Mana
+DoomSerpents	desc	1	level_display
+DoomSerpents	desc	2	mana	mana	Mana
+BloodRitual	desc	1	level_display
+BloodRitual	desc	2	mana	mana	Mana
+Nova	desc	1	level_display
+Nova	desc	2	damage_range	damage	Damage
+Nova	desc	3	mana	mana	Mana
+Nova	upgrade	1	damage_delta	damage	Damage
+Nova	upgrade	2	mana_delta	mana	Mana
+Invisibility	desc	1	level_display
+Invisibility	desc	2	mana	mana	Mana
+Inferno	desc	1	level_display
+Inferno	desc	2	damage_range	damage	Damage
+Inferno	desc	3	mana	mana	Mana
+Inferno	upgrade	1	damage_delta	damage	Damage
+Inferno	upgrade	2	mana_delta	mana	Mana
+Golem	desc	1	level_display
+Golem	desc	2	damage_range	damage	Damage
+Golem	desc	3	mana	mana	Mana
+Rage	desc	1	level_display
+Rage	desc	2	mana	mana	Mana
+Teleport	desc	1	level_display
+Teleport	desc	2	mana	mana	Mana
+Apocalypse	desc	1	level_display
+Apocalypse	desc	2	damage_range	damage	Damage
+Apocalypse	desc	3	mana	mana	Mana
+Etherealize	desc	1	level_display
+Etherealize	desc	2	mana	mana	Mana
+ItemRepair	desc	1	level_display
+ItemRepair	desc	2	mana	mana	Mana
+ItemRepair	warning	1	special		Warning: reduces max durability!
+StaffRecharge	desc	1	level_display
+StaffRecharge	desc	2	mana	mana	Mana
+TrapDisarm	desc	1	level_display
+TrapDisarm	desc	2	mana	mana	Mana
+Elemental	desc	1	level_display
+Elemental	desc	2	damage_range	damage	Damage
+Elemental	desc	3	mana	mana	Mana
+Elemental	upgrade	1	damage_delta	damage	Damage
+Elemental	upgrade	2	mana_delta	mana	Mana
+ChargedBolt	desc	1	level_display
+ChargedBolt	desc	2	damage_range	damage	Damage
+ChargedBolt	desc	3	mana	mana	Mana
+ChargedBolt	desc	4	value_single	par1 + math.floor(lvl / 3)	Bolts
+ChargedBolt	upgrade	1	damage_delta	damage	Damage
+ChargedBolt	upgrade	2	value_delta	par1 + math.floor(lvl / 3)	Bolts
+HolyBolt	desc	1	level_display
+HolyBolt	desc	2	damage_range	damage	Damage
+HolyBolt	desc	3	mana	mana	Mana
+HolyBolt	upgrade	1	damage_delta	damage	Damage
+HolyBolt	upgrade	2	mana_delta	mana	Mana
+Resurrect	desc	1	level_display
+Resurrect	desc	2	mana	mana	Mana
+Telekinesis	desc	1	level_display
+Telekinesis	desc	2	mana	mana	Mana
+HealOther	desc	1	level_display
+HealOther	desc	2	heal_range	damage	Heals
+HealOther	desc	3	mana	mana	Mana
+HealOther	upgrade	1	heal_delta	damage	Heals
+HealOther	upgrade	2	mana_delta	mana	Mana
+BloodStar	desc	1	level_display
+BloodStar	desc	2	damage_range	damage	Damage
+BloodStar	desc	3	mana	mana	Mana
+BloodStar	upgrade	1	damage_delta	damage	Damage
+BloodStar	upgrade	2	mana_delta	mana	Mana
+BoneSpirit	desc	1	level_display
+BoneSpirit	desc	2	special		Dmg: 1/3 target hp
+BoneSpirit	desc	3	mana	mana	Mana
+Mana	desc	1	level_display
+Mana	desc	2	mana	mana	Mana
+Magi	desc	1	level_display
+Magi	desc	2	mana	mana	Mana
+Jester	desc	1	level_display
+Jester	desc	2	mana	mana	Mana
+LightningWall	desc	1	level_display
+LightningWall	desc	2	damage_range	damage	Damage
+LightningWall	desc	3	mana	mana	Mana
+LightningWall	upgrade	1	damage_delta	damage	Damage
+LightningWall	upgrade	2	mana_delta	mana	Mana
+Immolation	desc	1	level_display
+Immolation	desc	2	damage_range	damage	Damage
+Immolation	desc	3	mana	mana	Mana
+Immolation	upgrade	1	damage_delta	damage	Damage
+Immolation	upgrade	2	mana_delta	mana	Mana
+Warp	desc	1	level_display
+Warp	desc	2	mana	mana	Mana
+Reflect	desc	1	level_display
+Reflect	desc	2	mana	mana	Mana
+Berserk	desc	1	level_display
+Berserk	desc	2	mana	mana	Mana
+RingOfFire	desc	1	level_display
+RingOfFire	desc	2	damage_range	damage	Damage
+RingOfFire	desc	3	mana	mana	Mana
+RingOfFire	upgrade	1	damage_delta	damage	Damage
+RingOfFire	upgrade	2	mana_delta	mana	Mana
+Search	desc	1	level_display
+Search	desc	2	mana	mana	Mana
+RuneOfFire	desc	1	level_display
+RuneOfFire	desc	2	damage_range	damage	Damage
+RuneOfFire	desc	3	mana	mana	Mana
+RuneOfLight	desc	1	level_display
+RuneOfLight	desc	2	damage_range	damage	Damage
+RuneOfLight	desc	3	mana	mana	Mana
+RuneOfNova	desc	1	level_display
+RuneOfNova	desc	2	damage_range	damage	Damage
+RuneOfNova	desc	3	mana	mana	Mana
+RuneOfImmolation	desc	1	level_display
+RuneOfImmolation	desc	2	damage_range	damage	Damage
+RuneOfImmolation	desc	3	mana	mana	Mana
+RuneOfStone	desc	1	level_display
+RuneOfStone	desc	2	mana	mana	Mana
