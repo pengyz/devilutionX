@@ -245,4 +245,65 @@ std::vector<const SpellDescLine *> GetSpellDescLines(SpellID spell, DescSection 
 	return result;
 }
 
+std::string FormatDescLine(const SpellDescLine &line, const Player &player, SpellID spell, int level)
+{
+	switch (line.format) {
+	case DescFormat::LevelDisplay:
+		return fmt::format("Level {:d} / {:d}", level, MaxSpellLevel);
+
+	case DescFormat::Special:
+		return line.textKey;
+
+	case DescFormat::Text:
+		if (!line.textKey.empty())
+			return line.textKey;
+		return std::string(GetSpellData(spell).sDescription);
+
+	case DescFormat::Mana: {
+		int mana = EvaluateSpellExpr(line.expression.empty() ? "mana" : line.expression, player, spell, level).value;
+		return fmt::format("{:s}: {:d}", line.textKey, mana);
+	}
+
+	case DescFormat::ManaDelta: {
+		int curMana = EvaluateSpellExpr(line.expression.empty() ? "mana" : line.expression, player, spell, level).value;
+		int nextMana = EvaluateSpellExpr(line.expression.empty() ? "mana" : line.expression, player, spell, level + 1).value;
+		return fmt::format("{:s}: {:d} \xe2\x86\x92 {:d}", line.textKey, curMana, nextMana);
+	}
+
+	case DescFormat::DamageRange: {
+		ExprResult r = EvaluateSpellExpr(line.expression, player, spell, level);
+		if (r.isRange)
+			return fmt::format("{:s}: {:d} - {:d}", line.textKey, r.minValue, r.maxValue);
+		return fmt::format("{:s}: {:d}", line.textKey, r.value);
+	}
+
+	case DescFormat::HealRange: {
+		ExprResult r = EvaluateSpellExpr(line.expression, player, spell, level);
+		if (r.isRange)
+			return fmt::format("{:s}: {:d} - {:d}", line.textKey, r.minValue, r.maxValue);
+		return fmt::format("{:s}: {:d}", line.textKey, r.value);
+	}
+
+	case DescFormat::ValueSingle: {
+		ExprResult r = EvaluateSpellExpr(line.expression, player, spell, level);
+		return fmt::format("{:s}: {:d}", line.textKey, r.value);
+	}
+
+	case DescFormat::ValueDelta: {
+		ExprResult cur = EvaluateSpellExpr(line.expression, player, spell, level);
+		ExprResult next = EvaluateSpellExpr(line.expression, player, spell, level + 1);
+		return fmt::format("{:s}: {:d} \xe2\x86\x92 {:d}", line.textKey, cur.value, next.value);
+	}
+
+	case DescFormat::HealDelta: {
+		ExprResult cur = EvaluateSpellExpr(line.expression, player, spell, level);
+		ExprResult next = EvaluateSpellExpr(line.expression, player, spell, level + 1);
+		if (cur.isRange && next.isRange)
+			return fmt::format("{:s}: {:d}-{:d} \xe2\x86\x92 {:d}-{:d}", line.textKey, cur.minValue, cur.maxValue, next.minValue, next.maxValue);
+		return fmt::format("{:s}: {:d} \xe2\x86\x92 {:d}", line.textKey, cur.value, next.value);
+	}
+	}
+	return "";
+}
+
 } // namespace devilution
