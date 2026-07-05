@@ -274,65 +274,68 @@ std::vector<const SpellDescLine *> GetSpellDescLines(SpellID spell, DescSection 
 
 std::string FormatDescLine(const SpellDescLine &line, const Player &player, SpellID spell, int level)
 {
+	// Translate textKey for display
+	const char *label = line.textKey.empty() ? "" : pgettext("spell_tooltip", line.textKey.c_str());
+
 	// Alt key: show formula text if available
 	if (!line.formulaText.empty() && (SDL_GetModState() & KMOD_ALT) != 0) {
-		return fmt::format("{:s}: {:s}", line.textKey, line.formulaText);
+		return fmt::format("{:s}: {:s}", label, line.formulaText);
 	}
 
 	switch (line.format) {
 	case DescFormat::LevelDisplay:
-		return fmt::format("Level {:d} / {:d}", level, MaxSpellLevel);
+		return fmt::format(fmt::runtime(_("Level {:d} / {:d}")), level, MaxSpellLevel);
 
 	case DescFormat::Special:
-		return line.textKey;
+		return label;
 
 	case DescFormat::Text:
 		if (!line.textKey.empty())
-			return line.textKey;
+			return label;
 		return std::string(GetSpellData(spell).sDescription);
 
 	case DescFormat::Mana: {
 		int mana = GetSourceValue(line.source, player, spell, level);
-		return fmt::format("{:s}: {:d}", line.textKey, mana);
+		return fmt::format("{:s}: {:d}", label, mana);
 	}
 
 	case DescFormat::ManaDelta: {
 		int curMana = GetSourceValue(line.source, player, spell, level);
 		int nextMana = GetSourceValue(line.source, player, spell, level + 1);
-		return fmt::format("{:s}: {:d} -> {:d}", line.textKey, curMana, nextMana);
+		return fmt::format("{:s}: {:d} -> {:d}", label, curMana, nextMana);
 	}
 
 	case DescFormat::DamageRange: {
 		DamageRange dr = GetSpellDamage(spell, level);
-		return fmt::format("{:s}: {:d} - {:d}", line.textKey, dr.min, dr.max);
+		return fmt::format("{:s}: {:d} - {:d}", label, dr.min, dr.max);
 	}
 
 	case DescFormat::HealRange: {
 		DamageRange dr = GetSpellDamage(spell, level);
-		return fmt::format("{:s}: {:d} - {:d}", line.textKey, dr.min, dr.max);
+		return fmt::format("{:s}: {:d} - {:d}", label, dr.min, dr.max);
 	}
 
 	case DescFormat::ValueSingle: {
 		int val = GetSourceValue(line.source, player, spell, level);
-		return fmt::format("{:s}: {:d}", line.textKey, val);
+		return fmt::format("{:s}: {:d}", label, val);
 	}
 
 	case DescFormat::ValueDelta: {
 		int cur = GetSourceValue(line.source, player, spell, level);
 		int next = GetSourceValue(line.source, player, spell, level + 1);
-		return fmt::format("{:s}: {:d} -> {:d}", line.textKey, cur, next);
+		return fmt::format("{:s}: {:d} -> {:d}", label, cur, next);
 	}
 
 	case DescFormat::DamageDelta: {
 		DamageRange cur = GetSpellDamage(spell, level);
 		DamageRange next = GetSpellDamage(spell, level + 1);
-		return fmt::format("{:s}: {:d}-{:d} -> {:d}-{:d}", line.textKey, cur.min, cur.max, next.min, next.max);
+		return fmt::format("{:s}: {:d}-{:d} -> {:d}-{:d}", label, cur.min, cur.max, next.min, next.max);
 	}
 
 	case DescFormat::HealDelta: {
 		DamageRange cur = GetSpellDamage(spell, level);
 		DamageRange next = GetSpellDamage(spell, level + 1);
-		return fmt::format("{:s}: {:d}-{:d} -> {:d}-{:d}", line.textKey, cur.min, cur.max, next.min, next.max);
+		return fmt::format("{:s}: {:d}-{:d} -> {:d}-{:d}", label, cur.min, cur.max, next.min, next.max);
 	}
 	}
 	return "";
