@@ -239,6 +239,7 @@ struct SpellData {
 	uint8_t sMinMana;
 	uint8_t sStaffMin;
 	uint8_t sStaffMax;
+	uint32_t sParam[8];
 
 	[[nodiscard]] MagicType type() const
 	{

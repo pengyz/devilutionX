@@ -9,6 +9,7 @@
 #include <string_view>
 
 #include <expected.hpp>
+#include <fmt/format.h>
 
 #include "data/file.hpp"
 #include "data/iterators.hpp"
@@ -30,6 +31,9 @@ void AddNullSpell()
 	null.sManaAdj = null.sMinMana = 0;
 	null.sStaffMin = 40;
 	null.sStaffMax = 80;
+	for (uint32_t &param : null.sParam) {
+		param = 0;
+	}
 }
 
 // A temporary solution for parsing soundID until we have a more general one.
@@ -254,6 +258,12 @@ void LoadSpellData()
 		reader.readInt("staffMin", item.sStaffMin);
 		reader.readInt("staffMax", item.sStaffMax);
 		reader.readString("description", item.sDescription);
+		for (uint32_t &param : item.sParam) {
+			param = 0;
+		}
+		for (int i = 0; i < 8; i++) {
+			reader.readOptionalInt(fmt::format("param{}", i + 1), item.sParam[i]);
+		}
 	}
 	SpellsData.shrink_to_fit();
 }
