@@ -37,7 +37,6 @@ bool IsAltOnlySource(DescSource source)
 	case DescSource::Absorb:
 	case DescSource::HPDamage:
 	case DescSource::GuardianLife:
-	case DescSource::GolemHP:
 		return true;
 	default:
 		return false;
