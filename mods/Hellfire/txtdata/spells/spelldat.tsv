@@ -16,7 +16,7 @@ ChainLightning	Chain Lightning	CastFire	1100	75	30	Lightning	8	7	54	ChainLightni
 FlameWave	Flame Wave	CastFire	1000	65	35	Fire,Targeted	9	8	54	FlameWaveControl	3	20	20	40									
 DoomSerpents	Doom Serpents	CastFire	0	0	0	Lightning	-1	-1	0		0	0	40	80									
 BloodRitual	Blood Ritual	CastFire	0	0	0	Magic	-1	-1	0		0	0	40	80									
-Nova	Nova	CastLightning	2100	130	60	Magic	14	10	87	Nova	3	35	16	32									
+Nova	Nova	CastLightning	2100	130	60	Magic	-1	10	87	Nova	3	35	16	32								
 Invisibility	Invisibility	CastFire	0	0	0	Magic	-1	-1	0		0	0	40	80									
 Inferno	Inferno	CastFire	200	10	11	Fire,Targeted	3	2	20	InfernoControl	1	6	20	40									
 Golem	Golem	CastFire	1800	110	100	Fire,Targeted	11	9	81	Golem	6	60	16	32									
