@@ -18,6 +18,7 @@
 #include "game_mode.hpp"
 #include "missiles.h"
 #include "panels/spell_icons.hpp"
+#include "panels/spell_tooltip.h"
 #include "panels/ui_panels.hpp"
 #include "player.h"
 #include "tables/spelldat.h"
@@ -197,29 +198,19 @@ void DrawSpellBook(const Surface &out)
 			const Rectangle entryRect = { panelPos + Displacement { 11, yp + textPaddingTop }, { SpellBookDescription.width, SpellBookDescription.height } };
 			if (entryRect.contains(MousePosition)) {
 				hoveredSpellFound = true;
-				const SpellData &sd = GetSpellData(sn);
-				const int lvl = player.GetSpellLevel(sn);
-
-				FloatingInfoString = pgettext("spell", sd.sNameText);
-				if (!sd.sDescription.empty()) {
-					AddInfoBoxString(pgettext("spell_description", sd.sDescription.c_str()));
-				}
-				AddInfoBoxString(fmt::format(fmt::runtime(_("Level {:d} / 15")), lvl));
-				if (lvl > 0 && lvl < MaxSpellLevel) {
-					const StringOrView curText = GetSpellPowerText(sn, lvl);
-					const StringOrView nextText = GetSpellPowerText(sn, lvl + 1);
-					AddInfoBoxString(fmt::format(fmt::runtime(_("Next: {:s} → {:s}")),
-					    !curText.empty() ? curText.str() : "",
-					    !nextText.empty() ? nextText.str() : ""));
-				}
-				if (sn == SpellID::ItemRepair) {
-					AddInfoBoxString(_("Warning: reduces max durability!"));
-				}
+				SpellTooltip tooltip = BuildSpellTooltip(player, sn);
+				FloatingInfoString = pgettext("spell", GetSpellData(sn).sNameText);
+				for (const auto &line : tooltip.lines)
+					AddInfoBoxString(line);
 			}
 		}
 
 		yp += SpellBookDescription.height;
 	}
+
+	// Clear tooltip if no spell entry is hovered (UpdateTooltipContent skips clearing when SpellbookFlag is set)
+	if (!hoveredSpellFound)
+		FloatingInfoString = StringOrView {};
 }
 
 void CheckSBook()
