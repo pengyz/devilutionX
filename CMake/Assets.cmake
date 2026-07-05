@@ -214,6 +214,7 @@ set(devilutionx_assets
   txtdata/quests/questdat.tsv
   txtdata/sound/effects.tsv
   txtdata/spells/spelldat.tsv
+  txtdata/spells/spelldesc.tsv
   txtdata/text/textdat.tsv
   txtdata/towners/quest_dialog.tsv
   txtdata/towners/towners.tsv

@@ -25,6 +25,7 @@ enum class DescFormat : uint8_t {
 	HealRange,
 	ValueSingle,
 	ValueDelta,
+	DamageDelta,
 	Mana,
 	ManaDelta,
 	Text,

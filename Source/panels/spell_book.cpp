@@ -18,7 +18,7 @@
 #include "game_mode.hpp"
 #include "missiles.h"
 #include "panels/spell_icons.hpp"
-#include "panels/spell_tooltip.h"
+#include "spell_tooltip.h"
 #include "panels/ui_panels.hpp"
 #include "player.h"
 #include "tables/spelldat.h"

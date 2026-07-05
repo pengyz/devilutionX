@@ -389,7 +389,7 @@ void CheckPanelInfo()
 
 void UpdateTooltipContent()
 {
-	if (!MainPanelFlag && !trigflag && pcursinvitem == -1 && pcursstashitem == StashStruct::EmptyCell && pcursstoreitem == -1 && pcursstorebtn == -1 && !SpellSelectFlag && pcurs != CURSOR_HOURGLASS) {
+	if (!MainPanelFlag && !trigflag && pcursinvitem == -1 && pcursstashitem == StashStruct::EmptyCell && pcursstoreitem == -1 && pcursstorebtn == -1 && !SpellSelectFlag && !SpellbookFlag && pcurs != CURSOR_HOURGLASS) {
 		FloatingInfoString = StringOrView {};
 		InfoColor = UiFlags::ColorWhite;
 	}

@@ -50,6 +50,7 @@ DescFormat ParseDescFormat(std::string_view value)
 	if (value == "heal_range") return DescFormat::HealRange;
 	if (value == "value_single") return DescFormat::ValueSingle;
 	if (value == "value_delta") return DescFormat::ValueDelta;
+	if (value == "damage_delta") return DescFormat::DamageDelta;
 	if (value == "mana") return DescFormat::Mana;
 	if (value == "mana_delta") return DescFormat::ManaDelta;
 	if (value == "text") return DescFormat::Text;
@@ -293,6 +294,14 @@ std::string FormatDescLine(const SpellDescLine &line, const Player &player, Spel
 	case DescFormat::ValueDelta: {
 		ExprResult cur = EvaluateSpellExpr(line.expression, player, spell, level);
 		ExprResult next = EvaluateSpellExpr(line.expression, player, spell, level + 1);
+		return fmt::format("{:s}: {:d} \xe2\x86\x92 {:d}", line.textKey, cur.value, next.value);
+	}
+
+	case DescFormat::DamageDelta: {
+		ExprResult cur = EvaluateSpellExpr(line.expression, player, spell, level);
+		ExprResult next = EvaluateSpellExpr(line.expression, player, spell, level + 1);
+		if (cur.isRange && next.isRange)
+			return fmt::format("{:s}: {:d}-{:d} \xe2\x86\x92 {:d}-{:d}", line.textKey, cur.minValue, cur.maxValue, next.minValue, next.maxValue);
 		return fmt::format("{:s}: {:d} \xe2\x86\x92 {:d}", line.textKey, cur.value, next.value);
 	}
 
