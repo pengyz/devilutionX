@@ -55,4 +55,12 @@ tl::expected<void, std::string> LoadSpellDescData();
 std::vector<const SpellDescLine *> GetSpellDescLines(SpellID spell, DescSection section);
 std::string FormatDescLine(const SpellDescLine &line, const Player &player, SpellID spell, int level);
 
+struct SpellTooltip {
+	std::string title;
+	std::vector<std::string> lines;
+};
+
+SpellTooltip BuildSpellTooltip(const Player &player, SpellID spell);
+SpellTooltip BuildSpellListTooltip(const Player &player, SpellID spell);
+
 } // namespace devilution

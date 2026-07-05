@@ -13,6 +13,7 @@
 #include "data/iterators.hpp"
 #include "missiles.h"
 #include "spells.h"
+#include "utils/language.h"
 #include "utils/log.hpp"
 
 namespace devilution {
@@ -304,6 +305,71 @@ std::string FormatDescLine(const SpellDescLine &line, const Player &player, Spel
 	}
 	}
 	return "";
+}
+
+SpellTooltip BuildSpellTooltip(const Player &player, SpellID spell)
+{
+	const SpellData &sd = GetSpellData(spell);
+	const int level = player.GetSpellLevel(spell);
+
+	SpellTooltip tooltip;
+	tooltip.title = pgettext("spell", sd.sNameText);
+
+	// Desc section
+	for (const auto *line : GetSpellDescLines(spell, DescSection::Desc)) {
+		if (level == 0 && line->format != DescFormat::LevelDisplay && line->format != DescFormat::Text)
+			continue; // Skip numeric lines at level 0
+		if (level == 0 && line->format == DescFormat::LevelDisplay) {
+			tooltip.lines.push_back(std::string(_("Spell Level 0 - Unusable")));
+			continue;
+		}
+		tooltip.lines.push_back(FormatDescLine(*line, player, spell, level));
+	}
+
+	// Upgrade section (only if level > 0 and < max)
+	if (level > 0 && level < MaxSpellLevel) {
+		auto upgradeLines = GetSpellDescLines(spell, DescSection::Upgrade);
+		if (!upgradeLines.empty()) {
+			tooltip.lines.push_back(std::string(_("Next Level:")));
+			for (const auto *line : upgradeLines) {
+				tooltip.lines.push_back("  " + FormatDescLine(*line, player, spell, level));
+			}
+		}
+	}
+
+	// Warning section
+	for (const auto *line : GetSpellDescLines(spell, DescSection::Warning)) {
+		tooltip.lines.push_back(FormatDescLine(*line, player, spell, level));
+	}
+
+	return tooltip;
+}
+
+SpellTooltip BuildSpellListTooltip(const Player &player, SpellID spell)
+{
+	const SpellData &sd = GetSpellData(spell);
+	const int level = player.GetSpellLevel(spell);
+
+	SpellTooltip tooltip;
+	tooltip.title = pgettext("spell", sd.sNameText);
+
+	// Desc section only — no upgrade
+	for (const auto *line : GetSpellDescLines(spell, DescSection::Desc)) {
+		if (level == 0 && line->format != DescFormat::LevelDisplay && line->format != DescFormat::Text)
+			continue; // Skip numeric lines at level 0
+		if (level == 0 && line->format == DescFormat::LevelDisplay) {
+			tooltip.lines.push_back(std::string(_("Spell Level 0 - Unusable")));
+			continue;
+		}
+		tooltip.lines.push_back(FormatDescLine(*line, player, spell, level));
+	}
+
+	// Warning section
+	for (const auto *line : GetSpellDescLines(spell, DescSection::Warning)) {
+		tooltip.lines.push_back(FormatDescLine(*line, player, spell, level));
+	}
+
+	return tooltip;
 }
 
 } // namespace devilution
