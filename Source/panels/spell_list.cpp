@@ -15,6 +15,7 @@
 #include "options.h"
 #include "panels/spell_icons.hpp"
 #include "player.h"
+#include "spell_tooltip.h"
 #include "spells.h"
 #include "utils/algorithm/container.hpp"
 #include "utils/language.h"
@@ -150,48 +151,40 @@ void DrawSpellList(const Surface &out)
 		case SpellType::Skill:
 			spellColor = PAL16_YELLOW - 46;
 			PrintSBookSpellType(out, spellListItem.location, _("Skill"), spellColor);
-			FloatingInfoString = fmt::format(fmt::runtime(_("{:s} Skill")), pgettext("spell", spellDataItem.sNameText));
 			break;
 		case SpellType::Spell:
-			if (!myPlayer.isOnLevel(0)) {
+			if (!myPlayer.isOnLevel(0))
 				spellColor = PAL16_BLUE + 5;
-			}
 			PrintSBookSpellType(out, spellListItem.location, _("Spell"), spellColor);
-			FloatingInfoString = fmt::format(fmt::runtime(_("{:s} Spell")), pgettext("spell", spellDataItem.sNameText));
-			if (spellId == SpellID::HolyBolt) {
-				AddInfoBoxString(_("Damages undead only"));
-			}
-			if (spellLevel == 0)
-				AddInfoBoxString(_("Spell Level 0 - Unusable"));
-			else
-				AddInfoBoxString(fmt::format(fmt::runtime(_("Spell Level {:d}")), spellLevel));
 			break;
-		case SpellType::Scroll: {
-			if (!myPlayer.isOnLevel(0)) {
+		case SpellType::Scroll:
+			if (!myPlayer.isOnLevel(0))
 				spellColor = PAL16_RED - 59;
-			}
 			PrintSBookSpellType(out, spellListItem.location, _("Scroll"), spellColor);
-			FloatingInfoString = fmt::format(fmt::runtime(_("Scroll of {:s}")), pgettext("spell", spellDataItem.sNameText));
+			break;
+		case SpellType::Charges:
+			if (!myPlayer.isOnLevel(0))
+				spellColor = PAL16_ORANGE + 5;
+			PrintSBookSpellType(out, spellListItem.location, _("Staff"), spellColor);
+			break;
+		case SpellType::Invalid:
+			break;
+		}
+
+		SpellTooltip tooltip = BuildSpellListTooltip(myPlayer, spellId);
+		FloatingInfoString = tooltip.title;
+		for (const auto &line : tooltip.lines)
+			AddInfoBoxString(line);
+
+		if (spellListItem.type == SpellType::Scroll) {
 			const int scrollCount = c_count_if(InventoryAndBeltPlayerItemsRange { myPlayer }, [spellId](const Item &item) {
 				return item.isScrollOf(spellId);
 			});
 			AddInfoBoxString(fmt::format(fmt::runtime(ngettext("{:d} Scroll", "{:d} Scrolls", scrollCount)), scrollCount));
-		} break;
-		case SpellType::Charges: {
-			if (!myPlayer.isOnLevel(0)) {
-				spellColor = PAL16_ORANGE + 5;
-			}
-			PrintSBookSpellType(out, spellListItem.location, _("Staff"), spellColor);
-			FloatingInfoString = fmt::format(fmt::runtime(_("Staff of {:s}")), pgettext("spell", spellDataItem.sNameText));
+		}
+		if (spellListItem.type == SpellType::Charges) {
 			int charges = myPlayer.InvBody[INVLOC_HAND_LEFT]._iCharges;
 			AddInfoBoxString(fmt::format(fmt::runtime(ngettext("{:d} Charge", "{:d} Charges", charges)), charges));
-		} break;
-		case SpellType::Invalid:
-			break;
-		}
-		// Append spell description if available (translated via gettext)
-		if (!spellDataItem.sDescription.empty()) {
-			AddInfoBoxString(pgettext("spell_description", spellDataItem.sDescription.c_str()));
 		}
 
 		std::optional<std::string_view> fullHotkeyName = GetHotkeyName(spellId, spellListItem.type);
