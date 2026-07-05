@@ -99,7 +99,8 @@ Inferno	upgrade	2	mana_delta	mana	Mana
 Golem	desc	1	level_display	none
 Golem	desc	2	damage_range	damage	Damage	11 to 17 per hit
 Golem	desc	3	mana	mana	Mana
-Golem	desc	4	special	none	HP scales with spell level
+Golem	desc	4	value_single	golem_hp	Golem HP	2*(320*Lvl + MaxMana/3)
+Golem	desc	5	special	none	HP scales with spell level
 Golem	upgrade	1	mana_delta	mana	Mana
 Rage	desc	1	level_display	none
 Rage	desc	2	mana	mana	Mana

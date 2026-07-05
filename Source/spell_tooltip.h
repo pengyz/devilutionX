@@ -22,6 +22,7 @@ enum class DescSource : uint8_t {
 	Bolts,          // ChargedBolt projectile count -> int
 	Speed,          // Projectile speed (px/tick) -> int
 	GuardianLife,    // Guardian lifetime (ticks/16) -> int
+	GolemHP,        // Golem hit points -> int
 };
 
 enum class DescFormat : uint8_t {

@@ -37,6 +37,7 @@ bool IsAltOnlySource(DescSource source)
 	case DescSource::Absorb:
 	case DescSource::HPDamage:
 	case DescSource::GuardianLife:
+	case DescSource::GolemHP:
 		return true;
 	default:
 		return false;
@@ -99,6 +100,12 @@ int GetGuardianLifetime(int level, int charLevel)
 	return std::min(level + charLevel / 2, 30);
 }
 
+int GetGolemHP(int level, int maxMana)
+{
+	// monster.cpp:3297 — maxHitPoints = 2 * (320 * spellLevel + player._pMaxMana / 3)
+	return 2 * (320 * level + maxMana / 3);
+}
+
 // ---- Get a single int value from source ----
 
 int GetSourceValue(DescSource source, const Player &player, SpellID spell, int level)
@@ -119,6 +126,8 @@ int GetSourceValue(DescSource source, const Player &player, SpellID spell, int l
 		return GetFireboltSpeed(level);
 	case DescSource::GuardianLife:
 		return GetGuardianLifetime(level, player.getCharacterLevel());
+	case DescSource::GolemHP:
+		return GetGolemHP(level, player._pMaxMana >> 6);
 	default:
 		return 0;
 	}
@@ -137,6 +146,7 @@ DescSource ParseDescSource(std::string_view value)
 	if (value == "bolts") return DescSource::Bolts;
 	if (value == "speed") return DescSource::Speed;
 	if (value == "guardian_life") return DescSource::GuardianLife;
+	if (value == "golem_hp") return DescSource::GolemHP;
 	app_fatal(fmt::format("Unknown DescSource: {}", value));
 	return DescSource::None;
 }
