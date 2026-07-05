@@ -418,22 +418,20 @@ SpellTooltip BuildSpellTooltip(const Player &player, SpellID spell)
 	}
 
 	// --- Section 2: Secondary info (white) ---
-	// Speed, duration, bolts, absorb, etc. — only shown when Alt is held
+	// ValueSingle/ValueDelta lines: show by default, skip alt-only sources unless Alt held
 	const bool altHeld = (SDL_GetModState() & KMOD_ALT) != 0;
-	if (altHeld) {
-		bool hasSecondary = false;
-		for (const auto *line : GetSpellDescLines(spell, DescSection::Desc)) {
-			if (line->format != DescFormat::ValueSingle && line->format != DescFormat::ValueDelta)
-				continue;
-			if (!IsAltOnlySource(line->source)) continue; // Skip non-technical lines
-			std::string text = FormatDescLine(*line, player, spell, level);
-			if (text.empty()) continue;
-			if (!hasSecondary) {
-				tooltip.lines.emplace_back(" ", UiFlags::ColorWhite); // Spacer line
-				hasSecondary = true;
-			}
-			tooltip.lines.emplace_back(std::move(text), UiFlags::ColorWhite);
+	bool hasSecondary = false;
+	for (const auto *line : GetSpellDescLines(spell, DescSection::Desc)) {
+		if (line->format != DescFormat::ValueSingle && line->format != DescFormat::ValueDelta)
+			continue;
+		if (IsAltOnlySource(line->source) && !altHeld) continue; // Alt-only: skip unless Alt held
+		std::string text = FormatDescLine(*line, player, spell, level);
+		if (text.empty()) continue;
+		if (!hasSecondary) {
+			tooltip.lines.emplace_back(" ", UiFlags::ColorWhite); // Spacer line
+			hasSecondary = true;
 		}
+		tooltip.lines.emplace_back(std::move(text), UiFlags::ColorWhite);
 	}
 
 	// --- Section 3: Description text (white) ---
@@ -532,22 +530,20 @@ SpellTooltip BuildSpellListTooltip(const Player &player, SpellID spell, SpellTyp
 		tooltip.lines.emplace_back(std::move(text), UiFlags::ColorWhite);
 	}
 
-	// Secondary info (white) — only shown when Alt is held
+	// Secondary info (white) — show by default, skip alt-only sources unless Alt held
 	const bool altHeld = (SDL_GetModState() & KMOD_ALT) != 0;
-	if (altHeld) {
-		bool hasSecondary = false;
-		for (const auto *line : GetSpellDescLines(spell, DescSection::Desc)) {
-			if (line->format != DescFormat::ValueSingle && line->format != DescFormat::ValueDelta)
-				continue;
-			if (!IsAltOnlySource(line->source)) continue;
-			std::string text = FormatDescLine(*line, player, spell, level);
-			if (text.empty()) continue;
-			if (!hasSecondary) {
-				tooltip.lines.emplace_back(" ", UiFlags::ColorWhite); // Spacer line
-				hasSecondary = true;
-			}
-			tooltip.lines.emplace_back(std::move(text), UiFlags::ColorWhite);
+	bool hasSecondary = false;
+	for (const auto *line : GetSpellDescLines(spell, DescSection::Desc)) {
+		if (line->format != DescFormat::ValueSingle && line->format != DescFormat::ValueDelta)
+			continue;
+		if (IsAltOnlySource(line->source) && !altHeld) continue;
+		std::string text = FormatDescLine(*line, player, spell, level);
+		if (text.empty()) continue;
+		if (!hasSecondary) {
+			tooltip.lines.emplace_back(" ", UiFlags::ColorWhite); // Spacer line
+			hasSecondary = true;
 		}
+		tooltip.lines.emplace_back(std::move(text), UiFlags::ColorWhite);
 	}
 
 	// Description text (white)
