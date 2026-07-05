@@ -17,74 +17,7 @@ protected:
 	}
 };
 
-TEST_F(SpellTooltipTest, EvaluateSimpleNumber)
-{
-	ExprResult result = EvaluateSpellExpr("42", *MyPlayer, SpellID::Firebolt, 1);
-	EXPECT_EQ(result.value, 42);
-	EXPECT_FALSE(result.isRange);
-}
-
-TEST_F(SpellTooltipTest, EvaluateLvlVariable)
-{
-	ExprResult result = EvaluateSpellExpr("lvl * 2", *MyPlayer, SpellID::Firebolt, 5);
-	EXPECT_EQ(result.value, 10);
-}
-
-TEST_F(SpellTooltipTest, EvaluateParVariable)
-{
-	const SpellData &sd = GetSpellData(SpellID::StoneCurse);
-	ExprResult result = EvaluateSpellExpr("par1 + par5", *MyPlayer, SpellID::StoneCurse, 1);
-	EXPECT_EQ(result.value, static_cast<int>(sd.sParam[0] + sd.sParam[4]));
-}
-
-TEST_F(SpellTooltipTest, EvaluateLnFunction)
-{
-	const SpellData &sd = GetSpellData(SpellID::StoneCurse);
-	ExprResult result = EvaluateSpellExpr("ln(par1, par5)", *MyPlayer, SpellID::StoneCurse, 3);
-	int expected = sd.sParam[0] + (3 - 1) * sd.sParam[4];
-	EXPECT_EQ(result.value, expected);
-}
-
-TEST_F(SpellTooltipTest, EvaluateDamageRange)
-{
-	DamageRange dr = GetDamageAmt(SpellID::Firebolt, 5);
-	ExprResult result = EvaluateSpellExpr("damage", *MyPlayer, SpellID::Firebolt, 5);
-	EXPECT_TRUE(result.isRange);
-	EXPECT_EQ(result.minValue, dr.min);
-	EXPECT_EQ(result.maxValue, dr.max);
-}
-
-TEST_F(SpellTooltipTest, EvaluateManaRef)
-{
-	int expectedMana = GetManaAmount(*MyPlayer, SpellID::Firebolt) >> 6;
-	ExprResult result = EvaluateSpellExpr("mana", *MyPlayer, SpellID::Firebolt, 1);
-	EXPECT_EQ(result.value, expectedMana);
-}
-
-TEST_F(SpellTooltipTest, EvaluateMathFloor)
-{
-	ExprResult result = EvaluateSpellExpr("math.floor(7 / 3)", *MyPlayer, SpellID::ChargedBolt, 7);
-	EXPECT_EQ(result.value, 2);
-}
-
-TEST_F(SpellTooltipTest, EvaluateInvalidExprReturnsZero)
-{
-	ExprResult result = EvaluateSpellExpr("invalid!!!", *MyPlayer, SpellID::Firebolt, 1);
-	EXPECT_EQ(result.value, 0);
-	EXPECT_FALSE(result.isRange);
-}
-
-TEST_F(SpellTooltipTest, EvaluateCharLevel)
-{
-	ExprResult result = EvaluateSpellExpr("charLevel", *MyPlayer, SpellID::Firebolt, 1);
-	EXPECT_EQ(result.value, MyPlayer->getCharacterLevel());
-}
-
-TEST_F(SpellTooltipTest, EvaluateMagic)
-{
-	ExprResult result = EvaluateSpellExpr("magic", *MyPlayer, SpellID::Firebolt, 1);
-	EXPECT_EQ(result.value, MyPlayer->_pMagic);
-}
+// ---- Layer 2: Data Loading ----
 
 TEST_F(SpellTooltipTest, LoadSpellDescDataSucceeds)
 {
@@ -96,7 +29,7 @@ TEST_F(SpellTooltipTest, DescLinesExistForFirebolt)
 {
 	LoadSpellDescData();
 	auto lines = GetSpellDescLines(SpellID::Firebolt, DescSection::Desc);
-	ASSERT_GE(lines.size(), 2u); // at least damage + mana
+	ASSERT_GE(lines.size(), 2u);
 }
 
 TEST_F(SpellTooltipTest, UpgradeLinesExistForFirebolt)
@@ -132,6 +65,30 @@ TEST_F(SpellTooltipTest, UtilitySpellHasManaLine)
 	}
 	EXPECT_TRUE(hasMana);
 }
+
+TEST_F(SpellTooltipTest, ManaShieldHasAbsorbLine)
+{
+	LoadSpellDescData();
+	auto lines = GetSpellDescLines(SpellID::ManaShield, DescSection::Desc);
+	bool hasAbsorb = false;
+	for (const auto *line : lines) {
+		if (line->source == DescSource::Absorb) hasAbsorb = true;
+	}
+	EXPECT_TRUE(hasAbsorb);
+}
+
+TEST_F(SpellTooltipTest, GuardianHasLifetimeLine)
+{
+	LoadSpellDescData();
+	auto lines = GetSpellDescLines(SpellID::Guardian, DescSection::Desc);
+	bool hasLife = false;
+	for (const auto *line : lines) {
+		if (line->source == DescSource::GuardianLife) hasLife = true;
+	}
+	EXPECT_TRUE(hasLife);
+}
+
+// ---- Layer 3: Formatting ----
 
 TEST_F(SpellTooltipTest, FormatDamageRange)
 {
@@ -180,8 +137,8 @@ TEST_F(SpellTooltipTest, FormatSpecial)
 {
 	SpellDescLine line;
 	line.format = DescFormat::Special;
+	line.source = DescSource::None;
 	line.textKey = "Dmg: 1/3 target hp";
-	line.expression = "";
 	std::string result = FormatDescLine(line, *MyPlayer, SpellID::BoneSpirit, 1);
 	EXPECT_EQ(result, "Dmg: 1/3 target hp");
 }
@@ -190,7 +147,7 @@ TEST_F(SpellTooltipTest, FormatLevelDisplay)
 {
 	SpellDescLine line;
 	line.format = DescFormat::LevelDisplay;
-	line.expression = "";
+	line.source = DescSource::None;
 	std::string result = FormatDescLine(line, *MyPlayer, SpellID::Firebolt, 5);
 	EXPECT_THAT(result, testing::HasSubstr("Level"));
 	EXPECT_THAT(result, testing::HasSubstr("5"));
@@ -207,14 +164,14 @@ TEST_F(SpellTooltipTest, FormatValueDelta)
 	}
 	ASSERT_NE(manaDelta, nullptr);
 	std::string result = FormatDescLine(*manaDelta, *MyPlayer, SpellID::Firebolt, 5);
-	EXPECT_THAT(result, testing::HasSubstr("->")); // delta arrow
+	EXPECT_THAT(result, testing::HasSubstr("->"));
 }
 
 TEST_F(SpellTooltipTest, FormatTextShowsDescription)
 {
 	SpellDescLine line;
 	line.format = DescFormat::Text;
-	line.expression = "";
+	line.source = DescSource::None;
 	line.textKey = "";
 	std::string result = FormatDescLine(line, *MyPlayer, SpellID::Firebolt, 1);
 	EXPECT_EQ(result, GetSpellData(SpellID::Firebolt).sDescription);
@@ -224,10 +181,39 @@ TEST_F(SpellTooltipTest, FormatTextFromTextKey)
 {
 	SpellDescLine line;
 	line.format = DescFormat::Text;
-	line.expression = "";
+	line.source = DescSource::None;
 	line.textKey = "Custom text here";
 	std::string result = FormatDescLine(line, *MyPlayer, SpellID::Firebolt, 1);
 	EXPECT_EQ(result, "Custom text here");
+}
+
+TEST_F(SpellTooltipTest, FormatManaShieldAbsorb)
+{
+	LoadSpellDescData();
+	auto lines = GetSpellDescLines(SpellID::ManaShield, DescSection::Desc);
+	const SpellDescLine *absorbLine = nullptr;
+	for (const auto *l : lines) {
+		if (l->source == DescSource::Absorb) { absorbLine = l; break; }
+	}
+	ASSERT_NE(absorbLine, nullptr);
+	std::string result = FormatDescLine(*absorbLine, *MyPlayer, SpellID::ManaShield, 3);
+	EXPECT_THAT(result, testing::HasSubstr("absorbs"));
+	EXPECT_THAT(result, testing::HasSubstr("%"));
+}
+
+TEST_F(SpellTooltipTest, FormatStoneCurseDuration)
+{
+	LoadSpellDescData();
+	auto lines = GetSpellDescLines(SpellID::StoneCurse, DescSection::Desc);
+	const SpellDescLine *durLine = nullptr;
+	for (const auto *l : lines) {
+		if (l->source == DescSource::Duration) { durLine = l; break; }
+	}
+	ASSERT_NE(durLine, nullptr);
+	std::string result = FormatDescLine(*durLine, *MyPlayer, SpellID::StoneCurse, 5);
+	EXPECT_THAT(result, testing::HasSubstr("Duration"));
+	// level 5: min(5+6, 15) = 11
+	EXPECT_THAT(result, testing::HasSubstr("11"));
 }
 
 // ---- Layer 4: BuildSpellTooltip / BuildSpellListTooltip ----
@@ -297,9 +283,9 @@ TEST_F(SpellTooltipTest, BoneSpiritSpecialLine)
 	auto tooltip = BuildSpellTooltip(*MyPlayer, SpellID::BoneSpirit);
 	bool hasSpecial = false;
 	for (const auto &line : tooltip.lines) {
-		if (line.find("1/3 target hp") != std::string::npos) hasSpecial = true;
+		if (line.find("1/3 target HP") != std::string::npos) hasSpecial = true;
 	}
-	EXPECT_TRUE(hasSpecial) << "BoneSpirit tooltip should contain special '1/3 target hp'";
+	EXPECT_TRUE(hasSpecial) << "BoneSpirit tooltip should contain special '1/3 target HP'";
 }
 
 TEST_F(SpellTooltipTest, ItemRepairWarningLine)
@@ -332,6 +318,30 @@ TEST_F(SpellTooltipTest, BuildListTooltipIncludesWarning)
 		if (line.find("reduces max durability") != std::string::npos) hasWarning = true;
 	}
 	EXPECT_TRUE(hasWarning) << "List tooltip should include warnings";
+}
+
+TEST_F(SpellTooltipTest, ManaShieldTooltipShowsAbsorb)
+{
+	LoadSpellDescData();
+	MyPlayer->_pSplLvl[static_cast<size_t>(SpellID::ManaShield)] = 3;
+	auto tooltip = BuildSpellTooltip(*MyPlayer, SpellID::ManaShield);
+	bool hasAbsorb = false;
+	for (const auto &line : tooltip.lines) {
+		if (line.find("absorbs") != std::string::npos) hasAbsorb = true;
+	}
+	EXPECT_TRUE(hasAbsorb) << "ManaShield tooltip should show absorption info";
+}
+
+TEST_F(SpellTooltipTest, GuardianTooltipShowsLifetime)
+{
+	LoadSpellDescData();
+	MyPlayer->_pSplLvl[static_cast<size_t>(SpellID::Guardian)] = 5;
+	auto tooltip = BuildSpellTooltip(*MyPlayer, SpellID::Guardian);
+	bool hasLife = false;
+	for (const auto &line : tooltip.lines) {
+		if (line.find("Lifetime") != std::string::npos) hasLife = true;
+	}
+	EXPECT_TRUE(hasLife) << "Guardian tooltip should show lifetime info";
 }
 
 } // namespace devilution

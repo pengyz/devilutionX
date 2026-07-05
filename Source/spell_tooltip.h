@@ -11,14 +11,17 @@
 
 namespace devilution {
 
-struct ExprResult {
-	int value;
-	int minValue;
-	int maxValue;
-	bool isRange;
+enum class DescSource : uint8_t {
+	None,           // No data source (text/special/level_display)
+	Damage,         // GetDamageAmt(spell, level) -> {min, max}
+	Mana,           // GetManaAmount(player, spell, level) -> int
+	Absorb,         // ManaShield absorption % -> int
+	HPDamage,       // ManaShield HP damage % -> int
+	Duration,       // Spell duration in ticks/16 -> int
+	Bolts,          // ChargedBolt projectile count -> int
+	Speed,          // Projectile speed (px/tick) -> int
+	GuardianLife,    // Guardian lifetime (ticks/16) -> int
 };
-
-ExprResult EvaluateSpellExpr(const std::string &expr, const Player &player, SpellID spell, int level);
 
 enum class DescFormat : uint8_t {
 	DamageRange,
@@ -45,7 +48,7 @@ struct SpellDescLine {
 	DescSection section;
 	uint8_t priority;
 	DescFormat format;
-	std::string expression;
+	DescSource source;
 	std::string textKey;
 	std::string formulaText;
 };

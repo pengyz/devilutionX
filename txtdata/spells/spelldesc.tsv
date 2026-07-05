@@ -1,135 +1,173 @@
-spellId	section	priority	formatType	expression	textKey	formulaText
-Firebolt	desc	1	level_display
+spellId	section	priority	formatType	source	textKey	formulaText
+Firebolt	desc	1	level_display	none
 Firebolt	desc	2	damage_range	damage	Damage	Magic/8 + Lvl + 1
 Firebolt	desc	3	mana	mana	Mana	Base - (Lvl-1) * Adj
-Firebolt	desc	4	text
+Firebolt	desc	4	value_single	speed	Speed (px/tick)	Base + 2*Lvl (cap 63)
+Firebolt	desc	5	text	none
 Firebolt	upgrade	1	damage_delta	damage	Damage
 Firebolt	upgrade	2	mana_delta	mana	Mana
-Healing	desc	1	level_display
+Healing	desc	1	level_display	none
 Healing	desc	2	heal_range	damage	Heals	CLvl+Lvl+1 to 4*CLvl+6*Lvl+10
 Healing	desc	3	mana	mana	Mana
-Healing	desc	4	text
+Healing	desc	4	text	none
 Healing	upgrade	1	heal_delta	damage	Heals
 Healing	upgrade	2	mana_delta	mana	Mana
-Lightning	desc	1	level_display
+Lightning	desc	1	level_display	none
 Lightning	desc	2	damage_range	damage	Damage	2 to 2+CLvl
 Lightning	desc	3	mana	mana	Mana
-Lightning	desc	4	text
+Lightning	desc	4	text	none
 Lightning	upgrade	1	damage_delta	damage	Damage
 Lightning	upgrade	2	mana_delta	mana	Mana
-Flash	desc	1	level_display
-Flash	desc	2	damage_range	damage	Damage	CLvl * 1.5^Lvl
+Flash	desc	1	level_display	none
+Flash	desc	2	damage_range	damage	Damage	Scale(CLvl) per target
 Flash	desc	3	mana	mana	Mana
+Flash	desc	4	special	none	Hits all nearby enemies
 Flash	upgrade	1	damage_delta	damage	Damage
 Flash	upgrade	2	mana_delta	mana	Mana
-Identify	desc	1	level_display
+Identify	desc	1	level_display	none
 Identify	desc	2	mana	mana	Mana
-Identify	desc	3	text
-FireWall	desc	1	level_display
-FireWall	desc	2	damage_range	damage	Damage	2*CLvl+4 to 2*CLvl+40
+Identify	desc	3	text	none
+FireWall	desc	1	level_display	none
+FireWall	desc	2	damage_range	damage	Damage	2*CLvl+4 to 2*CLvl+40 per tick
 FireWall	desc	3	mana	mana	Mana
+FireWall	desc	4	special	none	Damages enemies crossing it
 FireWall	upgrade	1	damage_delta	damage	Damage
 FireWall	upgrade	2	mana_delta	mana	Mana
-TownPortal	desc	1	level_display
+TownPortal	desc	1	level_display	none
 TownPortal	desc	2	mana	mana	Mana
-TownPortal	desc	3	text
-StoneCurse	desc	1	level_display
+TownPortal	desc	3	text	none
+StoneCurse	desc	1	level_display	none
 StoneCurse	desc	2	mana	mana	Mana
-StoneCurse	desc	3	value_single	par1 + (lvl - 1) * par5	Duration (frames)	Base + (Lvl-1) * 5
+StoneCurse	desc	3	value_single	duration	Duration (ticks/16)	Cap at level 9 = 12s
+StoneCurse	desc	4	special	none	Immune: Golem, Diablo, Nakrul
 StoneCurse	upgrade	1	mana_delta	mana	Mana
-StoneCurse	upgrade	2	value_delta	par1 + (lvl - 1) * par5	Duration
-Infravision	desc	1	level_display
+StoneCurse	upgrade	2	value_delta	duration	Duration (ticks/16)
+Infravision	desc	1	level_display	none
 Infravision	desc	2	mana	mana	Mana
-Phasing	desc	1	level_display
+Infravision	desc	3	special	none	Reveals enemies on automap
+Phasing	desc	1	level_display	none
 Phasing	desc	2	mana	mana	Mana
-ManaShield	desc	1	level_display
+Phasing	desc	3	special	none	Random teleport to visible tile
+ManaShield	desc	1	level_display	none
 ManaShield	desc	2	mana	mana	Mana
+ManaShield	desc	3	value_single	absorb	Mana absorbs (%)	Divisor: 24 - min(Lvl,7)*3
+ManaShield	desc	4	value_single	hp_damage	HP takes (%)	Higher level = more HP damage
+ManaShield	desc	5	special	none	Permanent until mana depleted
 ManaShield	upgrade	1	mana_delta	mana	Mana
-Fireball	desc	1	level_display
+ManaShield	upgrade	2	value_delta	absorb	Mana absorbs (%)
+Fireball	desc	1	level_display	none
 Fireball	desc	2	damage_range	damage	Damage	Scale(2*CLvl+4) to Scale(2*CLvl+40)
 Fireball	desc	3	mana	mana	Mana
+Fireball	desc	4	value_single	speed	Speed (px/tick)	Base 16 + 2*Lvl (cap 50)
+Fireball	desc	5	special	none	3x3 explosion on impact
+Fireball	desc	6	special	none	Hit: Magic-based (not Dex)
 Fireball	upgrade	1	damage_delta	damage	Damage
 Fireball	upgrade	2	mana_delta	mana	Mana
-Guardian	desc	1	level_display
+Guardian	desc	1	level_display	none
 Guardian	desc	2	damage_range	damage	Damage	Scale(CLvl/2+1) to Scale(CLvl/2+10)
 Guardian	desc	3	mana	mana	Mana
+Guardian	desc	4	value_single	guardian_life	Lifetime (ticks/16)	Max 30 = 24s, fires 1/sec
+Guardian	desc	5	special	none	Bolt dmg = Magic/8 + Lvl + 1
 Guardian	upgrade	1	damage_delta	damage	Damage
 Guardian	upgrade	2	mana_delta	mana	Mana
-ChainLightning	desc	1	level_display
-ChainLightning	desc	2	damage_range	damage	Damage	4 to 4+2*CLvl
+ChainLightning	desc	1	level_display	none
+ChainLightning	desc	2	damage_range	damage	Damage	4 to 4+2*CLvl per target
 ChainLightning	desc	3	mana	mana	Mana
+ChainLightning	desc	4	special	none	Chains to nearby enemies
 ChainLightning	upgrade	1	damage_delta	damage	Damage
 ChainLightning	upgrade	2	mana_delta	mana	Mana
-FlameWave	desc	1	level_display
+FlameWave	desc	1	level_display	none
 FlameWave	desc	2	damage_range	damage	Damage	6*(CLvl+1) to 6*(CLvl+1)+54
 FlameWave	desc	3	mana	mana	Mana
+FlameWave	desc	4	special	none	Wave travels forward
 FlameWave	upgrade	1	damage_delta	damage	Damage
 FlameWave	upgrade	2	mana_delta	mana	Mana
-DoomSerpents	desc	1	level_display
+DoomSerpents	desc	1	level_display	none
 DoomSerpents	desc	2	mana	mana	Mana
-BloodRitual	desc	1	level_display
+BloodRitual	desc	1	level_display	none
 BloodRitual	desc	2	mana	mana	Mana
-Nova	desc	1	level_display
-Nova	desc	2	damage_range	damage	Damage	Scale(CLvl)*5
+Nova	desc	1	level_display	none
+Nova	desc	2	damage_range	damage	Damage	Scale(CLvl)*5, all around caster
 Nova	desc	3	mana	mana	Mana
+Nova	desc	4	special	none	Hits all enemies in radius
 Nova	upgrade	1	damage_delta	damage	Damage
 Nova	upgrade	2	mana_delta	mana	Mana
-Invisibility	desc	1	level_display
+Invisibility	desc	1	level_display	none
 Invisibility	desc	2	mana	mana	Mana
-Inferno	desc	1	level_display
-Inferno	desc	2	damage_range	damage	Damage	3 to CLvl+4+(CLvl+4)/2
+Invisibility	desc	3	special	none	Enemies cannot target you
+Inferno	desc	1	level_display	none
+Inferno	desc	2	damage_range	damage	Damage	3 to CLvl+4+(CLvl+4)/2 per tick
 Inferno	desc	3	mana	mana	Mana
+Inferno	desc	4	special	none	Continuous stream, damages per tick
 Inferno	upgrade	1	damage_delta	damage	Damage
 Inferno	upgrade	2	mana_delta	mana	Mana
-Golem	desc	1	level_display
-Golem	desc	2	damage_range	damage	Damage	11 to 17
+Golem	desc	1	level_display	none
+Golem	desc	2	damage_range	damage	Damage	11 to 17 per hit
 Golem	desc	3	mana	mana	Mana
-Rage	desc	1	level_display
+Golem	desc	4	special	none	HP scales with spell level
+Golem	upgrade	1	mana_delta	mana	Mana
+Rage	desc	1	level_display	none
 Rage	desc	2	mana	mana	Mana
-Teleport	desc	1	level_display
+Rage	desc	3	special	none	+Berserk, -Defense, costs HP
+Teleport	desc	1	level_display	none
 Teleport	desc	2	mana	mana	Mana
-Apocalypse	desc	1	level_display
-Apocalypse	desc	2	damage_range	damage	Damage	CLvl to CLvl*6
+Teleport	desc	3	special	none	Teleport to cursor position
+Apocalypse	desc	1	level_display	none
+Apocalypse	desc	2	damage_range	damage	Damage	CLvl to CLvl*6, all on screen
 Apocalypse	desc	3	mana	mana	Mana
-Etherealize	desc	1	level_display
+Apocalypse	desc	4	special	none	Hits ALL visible enemies
+Apocalypse	upgrade	1	damage_delta	damage	Damage
+Apocalypse	upgrade	2	mana_delta	mana	Mana
+Etherealize	desc	1	level_display	none
 Etherealize	desc	2	mana	mana	Mana
-ItemRepair	desc	1	level_display
+Etherealize	desc	3	special	none	Pass through enemies/walls
+ItemRepair	desc	1	level_display	none
 ItemRepair	desc	2	mana	mana	Mana
-ItemRepair	warning	1	special		Warning: reduces max durability!
-StaffRecharge	desc	1	level_display
+ItemRepair	warning	1	special	none	Warning: reduces max durability!
+StaffRecharge	desc	1	level_display	none
 StaffRecharge	desc	2	mana	mana	Mana
-TrapDisarm	desc	1	level_display
+StaffRecharge	desc	3	special	none	Recharges staff charges
+TrapDisarm	desc	1	level_display	none
 TrapDisarm	desc	2	mana	mana	Mana
-Elemental	desc	1	level_display
-Elemental	desc	2	damage_range	damage	Damage	Scale(CLvl-based)
+TrapDisarm	desc	3	special	none	Disarms nearby traps
+Elemental	desc	1	level_display	none
+Elemental	desc	2	damage_range	damage	Damage	Scale(CLvl-based), area effect
 Elemental	desc	3	mana	mana	Mana
+Elemental	desc	4	special	none	Fire explosion around target
 Elemental	upgrade	1	damage_delta	damage	Damage
 Elemental	upgrade	2	mana_delta	mana	Mana
-ChargedBolt	desc	1	level_display
-ChargedBolt	desc	2	damage_range	damage	Damage	1 to 1+Magic/4
+ChargedBolt	desc	1	level_display	none
+ChargedBolt	desc	2	damage_range	damage	Damage	1 to 1+Magic/4 per bolt
 ChargedBolt	desc	3	mana	mana	Mana
-ChargedBolt	desc	4	value_single	par1 + math.floor(lvl / 3)	Bolts	Base + Lvl/3
+ChargedBolt	desc	4	value_single	bolts	Bolts fired	Base + Lvl/3
+ChargedBolt	desc	5	special	none	Bolts ricochet randomly
 ChargedBolt	upgrade	1	damage_delta	damage	Damage
-ChargedBolt	upgrade	2	value_delta	par1 + math.floor(lvl / 3)	Bolts
-HolyBolt	desc	1	level_display
+ChargedBolt	upgrade	2	value_delta	bolts	Bolts
+HolyBolt	desc	1	level_display	none
 HolyBolt	desc	2	damage_range	damage	Damage	CLvl+9 to CLvl+18
 HolyBolt	desc	3	mana	mana	Mana
+HolyBolt	desc	4	special	none	Damages undead only
 HolyBolt	upgrade	1	damage_delta	damage	Damage
 HolyBolt	upgrade	2	mana_delta	mana	Mana
-Resurrect	desc	1	level_display
+Resurrect	desc	1	level_display	none
 Resurrect	desc	2	mana	mana	Mana
-Telekinesis	desc	1	level_display
+Resurrect	desc	3	special	none	Revive dead player with full HP
+Telekinesis	desc	1	level_display	none
 Telekinesis	desc	2	mana	mana	Mana
-HealOther	desc	1	level_display
+Telekinesis	desc	3	special	none	Open doors/chests from distance
+HealOther	desc	1	level_display	none
 HealOther	desc	2	heal_range	damage	Heals	CLvl+Lvl+1 to 4*CLvl+6*Lvl+10
 HealOther	desc	3	mana	mana	Mana
+HealOther	desc	4	special	none	Heals targeted player
 HealOther	upgrade	1	heal_delta	damage	Heals
 HealOther	upgrade	2	mana_delta	mana	Mana
-BloodStar	desc	1	level_display
+BloodStar	desc	1	level_display	none
 BloodStar	desc	2	damage_range	damage	Damage	Magic/2+3*Lvl-Magic/8
 BloodStar	desc	3	mana	mana	Mana
+BloodStar	desc	4	special	none	Costs HP if mana insufficient
 BloodStar	upgrade	1	damage_delta	damage	Damage
 BloodStar	upgrade	2	mana_delta	mana	Mana
-BoneSpirit	desc	1	level_display
-BoneSpirit	desc	2	special		Dmg: 1/3 target hp
+BoneSpirit	desc	1	level_display	none
+BoneSpirit	desc	2	special	none	Dmg: 1/3 target HP (undead only)
 BoneSpirit	desc	3	mana	mana	Mana
+BoneSpirit	desc	4	special	none	Costs HP to cast

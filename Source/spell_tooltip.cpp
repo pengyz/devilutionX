@@ -2,7 +2,6 @@
 
 #include <algorithm>
 #include <charconv>
-#include <cmath>
 #include <string>
 
 #ifdef USE_SDL3
@@ -12,15 +11,14 @@
 #endif
 
 #include <fmt/format.h>
-#include <sol/sol.hpp>
 
 #include "appfat.h"
 #include "data/file.hpp"
 #include "data/iterators.hpp"
 #include "missiles.h"
+#include "player.h"
 #include "spells.h"
 #include "utils/language.h"
-#include "utils/log.hpp"
 
 namespace devilution {
 
@@ -28,26 +26,102 @@ std::vector<SpellDescLine> SpellDescLines;
 
 namespace {
 
-sol::state &GetExprLuaState()
+// ---- C++ helper functions for computed spell stats ----
+
+DamageRange GetSpellDamage(SpellID spell, int level)
 {
-	static sol::state lua;
-	return lua;
+	return GetDamageAmt(spell, level);
 }
 
-bool &IsExprLuaInitialized()
+int GetSpellMana(const Player &player, SpellID spell, int level)
 {
-	static bool initialized = false;
-	return initialized;
+	return GetManaAmount(player, spell, level) >> 6;
 }
 
-void EnsureExprLuaState()
+int GetManaShieldAbsorb(int level)
 {
-	if (IsExprLuaInitialized())
-		return;
+	// player.cpp:1720 — divisor = 24 - min(level, 7) * 3
+	const int divisor = 24 - (std::min(level, 7) * 3);
+	// Mana absorbs (divisor-1)/divisor of damage
+	return (divisor - 1) * 100 / divisor;
+}
 
-	sol::state &lua = GetExprLuaState();
-	lua.open_libraries(sol::lib::base, sol::lib::math);
-	IsExprLuaInitialized() = true;
+int GetManaShieldHPDamage(int level)
+{
+	const int divisor = 24 - (std::min(level, 7) * 3);
+	return 100 / divisor;
+}
+
+int GetStoneCurseDuration(int level)
+{
+	// missiles.cpp:2409 — duration = min(level + 6, 15) * 16 ticks
+	return std::min(level + 6, 15);
+}
+
+int GetChargedBoltCount(int level, const SpellData &sd)
+{
+	// par1 + floor(level / 3)
+	return sd.sParam[0] + level / 3;
+}
+
+int GetFireboltSpeed(int level)
+{
+	// missiles.cpp: speed = 16 + min(level * 2, 47)
+	return 16 + std::min(level * 2, 47);
+}
+
+int GetFireballSpeed(int level)
+{
+	// missiles.cpp: speed = 16 + min(level * 2, 34)
+	return 16 + std::min(level * 2, 34);
+}
+
+int GetGuardianLifetime(int level, int charLevel)
+{
+	// missiles.cpp:2223 — duration = min(level + charLevel/2, 30)
+	return std::min(level + charLevel / 2, 30);
+}
+
+// ---- Get a single int value from source ----
+
+int GetSourceValue(DescSource source, const Player &player, SpellID spell, int level)
+{
+	switch (source) {
+	case DescSource::Mana:
+		return GetSpellMana(player, spell, level);
+	case DescSource::Absorb:
+		return GetManaShieldAbsorb(level);
+	case DescSource::HPDamage:
+		return GetManaShieldHPDamage(level);
+	case DescSource::Duration:
+		return GetStoneCurseDuration(level);
+	case DescSource::Bolts:
+		return GetChargedBoltCount(level, GetSpellData(spell));
+	case DescSource::Speed:
+		if (spell == SpellID::Fireball) return GetFireballSpeed(level);
+		return GetFireboltSpeed(level);
+	case DescSource::GuardianLife:
+		return GetGuardianLifetime(level, player.getCharacterLevel());
+	default:
+		return 0;
+	}
+}
+
+// ---- Parsers ----
+
+DescSource ParseDescSource(std::string_view value)
+{
+	if (value.empty() || value == "none") return DescSource::None;
+	if (value == "damage") return DescSource::Damage;
+	if (value == "mana") return DescSource::Mana;
+	if (value == "absorb") return DescSource::Absorb;
+	if (value == "hp_damage") return DescSource::HPDamage;
+	if (value == "duration") return DescSource::Duration;
+	if (value == "bolts") return DescSource::Bolts;
+	if (value == "speed") return DescSource::Speed;
+	if (value == "guardian_life") return DescSource::GuardianLife;
+	app_fatal(fmt::format("Unknown DescSource: {}", value));
+	return DescSource::None;
 }
 
 DescFormat ParseDescFormat(std::string_view value)
@@ -136,62 +210,6 @@ SpellID ParseSpellIdForDesc(std::string_view value)
 
 } // namespace
 
-ExprResult EvaluateSpellExpr(const std::string &expr, const Player &player, SpellID spell, int level)
-{
-	ExprResult result { 0, 0, 0, false };
-
-	EnsureExprLuaState();
-	sol::state &lua = GetExprLuaState();
-
-	sol::table ctx = lua.create_table();
-
-	ctx["lvl"] = level;
-	ctx["charLevel"] = player.getCharacterLevel();
-	ctx["magic"] = player._pMagic;
-	ctx["mana"] = GetManaAmount(player, spell, level) >> 6;
-
-	auto [min, max] = GetDamageAmt(spell, level);
-	ctx["damage"] = lua.create_table_with("min", min, "max", max);
-
-	const SpellData &sd = GetSpellData(spell);
-	for (int i = 0; i < 8; i++)
-		ctx[fmt::format("par{}", i + 1)] = sd.sParam[i];
-
-	int lvl = level;
-	ctx.set_function("ln", [lvl](int a, int b) { return a + (lvl - 1) * b; });
-
-	sol::environment env(lua, sol::create, lua.globals());
-	// Restrict to safe math functions
-	env["math"] = lua.create_table_with(
-	    "floor", [](double x) { return static_cast<int>(std::floor(x)); },
-	    "ceil", [](double x) { return static_cast<int>(std::ceil(x)); },
-	    "min", [](int a, int b) { return std::min(a, b); },
-	    "max", [](int a, int b) { return std::max(a, b); });
-
-	// Copy context vars into environment
-	for (auto &[k, v] : ctx)
-		env[k] = v;
-
-	sol::protected_function_result pfr = lua.safe_script("return " + expr, env);
-	if (!pfr.valid()) {
-		sol::error err = pfr;
-		LogError("SpellExpr eval error for '{}': {}", expr, err.what());
-		return result;
-	}
-
-	if (pfr.get_type() == sol::type::table) {
-		sol::table t = pfr;
-		result.minValue = t.get_or("min", 0);
-		result.maxValue = t.get_or("max", 0);
-		result.value = result.minValue;
-		result.isRange = true;
-	} else if (pfr.get_type() == sol::type::number) {
-		result.value = pfr.get<int>();
-	}
-
-	return result;
-}
-
 tl::expected<void, std::string> LoadSpellDescData()
 {
 	constexpr std::string_view filename = "txtdata\\spells\\spelldesc.tsv";
@@ -206,8 +224,6 @@ tl::expected<void, std::string> LoadSpellDescData()
 	dataFile.skipHeaderOrDie(filename);
 
 	for (DataFileRecord record : dataFile) {
-		// Collect all fields from the record to handle variable-width rows
-		// (some rows have 4 fields, some have 6; trailing optional fields may be absent)
 		std::vector<std::string> fields;
 		for (DataFileField field : record) {
 			fields.push_back(std::string(field.value()));
@@ -229,7 +245,10 @@ tl::expected<void, std::string> LoadSpellDescData()
 		line.format = ParseDescFormat(fields[3]);
 
 		if (fields.size() > 4)
-			line.expression = fields[4];
+			line.source = ParseDescSource(fields[4]);
+		else
+			line.source = DescSource::None;
+
 		if (fields.size() > 5)
 			line.textKey = fields[5];
 		if (fields.size() > 6)
@@ -273,55 +292,47 @@ std::string FormatDescLine(const SpellDescLine &line, const Player &player, Spel
 		return std::string(GetSpellData(spell).sDescription);
 
 	case DescFormat::Mana: {
-		int mana = EvaluateSpellExpr(line.expression.empty() ? "mana" : line.expression, player, spell, level).value;
+		int mana = GetSourceValue(line.source, player, spell, level);
 		return fmt::format("{:s}: {:d}", line.textKey, mana);
 	}
 
 	case DescFormat::ManaDelta: {
-		int curMana = EvaluateSpellExpr(line.expression.empty() ? "mana" : line.expression, player, spell, level).value;
-		int nextMana = EvaluateSpellExpr(line.expression.empty() ? "mana" : line.expression, player, spell, level + 1).value;
+		int curMana = GetSourceValue(line.source, player, spell, level);
+		int nextMana = GetSourceValue(line.source, player, spell, level + 1);
 		return fmt::format("{:s}: {:d} -> {:d}", line.textKey, curMana, nextMana);
 	}
 
 	case DescFormat::DamageRange: {
-		ExprResult r = EvaluateSpellExpr(line.expression, player, spell, level);
-		if (r.isRange)
-			return fmt::format("{:s}: {:d} - {:d}", line.textKey, r.minValue, r.maxValue);
-		return fmt::format("{:s}: {:d}", line.textKey, r.value);
+		DamageRange dr = GetSpellDamage(spell, level);
+		return fmt::format("{:s}: {:d} - {:d}", line.textKey, dr.min, dr.max);
 	}
 
 	case DescFormat::HealRange: {
-		ExprResult r = EvaluateSpellExpr(line.expression, player, spell, level);
-		if (r.isRange)
-			return fmt::format("{:s}: {:d} - {:d}", line.textKey, r.minValue, r.maxValue);
-		return fmt::format("{:s}: {:d}", line.textKey, r.value);
+		DamageRange dr = GetSpellDamage(spell, level);
+		return fmt::format("{:s}: {:d} - {:d}", line.textKey, dr.min, dr.max);
 	}
 
 	case DescFormat::ValueSingle: {
-		ExprResult r = EvaluateSpellExpr(line.expression, player, spell, level);
-		return fmt::format("{:s}: {:d}", line.textKey, r.value);
+		int val = GetSourceValue(line.source, player, spell, level);
+		return fmt::format("{:s}: {:d}", line.textKey, val);
 	}
 
 	case DescFormat::ValueDelta: {
-		ExprResult cur = EvaluateSpellExpr(line.expression, player, spell, level);
-		ExprResult next = EvaluateSpellExpr(line.expression, player, spell, level + 1);
-		return fmt::format("{:s}: {:d} -> {:d}", line.textKey, cur.value, next.value);
+		int cur = GetSourceValue(line.source, player, spell, level);
+		int next = GetSourceValue(line.source, player, spell, level + 1);
+		return fmt::format("{:s}: {:d} -> {:d}", line.textKey, cur, next);
 	}
 
 	case DescFormat::DamageDelta: {
-		ExprResult cur = EvaluateSpellExpr(line.expression, player, spell, level);
-		ExprResult next = EvaluateSpellExpr(line.expression, player, spell, level + 1);
-		if (cur.isRange && next.isRange)
-			return fmt::format("{:s}: {:d}-{:d} -> {:d}-{:d}", line.textKey, cur.minValue, cur.maxValue, next.minValue, next.maxValue);
-		return fmt::format("{:s}: {:d} -> {:d}", line.textKey, cur.value, next.value);
+		DamageRange cur = GetSpellDamage(spell, level);
+		DamageRange next = GetSpellDamage(spell, level + 1);
+		return fmt::format("{:s}: {:d}-{:d} -> {:d}-{:d}", line.textKey, cur.min, cur.max, next.min, next.max);
 	}
 
 	case DescFormat::HealDelta: {
-		ExprResult cur = EvaluateSpellExpr(line.expression, player, spell, level);
-		ExprResult next = EvaluateSpellExpr(line.expression, player, spell, level + 1);
-		if (cur.isRange && next.isRange)
-			return fmt::format("{:s}: {:d}-{:d} -> {:d}-{:d}", line.textKey, cur.minValue, cur.maxValue, next.minValue, next.maxValue);
-		return fmt::format("{:s}: {:d} -> {:d}", line.textKey, cur.value, next.value);
+		DamageRange cur = GetSpellDamage(spell, level);
+		DamageRange next = GetSpellDamage(spell, level + 1);
+		return fmt::format("{:s}: {:d}-{:d} -> {:d}-{:d}", line.textKey, cur.min, cur.max, next.min, next.max);
 	}
 	}
 	return "";
@@ -338,7 +349,7 @@ SpellTooltip BuildSpellTooltip(const Player &player, SpellID spell)
 	// Desc section
 	for (const auto *line : GetSpellDescLines(spell, DescSection::Desc)) {
 		if (level == 0 && line->format != DescFormat::LevelDisplay && line->format != DescFormat::Text)
-			continue; // Skip numeric lines at level 0
+			continue;
 		if (level == 0 && line->format == DescFormat::LevelDisplay) {
 			tooltip.lines.push_back(std::string(_("Spell Level 0 - Unusable")));
 			continue;
@@ -376,7 +387,7 @@ SpellTooltip BuildSpellListTooltip(const Player &player, SpellID spell)
 	// Desc section only — no upgrade
 	for (const auto *line : GetSpellDescLines(spell, DescSection::Desc)) {
 		if (level == 0 && line->format != DescFormat::LevelDisplay && line->format != DescFormat::Text)
-			continue; // Skip numeric lines at level 0
+			continue;
 		if (level == 0 && line->format == DescFormat::LevelDisplay) {
 			tooltip.lines.push_back(std::string(_("Spell Level 0 - Unusable")));
 			continue;
