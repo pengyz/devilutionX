@@ -40,4 +40,44 @@ TEST_F(SpelldatTest, EmptyDescriptionIsValid)
 	EXPECT_TRUE(nullSpell.sDescription.empty());
 }
 
+TEST_F(SpelldatTest, AllLearnableSpellsHaveDescriptions)
+{
+	// Diablo learnable spells (bookLevel > 0 or obtainable)
+	const SpellID learnableSpells[] = {
+		SpellID::Firebolt, SpellID::Healing, SpellID::Lightning,
+		SpellID::Flash, SpellID::Identify, SpellID::FireWall,
+		SpellID::TownPortal, SpellID::StoneCurse, SpellID::Infravision,
+		SpellID::Phasing, SpellID::ManaShield, SpellID::Fireball,
+		SpellID::Guardian, SpellID::ChainLightning, SpellID::FlameWave,
+		SpellID::Nova, SpellID::Inferno, SpellID::Golem,
+		SpellID::Rage, SpellID::Teleport, SpellID::Apocalypse,
+		SpellID::Etherealize, SpellID::ItemRepair, SpellID::StaffRecharge,
+		SpellID::TrapDisarm, SpellID::Elemental, SpellID::ChargedBolt,
+		SpellID::HolyBolt, SpellID::Resurrect, SpellID::Telekinesis,
+		SpellID::HealOther, SpellID::BloodStar, SpellID::BoneSpirit,
+	};
+
+	for (const auto &spellId : learnableSpells) {
+		const SpellData &sd = GetSpellData(spellId);
+		EXPECT_FALSE(sd.sDescription.empty())
+		    << "Spell " << static_cast<int>(spellId) << " (" << sd.sNameText << ") has empty description";
+	}
+}
+
+TEST_F(SpelldatTest, CutContentSpellsHaveEmptyDescriptions)
+{
+	// These spells are unused cut content and should have empty descriptions
+	const SpellID cutContentSpells[] = {
+		SpellID::DoomSerpents,
+		SpellID::BloodRitual,
+		SpellID::Invisibility,
+	};
+
+	for (const auto &spellId : cutContentSpells) {
+		const SpellData &sd = GetSpellData(spellId);
+		EXPECT_TRUE(sd.sDescription.empty())
+		    << "Cut content spell " << static_cast<int>(spellId) << " (" << sd.sNameText << ") should have empty description";
+	}
+}
+
 } // namespace devilution
