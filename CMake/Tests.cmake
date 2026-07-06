@@ -49,6 +49,7 @@ set(tests
   inventory_ui_test
   spell_ui_test
   spelldat_test
+  spell_book_hover_test
   char_panel_test
   game_menu_test
 )
