@@ -204,39 +204,13 @@ void DrawSpellBook(const Surface &out)
 				if (!sd.sDescription.empty()) {
 					AddInfoBoxString(pgettext("spell_description", sd.sDescription.c_str()));
 				}
-				AddInfoBoxString(fmt::format(fmt::runtime(_("Level {:d} / 15")), lvl));
+				AddInfoBoxString(fmt::format(fmt::runtime(_("Level {:d}")), lvl));
 
 				// Show Mana cost for spells (not skills)
 				const SpellType st = GetSBookTrans(sn, false);
 				if (st == SpellType::Spell) {
 					const int mana = GetManaAmount(player, sn) >> 6;
 					AddInfoBoxString(fmt::format(fmt::runtime(pgettext("spellbook", "Mana: {:d}")), mana));
-				}
-
-				// Show upgrade preview in delta format
-				if (lvl > 0 && lvl < MaxSpellLevel) {
-					const auto [curMin, curMax] = GetDamageAmt(sn, lvl);
-					const auto [nextMin, nextMax] = GetDamageAmt(sn, lvl + 1);
-
-					if (sn == SpellID::BoneSpirit) {
-						AddInfoBoxString(_(/* TRANSLATORS: UI constraints, keep short please.*/ "Dmg: 1/3 target hp"));
-					} else if (curMin != -1 && nextMin != -1) {
-						const int minDelta = nextMin - curMin;
-						const int maxDelta = nextMax - curMax;
-						AddInfoBoxString(fmt::format(fmt::runtime(_("Next: {:d}({:+d})-{:d}({:+d})")),
-						    nextMin, minDelta, nextMax, maxDelta));
-					}
-
-					// Show Mana delta for spells
-					if (st == SpellType::Spell) {
-						const int curMana = GetManaAmount(player, sn) >> 6;
-						const int nextMana = GetManaAmount(player, sn) >> 6; // TODO: calculate next level mana
-						const int manaDelta = nextMana - curMana;
-						if (manaDelta != 0) {
-							AddInfoBoxString(fmt::format(fmt::runtime(pgettext("spellbook", "Mana: {:d} ({:+d})")),
-							    nextMana, manaDelta));
-						}
-					}
 				}
 
 				if (sn == SpellID::ItemRepair) {
