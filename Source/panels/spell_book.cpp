@@ -218,7 +218,9 @@ void DrawSpellBook(const Surface &out)
 					const auto [curMin, curMax] = GetDamageAmt(sn, lvl);
 					const auto [nextMin, nextMax] = GetDamageAmt(sn, lvl + 1);
 
-					if (curMin != -1 && nextMin != -1) {
+					if (sn == SpellID::BoneSpirit) {
+						AddInfoBoxString(_(/* TRANSLATORS: UI constraints, keep short please.*/ "Dmg: 1/3 target hp"));
+					} else if (curMin != -1 && nextMin != -1) {
 						const int minDelta = nextMin - curMin;
 						const int maxDelta = nextMax - curMax;
 						AddInfoBoxString(fmt::format(fmt::runtime(_("Next: {:d}({:+d})-{:d}({:+d})")),
