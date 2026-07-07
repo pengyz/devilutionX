@@ -3174,6 +3174,9 @@ void GetItemAttrs(Item &item, _item_indexes itemData, int lvl)
 	if (leveltype == DTYPE_HELL)
 		rndv += rndv / 8;
 
+	// Better D1: Increase gold drop rate by 25% to compensate for reduced consumable drops
+	rndv = rndv * 5 / 4;
+
 	item._ivalue = std::min(rndv, GOLD_MAX_LIMIT);
 	SetPlrHandGoldCurs(item);
 }
@@ -5121,6 +5124,22 @@ void UpdateHellfireFlag(Item &item, const char *identifiedItemName)
 		// This item should be a vanilla hellfire item that has CF_HELLFIRE missing, cause only then the item name matches
 		item.dwBuff |= CF_HELLFIRE;
 	}
+}
+
+int GetMaxStackCount(ItemType itemType, const Player &player)
+{
+	int baseStack = 5;
+	switch (player._pClass) {
+	case HeroClass::Warrior:
+		if (itemType == ItemType::Misc) return baseStack + 3;
+		break;
+	case HeroClass::Sorcerer:
+		if (itemType == ItemType::Misc) return baseStack - 2;
+		break;
+	default:
+		break;
+	}
+	return baseStack;
 }
 
 } // namespace devilution
