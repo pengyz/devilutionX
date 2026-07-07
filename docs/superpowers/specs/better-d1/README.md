@@ -20,6 +20,7 @@
 - [x] [叙事系统设计](designs/narrative-system.md) — 环境叙事、房间装饰、NPC评论
 - [x] [任务系统设计](designs/quest-system.md) — 任务优化、奖励设计、商人升级
 - [x] [战斗系统设计](designs/combat-system.md) — 怪物AI、战斗节奏、职业差异
+- [x] [活着的地下城设计](designs/living-dungeon.md) — 世界变化、NPC反应、氛围演变
 
 #### 氛围设计
 - [ ] 节奏设计 — 紧张→峰值→释放的循环
