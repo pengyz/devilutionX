@@ -59,6 +59,7 @@ set(tests
   light_suppression_test
   monster_activation_test
   room_decoration_test
+  quest_reward_test
 )
 set(standalone_tests
   codec_test
