@@ -58,6 +58,7 @@ set(tests
   spell_ux_test
   light_suppression_test
   monster_activation_test
+  consumable_stack_test
   room_decoration_test
   quest_reward_test
   combat_integration_test
