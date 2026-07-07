@@ -119,6 +119,21 @@ StringOrView GetSpellPowerText(SpellID spell, int spellLevel)
 
 } // namespace
 
+std::string GetSpellRequirementText(const SpellData &spellData, const Player &player)
+{
+	int required = spellData.minInt;
+	int current = player._pMagic;
+	int max = GetClassAttributes(player._pClass).maxMag;
+
+	return fmt::format(fmt::runtime(_("Need {:d} Magic (current {:d}/{:d})")), required, current, max);
+}
+
+bool CanLearnSpell(SpellID spell, const Player &player)
+{
+	const SpellData &spellData = GetSpellData(spell);
+	return player._pMagic >= spellData.minInt;
+}
+
 tl::expected<void, std::string> InitSpellBook()
 {
 	ASSIGN_OR_RETURN(spellBookBackground, LoadCelWithStatus("data\\spellbk", static_cast<uint16_t>(SidePanelSize.width)));

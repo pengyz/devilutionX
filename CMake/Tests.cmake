@@ -55,6 +55,7 @@ set(tests
   game_menu_test
   stack_limit_test
   gold_drop_test
+  spell_ux_test
 )
 set(standalone_tests
   codec_test
