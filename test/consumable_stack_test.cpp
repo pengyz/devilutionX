@@ -78,5 +78,82 @@ TEST_F(ConsumableStackTest, QuestItemCannotStack)
 	EXPECT_FALSE(CanStackItem(item));
 }
 
+TEST_F(ConsumableStackTest, WarriorHasHigherPotionStackLimit)
+{
+	Player &warrior = Players[0];
+	warrior._pClass = HeroClass::Warrior;
+
+	Item potion;
+	potion._itype = ItemType::Misc;
+	potion._iMiscId = IMISC_HEAL;
+
+	int maxStack = GetMaxStackCount(potion, warrior);
+	EXPECT_EQ(maxStack, 8); // Base 5 + 3 warrior bonus
+}
+
+TEST_F(ConsumableStackTest, SorcererHasLowerPotionStackLimit)
+{
+	Player &sorcerer = Players[0];
+	sorcerer._pClass = HeroClass::Sorcerer;
+
+	Item potion;
+	potion._itype = ItemType::Misc;
+	potion._iMiscId = IMISC_HEAL;
+
+	int maxStack = GetMaxStackCount(potion, sorcerer);
+	EXPECT_EQ(maxStack, 3); // Base 5 - 2 sorcerer penalty
+}
+
+TEST_F(ConsumableStackTest, RogueHasBasePotionStackLimit)
+{
+	Player &rogue = Players[0];
+	rogue._pClass = HeroClass::Rogue;
+
+	Item potion;
+	potion._itype = ItemType::Misc;
+	potion._iMiscId = IMISC_HEAL;
+
+	int maxStack = GetMaxStackCount(potion, rogue);
+	EXPECT_EQ(maxStack, 5); // Base 5
+}
+
+TEST_F(ConsumableStackTest, WarriorHasHigherScrollStackLimit)
+{
+	Player &warrior = Players[0];
+	warrior._pClass = HeroClass::Warrior;
+
+	Item scroll;
+	scroll._itype = ItemType::Misc;
+	scroll._iMiscId = IMISC_SCROLL;
+
+	int maxStack = GetMaxStackCount(scroll, warrior);
+	EXPECT_EQ(maxStack, 4); // Base 3 + 1 warrior bonus
+}
+
+TEST_F(ConsumableStackTest, ScrollBaseStackLimit)
+{
+	Player &player = Players[0];
+	player._pClass = HeroClass::Rogue;
+
+	Item scroll;
+	scroll._itype = ItemType::Misc;
+	scroll._iMiscId = IMISC_SCROLL;
+
+	int maxStack = GetMaxStackCount(scroll, player);
+	EXPECT_EQ(maxStack, 3); // Base 3
+}
+
+TEST_F(ConsumableStackTest, NonStackableItemReturnsOne)
+{
+	Player &player = Players[0];
+	player._pClass = HeroClass::Warrior;
+
+	Item sword;
+	sword._itype = ItemType::Sword;
+
+	int maxStack = GetMaxStackCount(sword, player);
+	EXPECT_EQ(maxStack, 1);
+}
+
 } // namespace
 } // namespace devilution

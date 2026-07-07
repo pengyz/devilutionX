@@ -5143,20 +5143,41 @@ bool CanStackItem(const Item &item)
 	}
 }
 
-int GetMaxStackCount(ItemType itemType, const Player &player)
+int GetMaxStackCount(const Item &item, const Player &player)
 {
-	int baseStack = 5;
+	// 根据物品类型确定基础堆叠数
+	int base;
+	switch (item._iMiscId) {
+	case IMISC_HEAL:
+	case IMISC_MANA:
+	case IMISC_REJUV:
+	case IMISC_FULLREJUV:
+		base = 5;
+		break;
+	case IMISC_SCROLL:
+		base = 3;
+		break;
+	default:
+		return 1; // 不可堆叠
+	}
+
+	// 职业加成
 	switch (player._pClass) {
 	case HeroClass::Warrior:
-		if (itemType == ItemType::Misc) return baseStack + 3;
+		if (item._iMiscId == IMISC_HEAL || item._iMiscId == IMISC_MANA)
+			base += 3; // 战士药水堆叠+3
+		else if (item._iMiscId == IMISC_SCROLL)
+			base += 1; // 战士卷轴堆叠+1
 		break;
 	case HeroClass::Sorcerer:
-		if (itemType == ItemType::Misc) return baseStack - 2;
+		if (item._iMiscId == IMISC_HEAL || item._iMiscId == IMISC_MANA)
+			base -= 2; // 法师药水堆叠-2
 		break;
 	default:
 		break;
 	}
-	return baseStack;
+
+	return base;
 }
 
 } // namespace devilution

@@ -584,12 +584,12 @@ void RechargeItem(Item &item, Player &player);
 bool ApplyOilToItem(Item &item, Player &player);
 
 /**
- * @brief Returns the maximum stack count for a given item type and player class.
- * @param itemType The type of item to check the stack limit for.
+ * @brief Returns the maximum stack count for a given item and player class.
+ * @param item The item to check the stack limit for.
  * @param player The player whose class affects the stack limit.
  * @return The maximum stack count.
  */
-int GetMaxStackCount(ItemType itemType, const Player &player);
+int GetMaxStackCount(const Item &item, const Player &player);
 /**
  * @brief Checks if an item can be stacked
  * @param item The item to check
