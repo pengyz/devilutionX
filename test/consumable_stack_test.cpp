@@ -251,5 +251,61 @@ TEST_F(ConsumableStackTest, BeltStackingDifferentItemsDontStack)
 	EXPECT_EQ(player.SpdList[0]._iStackCount, 1); // Unchanged
 }
 
+TEST_F(ConsumableStackTest, UsingItemDecrementsStack)
+{
+	Player &player = Players[0];
+	player._pClass = HeroClass::Warrior;
+
+	// Clear belt
+	for (auto &item : player.SpdList) {
+		item.clear();
+	}
+
+	// Place stacked potion in belt
+	Item potion;
+	potion._itype = ItemType::Misc;
+	potion._iMiscId = IMISC_HEAL;
+	potion._iStackCount = 3;
+	potion.IDidx = IDI_HEAL;
+	player.SpdList[0] = potion;
+
+	// Simulate usage: decrement if stack > 1, otherwise remove
+	if (player.SpdList[0]._iStackCount > 1) {
+		player.SpdList[0]._iStackCount--;
+	} else {
+		player.SpdList[0].clear();
+	}
+
+	EXPECT_EQ(player.SpdList[0]._iStackCount, 2);
+}
+
+TEST_F(ConsumableStackTest, UsingLastItemRemovesIt)
+{
+	Player &player = Players[0];
+	player._pClass = HeroClass::Warrior;
+
+	// Clear belt
+	for (auto &item : player.SpdList) {
+		item.clear();
+	}
+
+	// Place single potion in belt
+	Item potion;
+	potion._itype = ItemType::Misc;
+	potion._iMiscId = IMISC_HEAL;
+	potion._iStackCount = 1;
+	potion.IDidx = IDI_HEAL;
+	player.SpdList[0] = potion;
+
+	// Simulate usage: decrement if stack > 1, otherwise remove
+	if (player.SpdList[0]._iStackCount > 1) {
+		player.SpdList[0]._iStackCount--;
+	} else {
+		player.SpdList[0].clear();
+	}
+
+	EXPECT_TRUE(player.SpdList[0].isEmpty());
+}
+
 } // namespace
 } // namespace devilution

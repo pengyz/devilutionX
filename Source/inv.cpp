@@ -2240,8 +2240,13 @@ bool UseInvItem(int cii)
 			CloseInventory();
 			return true;
 		}
-		if (!item->isScroll() && !item->isRune())
-			player.RemoveSpdBarItem(c);
+		if (!item->isScroll() && !item->isRune()) {
+			if (item->_iStackCount > 1) {
+				item->_iStackCount--;
+			} else {
+				player.RemoveSpdBarItem(c);
+			}
+		}
 		return true;
 	}
 	if (player.InvList[c]._iMiscId == IMISC_MAPOFDOOM)
@@ -2251,8 +2256,13 @@ bool UseInvItem(int cii)
 		CloseInventory();
 		return true;
 	}
-	if (!item->isScroll() && !item->isRune())
-		player.RemoveInvItem(c);
+	if (!item->isScroll() && !item->isRune()) {
+		if (item->_iStackCount > 1) {
+			item->_iStackCount--;
+		} else {
+			player.RemoveInvItem(c);
+		}
+	}
 
 	return true;
 }
