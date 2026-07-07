@@ -58,8 +58,23 @@ bool CanStackItem(const Item &item) {
 ```cpp
 // 获取最大堆叠数（考虑职业加成）
 int GetMaxStackCount(const Item &item, const Player &player) {
-    int base = 5;  // 基础堆叠数
+    // 根据物品类型确定基础堆叠数
+    int base;
+    switch (item._iMiscId) {
+        case IMISC_HEAL:      // 血瓶
+        case IMISC_MANA:      // 蓝瓶
+        case IMISC_REJUV:     // 回复药水
+        case IMISC_FULLREJUV: // 完全回复药水
+            base = 5;
+            break;
+        case IMISC_SCROLL:    // 卷轴
+            base = 3;
+            break;
+        default:
+            return 1;  // 不可堆叠
+    }
     
+    // 职业加成
     switch (player._pClass) {
         case HeroClass::Warrior:
             if (item._iMiscId == IMISC_HEAL || item._iMiscId == IMISC_MANA)
@@ -164,7 +179,17 @@ void LoadItem(Item &item, LoadHelper &file) {
 
 ### 8. 网络同步
 
-修改 `Source/pack.cpp` 和 `Source/msg.cpp` 以同步堆叠数。
+在 `Source/pack.cpp` 的 `PackItem` 和 `UnPackItem` 函数中添加堆叠数同步：
+
+```cpp
+// PackItem
+packedItem.bId = item._iStackCount;
+
+// UnPackItem
+item._iStackCount = std::clamp<int>(packedItem.bId, 1, 127);
+```
+
+在 `Source/msg.cpp` 的网络消息中同步堆叠数。
 
 ## 职业被动技能
 
