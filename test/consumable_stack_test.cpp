@@ -326,5 +326,12 @@ TEST_F(ConsumableStackTest, SingleItemNotDisplayed)
 	EXPECT_FALSE(shouldDisplay);
 }
 
+TEST_F(ConsumableStackTest, StackCountDefaultValue)
+{
+	Item item;
+	// 默认堆叠数应该是1
+	EXPECT_EQ(item._iStackCount, 1);
+}
+
 } // namespace
 } // namespace devilution
