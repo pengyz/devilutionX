@@ -61,6 +61,7 @@ set(tests
   room_decoration_test
   quest_reward_test
   combat_integration_test
+  world_state_test
 )
 set(standalone_tests
   codec_test
