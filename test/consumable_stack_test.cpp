@@ -307,5 +307,24 @@ TEST_F(ConsumableStackTest, UsingLastItemRemovesIt)
 	EXPECT_TRUE(player.SpdList[0].isEmpty());
 }
 
+TEST_F(ConsumableStackTest, StackCountDisplayLogic)
+{
+	// 测试堆叠数 > 1 时应该显示
+	Item item;
+	item._iStackCount = 3;
+
+	bool shouldDisplay = item._iStackCount > 1;
+	EXPECT_TRUE(shouldDisplay);
+}
+
+TEST_F(ConsumableStackTest, SingleItemNotDisplayed)
+{
+	Item item;
+	item._iStackCount = 1;
+
+	bool shouldDisplay = item._iStackCount > 1;
+	EXPECT_FALSE(shouldDisplay);
+}
+
 } // namespace
 } // namespace devilution

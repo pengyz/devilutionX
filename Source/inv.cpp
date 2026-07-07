@@ -1291,6 +1291,13 @@ void DrawInvBelt(const Surface &out)
 
 		DrawItem(myPlayer.SpdList[i], out, position, sprite);
 
+		// 显示堆叠数
+		if (myPlayer.SpdList[i]._iStackCount > 1) {
+			DrawString(out, StrCat(myPlayer.SpdList[i]._iStackCount),
+			    { position + Displacement { 0, 10 }, InventorySlotSizeInPixels },
+			    { .flags = UiFlags::ColorWhite | UiFlags::AlignRight });
+		}
+
 		if (myPlayer.SpdList[i].isUsable()
 		    && myPlayer.SpdList[i]._itype != ItemType::Gold) {
 			auto beltKey = StrCat("BeltItem", i + 1);
