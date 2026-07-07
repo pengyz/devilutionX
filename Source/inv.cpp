@@ -1322,10 +1322,33 @@ bool AutoPlaceItemInBelt(Player &player, const Item &item, bool persistItem, boo
 		return false;
 	}
 
+	// Try to stack into an existing belt item
+	if (CanStackItem(item)) {
+		for (Item &beltItem : player.SpdList) {
+			if (!beltItem.isEmpty() && beltItem.IDidx == item.IDidx) {
+				int maxStack = GetMaxStackCount(beltItem, player);
+				if (beltItem._iStackCount < maxStack) {
+					if (persistItem) {
+						beltItem._iStackCount++;
+						player.CalcScrolls();
+						RedrawComponent(PanelDrawComponent::Belt);
+						if (sendNetworkMessage) {
+							const auto beltIndex = static_cast<int>(std::distance<const Item *>(&player.SpdList[0], &beltItem));
+							NetSendCmdChBeltItem(false, beltIndex);
+						}
+					}
+					return true;
+				}
+			}
+		}
+	}
+
+	// Place in an empty slot
 	for (Item &beltItem : player.SpdList) {
 		if (beltItem.isEmpty()) {
 			if (persistItem) {
 				beltItem = item;
+				beltItem._iStackCount = 1;
 				player.CalcScrolls();
 				RedrawComponent(PanelDrawComponent::Belt);
 				if (sendNetworkMessage) {

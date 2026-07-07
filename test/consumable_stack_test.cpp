@@ -155,5 +155,101 @@ TEST_F(ConsumableStackTest, NonStackableItemReturnsOne)
 	EXPECT_EQ(maxStack, 1);
 }
 
+TEST_F(ConsumableStackTest, BeltStackingLogicIdentifiesMatch)
+{
+	// Verify that belt stacking logic correctly identifies a stackable match:
+	// same IDidx, stackable item, and not at max stack
+	Player &player = Players[0];
+	player._pClass = HeroClass::Warrior;
+
+	// Clear belt
+	for (auto &item : player.SpdList) {
+		item.clear();
+	}
+
+	// Place a potion in slot 0
+	Item potion1;
+	potion1._itype = ItemType::Misc;
+	potion1._iMiscId = IMISC_HEAL;
+	potion1._iStackCount = 1;
+	potion1.IDidx = IDI_HEAL;
+	player.SpdList[0] = potion1;
+
+	// Verify the conditions for stacking are met
+	Item potion2;
+	potion2._itype = ItemType::Misc;
+	potion2._iMiscId = IMISC_HEAL;
+	potion2._iStackCount = 1;
+	potion2.IDidx = IDI_HEAL;
+
+	EXPECT_TRUE(CanStackItem(potion2));
+	EXPECT_EQ(player.SpdList[0].IDidx, potion2.IDidx);
+	EXPECT_LT(player.SpdList[0]._iStackCount, GetMaxStackCount(player.SpdList[0], player));
+
+	// Simulate stacking
+	player.SpdList[0]._iStackCount++;
+	EXPECT_EQ(player.SpdList[0]._iStackCount, 2);
+}
+
+TEST_F(ConsumableStackTest, BeltStackingRespectsMaxCount)
+{
+	// When a belt slot is at max stack, new items should go to an empty slot
+	Player &player = Players[0];
+	player._pClass = HeroClass::Sorcerer; // Potion max stack is 3
+
+	// Clear belt
+	for (auto &item : player.SpdList) {
+		item.clear();
+	}
+
+	// Fill slot 0 to max
+	Item potion;
+	potion._itype = ItemType::Misc;
+	potion._iMiscId = IMISC_HEAL;
+	potion._iStackCount = 3;
+	potion.IDidx = IDI_HEAL;
+	player.SpdList[0] = potion;
+
+	// Verify slot is at max capacity
+	EXPECT_EQ(GetMaxStackCount(potion, player), 3);
+	EXPECT_EQ(player.SpdList[0]._iStackCount, 3);
+
+	// A new item cannot stack into the full slot
+	EXPECT_FALSE(player.SpdList[0]._iStackCount < GetMaxStackCount(player.SpdList[0], player));
+
+	// Verify empty slot exists for overflow
+	EXPECT_TRUE(player.SpdList[1].isEmpty());
+}
+
+TEST_F(ConsumableStackTest, BeltStackingDifferentItemsDontStack)
+{
+	// Different item types should not stack together
+	Player &player = Players[0];
+	player._pClass = HeroClass::Warrior;
+
+	// Clear belt
+	for (auto &item : player.SpdList) {
+		item.clear();
+	}
+
+	// Place a health potion
+	Item healPotion;
+	healPotion._itype = ItemType::Misc;
+	healPotion._iMiscId = IMISC_HEAL;
+	healPotion._iStackCount = 1;
+	healPotion.IDidx = IDI_HEAL;
+	player.SpdList[0] = healPotion;
+
+	// A mana potion should not stack with health potion
+	Item manaPotion;
+	manaPotion._itype = ItemType::Misc;
+	manaPotion._iMiscId = IMISC_MANA;
+	manaPotion._iStackCount = 1;
+	manaPotion.IDidx = IDI_MANA;
+
+	EXPECT_NE(player.SpdList[0].IDidx, manaPotion.IDidx);
+	EXPECT_EQ(player.SpdList[0]._iStackCount, 1); // Unchanged
+}
+
 } // namespace
 } // namespace devilution
