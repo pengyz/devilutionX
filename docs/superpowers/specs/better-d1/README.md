@@ -16,10 +16,10 @@
 - [x] [资源系统设计](designs/resource-system.md) — 职业差异化稀缺、难度曲线、决策重量
 - [x] [消耗品系统设计](designs/consumable-system.md) — 功能型消耗品、职业差异化、制作系统
 - [x] [法术系统设计](designs/spell-system.md) — D1属性上限、魔法需求、UX改善
-- [x] [环境光影系统设计](designs/environment-lighting.md) — 光照压制、层差异、对抗措施
+- [x] [环境光影系统设计](designs/environment-lighting.md) — 光照压制、层差异、怪物激活半径
 - [x] [叙事系统设计](designs/narrative-system.md) — 环境叙事、房间装饰、NPC评论
 - [x] [任务系统设计](designs/quest-system.md) — 任务优化、奖励设计、商人升级
-- [ ] 战斗系统设计 — 怪物 AI、战斗节奏、法术代价
+- [x] [战斗系统设计](designs/combat-system.md) — 怪物AI、战斗节奏、职业差异
 
 #### 氛围设计
 - [ ] 节奏设计 — 紧张→峰值→释放的循环
