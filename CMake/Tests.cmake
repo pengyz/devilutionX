@@ -56,6 +56,7 @@ set(tests
   stack_limit_test
   gold_drop_test
   spell_ux_test
+  light_suppression_test
 )
 set(standalone_tests
   codec_test

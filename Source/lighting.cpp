@@ -591,4 +591,42 @@ void lighting_color_cycling()
 	}
 }
 
+float GetLightSuppressionMultiplier(int dungeonLevel)
+{
+	// Cathedral (1-4): no suppression
+	if (dungeonLevel >= 1 && dungeonLevel <= 4) {
+		return 1.0f;
+	}
+	// Catacombs (5-8): 90% (slightly darker)
+	if (dungeonLevel >= 5 && dungeonLevel <= 8) {
+		return 0.9f;
+	}
+	// Caves (9-12): 80%
+	if (dungeonLevel >= 9 && dungeonLevel <= 12) {
+		return 0.8f;
+	}
+	// Hell (13-16): 60%
+	if (dungeonLevel >= 13 && dungeonLevel <= 16) {
+		return 0.6f;
+	}
+	// Crypt (21-24): 50%
+	if (dungeonLevel >= 21 && dungeonLevel <= 24) {
+		return 0.5f;
+	}
+	// Default: no suppression
+	return 1.0f;
+}
+
+int GetEffectiveLightRadius(const Player &player, int dungeonLevel)
+{
+	float multiplier = GetLightSuppressionMultiplier(dungeonLevel);
+	int baseRadius = player._pLightRad;
+
+	// Equipment bonus is not suppressed
+	int equipmentBonus = baseRadius - 10; // Base is 10
+	int suppressedBase = static_cast<int>(10 * multiplier);
+
+	return suppressedBase + equipmentBonus;
+}
+
 } // namespace devilution
