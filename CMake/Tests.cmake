@@ -60,6 +60,7 @@ set(tests
   monster_activation_test
   room_decoration_test
   quest_reward_test
+  combat_integration_test
 )
 set(standalone_tests
   codec_test
