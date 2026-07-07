@@ -58,6 +58,7 @@ set(tests
   spell_ux_test
   light_suppression_test
   monster_activation_test
+  room_decoration_test
 )
 set(standalone_tests
   codec_test
