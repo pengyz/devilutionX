@@ -5066,4 +5066,10 @@ void Monster::occupyTile(Point tile, bool isMoving) const
 	dMonster[tile.x][tile.y] = isMoving ? -id : id;
 }
 
+int GetMonsterActivationRadius(const Player &player, int dungeonLevel)
+{
+	int playerVision = GetEffectiveLightRadius(player, dungeonLevel);
+	return playerVision + 2;
+}
+
 } // namespace devilution

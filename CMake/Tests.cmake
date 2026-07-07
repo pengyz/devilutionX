@@ -57,6 +57,7 @@ set(tests
   gold_drop_test
   spell_ux_test
   light_suppression_test
+  monster_activation_test
 )
 set(standalone_tests
   codec_test
