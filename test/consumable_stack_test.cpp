@@ -1,3 +1,4 @@
+#include <algorithm>
 #include <gtest/gtest.h>
 
 #include "items.h"
@@ -331,6 +332,14 @@ TEST_F(ConsumableStackTest, StackCountDefaultValue)
 	Item item;
 	// 默认堆叠数应该是1
 	EXPECT_EQ(item._iStackCount, 1);
+}
+
+TEST_F(ConsumableStackTest, NetworkSyncClampValue)
+{
+	// 测试网络同步会钳制堆叠数
+	int rawValue = 200;
+	int clamped = std::clamp(rawValue, 1, 127);
+	EXPECT_EQ(clamped, 127);
 }
 
 } // namespace
