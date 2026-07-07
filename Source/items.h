@@ -591,6 +591,12 @@ bool ApplyOilToItem(Item &item, Player &player);
  */
 int GetMaxStackCount(ItemType itemType, const Player &player);
 /**
+ * @brief Checks if an item can be stacked
+ * @param item The item to check
+ * @return True if the item can be stacked
+ */
+bool CanStackItem(const Item &item);
+/**
  * @brief Checks if the item is generated in vanilla hellfire. If yes it updates dwBuff to include CF_HELLFIRE.
  */
 void UpdateHellfireFlag(Item &item, const char *identifiedItemName);

@@ -5126,6 +5126,23 @@ void UpdateHellfireFlag(Item &item, const char *identifiedItemName)
 	}
 }
 
+bool CanStackItem(const Item &item)
+{
+	if (item._itype != ItemType::Misc)
+		return false;
+
+	switch (item._iMiscId) {
+	case IMISC_HEAL:
+	case IMISC_MANA:
+	case IMISC_SCROLL:
+	case IMISC_REJUV:
+	case IMISC_FULLREJUV:
+		return true;
+	default:
+		return false;
+	}
+}
+
 int GetMaxStackCount(ItemType itemType, const Player &player)
 {
 	int baseStack = 5;
