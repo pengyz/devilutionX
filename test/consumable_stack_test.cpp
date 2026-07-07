@@ -356,5 +356,60 @@ TEST_F(ConsumableStackTest, SorcererPassiveDescription)
 	EXPECT_TRUE(true);
 }
 
+TEST_F(ConsumableStackTest, FullStackingWorkflow)
+{
+	Player &warrior = Players[0];
+	warrior._pClass = HeroClass::Warrior;
+
+	// Clear belt
+	for (auto &item : warrior.SpdList) {
+		item.clear();
+	}
+
+	// Verify warrior max stack for potions
+	Item potion;
+	potion._itype = ItemType::Misc;
+	potion._iMiscId = IMISC_HEAL;
+	potion._iStackCount = 1;
+	potion.IDidx = IDI_HEAL;
+
+	int maxStack = GetMaxStackCount(potion, warrior);
+	EXPECT_EQ(maxStack, 8);
+
+	// Step 1: Place first potion in empty belt slot
+	EXPECT_TRUE(CanStackItem(potion));
+	EXPECT_TRUE(warrior.SpdList[0].isEmpty());
+	warrior.SpdList[0] = potion;
+	EXPECT_EQ(warrior.SpdList[0]._iStackCount, 1);
+
+	// Step 2: Simulate stacking 7 more potions into slot 0
+	for (int i = 1; i < 8; i++) {
+		EXPECT_TRUE(CanStackItem(potion));
+		EXPECT_EQ(warrior.SpdList[0].IDidx, potion.IDidx);
+		EXPECT_LT(warrior.SpdList[0]._iStackCount, GetMaxStackCount(warrior.SpdList[0], warrior));
+		warrior.SpdList[0]._iStackCount++;
+	}
+
+	// Step 3: Verify full stack
+	EXPECT_EQ(warrior.SpdList[0]._iStackCount, 8);
+	EXPECT_FALSE(warrior.SpdList[0]._iStackCount < GetMaxStackCount(warrior.SpdList[0], warrior));
+
+	// Step 4: Use one potion (decrement stack)
+	EXPECT_GT(warrior.SpdList[0]._iStackCount, 1);
+	warrior.SpdList[0]._iStackCount--;
+	EXPECT_EQ(warrior.SpdList[0]._iStackCount, 7);
+
+	// Step 5: Verify stack can still accept more
+	EXPECT_LT(warrior.SpdList[0]._iStackCount, GetMaxStackCount(warrior.SpdList[0], warrior));
+
+	// Step 6: Use remaining potions one by one
+	while (warrior.SpdList[0]._iStackCount > 1) {
+		warrior.SpdList[0]._iStackCount--;
+	}
+	// Last use removes the item
+	warrior.SpdList[0].clear();
+	EXPECT_TRUE(warrior.SpdList[0].isEmpty());
+}
+
 } // namespace
 } // namespace devilution
