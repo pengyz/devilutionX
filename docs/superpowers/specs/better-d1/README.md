@@ -18,6 +18,7 @@
 - [x] [法术系统设计](designs/spell-system.md) — D1属性上限、魔法需求、UX改善
 - [x] [环境光影系统设计](designs/environment-lighting.md) — 光照压制、层差异、对抗措施
 - [x] [叙事系统设计](designs/narrative-system.md) — 环境叙事、房间装饰、NPC评论
+- [x] [任务系统设计](designs/quest-system.md) — 任务优化、奖励设计、商人升级
 - [ ] 战斗系统设计 — 怪物 AI、战斗节奏、法术代价
 
 #### 氛围设计
