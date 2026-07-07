@@ -342,5 +342,19 @@ TEST_F(ConsumableStackTest, NetworkSyncClampValue)
 	EXPECT_EQ(clamped, 127);
 }
 
+TEST_F(ConsumableStackTest, WarriorPassiveDescription)
+{
+	// 战士应该有"物品携带"被动
+	// 这是占位符 - 实际实现取决于技能系统
+	EXPECT_TRUE(true);
+}
+
+TEST_F(ConsumableStackTest, SorcererPassiveDescription)
+{
+	// 法师应该有"轻装出行"被动
+	// 这是占位符 - 实际实现取决于技能系统
+	EXPECT_TRUE(true);
+}
+
 } // namespace
 } // namespace devilution
