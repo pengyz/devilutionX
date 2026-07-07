@@ -16,8 +16,8 @@
 - [x] [资源系统设计](designs/resource-system.md) — 职业差异化稀缺、难度曲线、决策重量
 - [x] [消耗品系统设计](designs/consumable-system.md) — 功能型消耗品、职业差异化、制作系统
 - [x] [法术系统设计](designs/spell-system.md) — D1属性上限、魔法需求、UX改善
+- [x] [环境光影系统设计](designs/environment-lighting.md) — 光照压制、层差异、对抗措施
 - [ ] 战斗系统设计 — 怪物 AI、战斗节奏、法术代价
-- [ ] 环境系统设计 — 地牢生成、环境叙事、灯光系统
 - [ ] 叙事系统设计 — NPC 故事、环境叙事、崔斯特瑞姆
 
 #### 氛围设计
