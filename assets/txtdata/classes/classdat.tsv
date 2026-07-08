@@ -1,7 +1,7 @@
 className	folderName	portrait	inv	passiveDescription
 Warrior	warrior	0	inv	战士强壮的体魄让他能携带更多物品。
-Rogue	rogue	1	inv_rog
+Rogue	rogue	1	inv_rog	
 Sorcerer	sorcerer	2	inv_sor	法师专注于魔法研究，体质较弱，无法携带太多药水。
-Monk	monk	2	inv_sor
-Bard	bard	1	inv_rog
-Barbarian	barbarian	0	inv
+Monk	monk	2	inv_sor	
+Barbarian	barbarian	0	inv	
+Bard	bard	1	inv_rog	
