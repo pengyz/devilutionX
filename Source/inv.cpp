@@ -1305,11 +1305,11 @@ void DrawInvBelt(const Surface &out)
 
 		DrawItem(myPlayer.SpdList[i], out, position, sprite);
 
-		// 显示堆叠数（右下角）
+		// 显示堆叠数（左下角，避免和右下角快捷键冲突）
 		if (myPlayer.SpdList[i]._iStackCount > 1) {
 			DrawString(out, StrCat(myPlayer.SpdList[i]._iStackCount),
 			    { position + Displacement { 0, 0 }, InventorySlotSizeInPixels },
-			    { .flags = UiFlags::ColorWhite | UiFlags::AlignRight });
+			    { .flags = UiFlags::ColorWhite });
 		}
 
 		if (myPlayer.SpdList[i].isUsable()
