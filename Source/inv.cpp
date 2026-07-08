@@ -496,6 +496,13 @@ void ChangeBeltItem(Player &player, int slot)
 	const int ii = slot - SLOTXY_BELT_FIRST;
 	if (player.SpdList[ii].isEmpty()) {
 		player.SpdList[ii] = player.HoldItem.pop();
+	} else if (CanStackItem(player.HoldItem)
+	    && !player.SpdList[ii].isEmpty()
+	    && player.SpdList[ii].IDidx == player.HoldItem.IDidx
+	    && player.SpdList[ii]._iStackCount < GetMaxStackCount(player.SpdList[ii], player)) {
+		// Stack into existing belt item
+		player.SpdList[ii]._iStackCount++;
+		player.HoldItem.pop(); // Remove held item
 	} else {
 		std::swap(player.SpdList[ii], player.HoldItem);
 	}
