@@ -71,6 +71,24 @@ protected:
 		// CreatePlrItems() which does its own InitCursor()/FreeCursor() cycle.
 	}
 
+	static void TearDownTestSuite()
+	{
+		// Null out raw pointers into Players before the vector is destroyed
+		// during static destruction. This prevents dangling-pointer UB if
+		// any other global destructor touches these pointers.
+		MyPlayer = nullptr;
+		InspectPlayer = nullptr;
+
+		// Clear FloatingInfoString which may hold string_views into
+		// translated strings that are destroyed during static teardown.
+		extern StringOrView FloatingInfoString;
+		extern StringOrView ComparisonInfoString;
+		extern std::vector<UiFlags> FloatingInfoLineColors;
+		FloatingInfoString = StringOrView {};
+		ComparisonInfoString = StringOrView {};
+		FloatingInfoLineColors.clear();
+	}
+
 	/* ---- every test ---- */
 
 	void SetUp() override

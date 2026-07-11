@@ -45,8 +45,8 @@ extern int SpellbookTab;
 
 extern UiFlags InfoColor;
 
-extern StringOrView FloatingInfoString;
-extern StringOrView ComparisonInfoString;
+extern DVL_API_FOR_TEST StringOrView FloatingInfoString;
+extern DVL_API_FOR_TEST StringOrView ComparisonInfoString;
 
 extern Rectangle MainPanelButtonRect[8];
 extern DVL_API_FOR_TEST Rectangle CharPanelButtonRect[4];
@@ -90,7 +90,7 @@ void ToggleCharPanel();
 void AddInfoBoxString(std::string_view str, bool floatingBox = true);
 void AddInfoBoxString(std::string &&str, bool floatingBox = true);
 void AddInfoBoxStringColored(std::string_view str, UiFlags color);
-extern std::vector<UiFlags> FloatingInfoLineColors;
+extern DVL_API_FOR_TEST std::vector<UiFlags> FloatingInfoLineColors;
 void DrawPanelBox(const Surface &out, SDL_Rect srcRect, Point targetPosition);
 Point GetPanelPosition(UiPanels panel, Point offset = { 0, 0 });
 
