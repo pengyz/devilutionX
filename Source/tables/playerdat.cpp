@@ -17,6 +17,8 @@
 #include <fmt/format.h>
 #include <magic_enum/magic_enum_utility.hpp>
 
+#include "utils/log.hpp"
+
 #include "data/file.hpp"
 #include "data/record_reader.hpp"
 #include "data/value_reader.hpp"
@@ -426,10 +428,6 @@ const PlayerCombatData &GetPlayerCombatDataForClass(HeroClass pClass)
 const PlayerStartingLoadoutData &GetPlayerStartingLoadoutForClass(HeroClass pClass)
 {
 	const auto playerClassIndex = static_cast<size_t>(pClass);
-	if (PlayersStartingLoadoutData.empty()) {
-		// Data not loaded yet (e.g. LuaInitialize called before LoadGameArchives).
-		LoadPlayerDataFiles();
-	}
 	assert(playerClassIndex < PlayersStartingLoadoutData.size());
 	return PlayersStartingLoadoutData[playerClassIndex];
 }
