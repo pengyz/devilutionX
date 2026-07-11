@@ -2770,11 +2770,14 @@ int DiabloMain(int argc, char **argv)
 	LoadLanguageArchive();
 
 	ApplicationInit();
-	LuaInitialize();
 	if (!demo::IsRunning()) SaveOptions();
 
 	// Finally load game data
 	LoadGameArchives();
+
+	// LuaInitialize must run after LoadGameArchives because it calls
+	// LuaReloadActiveMods -> LoadPlayerDataFiles which needs game data.
+	LuaInitialize();
 
 	LoadTextData();
 
