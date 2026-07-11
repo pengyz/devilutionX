@@ -16,6 +16,7 @@
 #include "data/file.hpp"
 #include "data/iterators.hpp"
 #include "missiles.h"
+#include "panels/spell_book.hpp"
 #include "player.h"
 #include "spells.h"
 #include "utils/language.h"
@@ -554,7 +555,13 @@ SpellTooltip BuildSpellTooltip(const Player &player, SpellID spell)
 		tooltip.lines.emplace_back(std::move(text), UiFlags::ColorWhite);
 	}
 
-	// --- Section 5: Upgrade preview (yellow) ---
+	// --- Section 5: Spell requirements (red if cannot learn) ---
+	if (!CanLearnSpell(spell, player)) {
+		tooltip.lines.emplace_back(" ", UiFlags::ColorWhite); // Spacer line
+		tooltip.lines.emplace_back(GetSpellRequirementText(sd, player), UiFlags::ColorRed);
+	}
+
+	// --- Section 6: Upgrade preview (yellow) ---
 	if (level < MaxSpellLevel) {
 		auto upgradeLines = GetSpellDescLines(spell, DescSection::Upgrade);
 		if (!upgradeLines.empty()) {
