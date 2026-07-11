@@ -500,11 +500,18 @@ SpellTooltip BuildSpellTooltip(const Player &player, SpellID spell)
 	}
 
 	// --- Section 1: Core stats (white) ---
+	auto descLines = GetSpellDescLines(spell, DescSection::Desc);
+	if (descLines.empty()) {
+		// No desc config for this spell — show minimal info
+		tooltip.lines.emplace_back(fmt::format(fmt::runtime(_("Level {:d} / {:d}")), level, MaxSpellLevel), UiFlags::ColorWhite);
+		return tooltip;
+	}
+
 	// Level display
-	tooltip.lines.emplace_back(FormatDescLine(*GetSpellDescLines(spell, DescSection::Desc)[0], player, spell, level), UiFlags::ColorWhite);
+	tooltip.lines.emplace_back(FormatDescLine(*descLines[0], player, spell, level), UiFlags::ColorWhite);
 
 	// Damage/Healing and Mana (core combat stats)
-	for (const auto *line : GetSpellDescLines(spell, DescSection::Desc)) {
+	for (const auto *line : descLines) {
 		if (line->format == DescFormat::LevelDisplay) continue; // Already handled
 		if (line->format == DescFormat::Text || line->format == DescFormat::Special) continue; // Handled later
 		if (line->format == DescFormat::ValueSingle || line->format == DescFormat::ValueDelta) continue; // Secondary
