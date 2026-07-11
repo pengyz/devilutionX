@@ -585,4 +585,12 @@ bool CanTalkToMonst(const Monster &monster);
 uint8_t encode_enemy(Monster &monster);
 void decode_enemy(Monster &monster, uint8_t enemyId);
 
+/**
+ * @brief Get the monster activation radius based on player vision
+ * @param player The player
+ * @param dungeonLevel The dungeon level
+ * @return Monster activation radius (player vision + 2)
+ */
+int GetMonsterActivationRadius(const Player &player, int dungeonLevel);
+
 } // namespace devilution

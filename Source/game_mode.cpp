@@ -18,6 +18,5 @@ bool gbIsSpawn;
 bool gbIsHellfire;
 bool gbVanilla;
 bool forceHellfire;
-bool gbExportPanel;
 
 } // namespace devilution

@@ -47,6 +47,7 @@
 namespace devilution {
 
 bool gbIsHellfireSaveGame;
+bool s_hasStackCount = false;
 uint8_t giNumberOfLevels;
 
 namespace {
@@ -375,6 +376,8 @@ struct LevelConversionData {
 	else
 		item._iDamAcFlags = ItemSpecialEffectHf::None;
 	UpdateHellfireFlag(item, item._iIName);
+	if (s_hasStackCount)
+		item._iStackCount = file.NextLE<int8_t>();
 
 	return true;
 }
@@ -1121,6 +1124,7 @@ void LoadMatchingItems(LoadHelper &file, const Player &player, const int n, Item
 				unpackedItem._iPLToHit = ClampToHit(unpackedItem, heroItem._iPLToHit); // Oil of Accuracy
 				unpackedItem._iMaxDam = ClampMaxDam(unpackedItem, heroItem._iMaxDam);  // Oil of Sharpness
 			}
+			unpackedItem._iStackCount = heroItem._iStackCount;
 		} else {
 			unpackedItem = heroItem;
 		}
@@ -1258,6 +1262,7 @@ void SaveItem(SaveHelper &file, const Item &item)
 	file.WriteLE<uint32_t>(item.dwBuff);
 	if (gbIsHellfire)
 		file.WriteLE<uint32_t>(static_cast<uint32_t>(item._iDamAcFlags));
+	file.WriteLE<int8_t>(item._iStackCount);
 }
 
 void SavePlayer(SaveHelper &file, const Player &player)
@@ -2117,8 +2122,8 @@ tl::expected<void, std::string> LoadLevel(LevelConversionData *levelConversionDa
 	return {};
 }
 
-const int DiabloItemSaveSize = 368;
-const int HellfireItemSaveSize = 372;
+const int DiabloItemSaveSize = 369;
+const int HellfireItemSaveSize = 373;
 
 bool IsStashSizeValid(size_t stashSize, uint32_t pages, uint32_t itemCount)
 {
@@ -2411,14 +2416,22 @@ void LoadHeroItems(Player &player)
 
 	gbIsHellfireSaveGame = file.NextBool8();
 
+	// Detect old save format by checking file size.
+	// Old format: 1 (header) + N * oldItemSize; new format adds 1 byte per item for _iStackCount.
+	const int itemCount = NUM_INVLOC + InventoryGridCells + MaxBeltItems;
+	const int oldItemSize = gbIsHellfireSaveGame ? 372 : 368;
+	const size_t oldExpectedSize = sizeof(uint8_t) + static_cast<size_t>(itemCount) * oldItemSize;
+	s_hasStackCount = (file.Size() > oldExpectedSize);
+
 	LoadMatchingItems(file, player, NUM_INVLOC, player.InvBody);
 	LoadMatchingItems(file, player, InventoryGridCells, player.InvList);
 	LoadMatchingItems(file, player, MaxBeltItems, player.SpdList);
 
+	s_hasStackCount = false;
 	gbIsHellfireSaveGame = gbIsHellfire;
 }
 
-constexpr uint8_t StashVersion = 0;
+constexpr uint8_t StashVersion = 1;
 
 void LoadStash()
 {
@@ -2440,6 +2453,7 @@ void LoadStash()
 		return;
 	}
 
+	s_hasStackCount = (version >= 1);
 	Stash.gold = file.NextLE<uint32_t>();
 
 	auto pages = file.NextLE<uint32_t>();
@@ -2462,6 +2476,7 @@ void LoadStash()
 	for (unsigned i = 0; i < itemCount; i++) {
 		LoadAndValidateItemData(file, Stash.stashList[i]);
 	}
+	s_hasStackCount = false;
 
 	Stash.SetPage(file.NextLE<uint32_t>());
 }

@@ -255,6 +255,7 @@ struct Item {
 	bool _iStatFlag = false;
 	ItemSpecialEffectHf _iDamAcFlags = ItemSpecialEffectHf::None;
 	uint32_t dwBuff = 0;
+	int8_t _iStackCount = 1; /**< Stack count for consumables, default 1 */
 
 	/**
 	 * @brief Clears this item and returns the old value
@@ -581,6 +582,20 @@ void initItemGetRecords();
 void RepairItem(Item &item, int lvl);
 void RechargeItem(Item &item, Player &player);
 bool ApplyOilToItem(Item &item, Player &player);
+
+/**
+ * @brief Returns the maximum stack count for a given item and player class.
+ * @param item The item to check the stack limit for.
+ * @param player The player whose class affects the stack limit.
+ * @return The maximum stack count.
+ */
+int GetMaxStackCount(const Item &item, const Player &player);
+/**
+ * @brief Checks if an item can be stacked
+ * @param item The item to check
+ * @return True if the item can be stacked
+ */
+bool CanStackItem(const Item &item);
 /**
  * @brief Checks if the item is generated in vanilla hellfire. If yes it updates dwBuff to include CF_HELLFIRE.
  */

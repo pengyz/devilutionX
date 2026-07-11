@@ -496,6 +496,13 @@ void ChangeBeltItem(Player &player, int slot)
 	const int ii = slot - SLOTXY_BELT_FIRST;
 	if (player.SpdList[ii].isEmpty()) {
 		player.SpdList[ii] = player.HoldItem.pop();
+	} else if (CanStackItem(player.HoldItem)
+	    && !player.SpdList[ii].isEmpty()
+	    && player.SpdList[ii].IDidx == player.HoldItem.IDidx
+	    && player.SpdList[ii]._iStackCount < GetMaxStackCount(player.SpdList[ii], player)) {
+		// Stack into existing belt item
+		player.SpdList[ii]._iStackCount++;
+		player.HoldItem.pop(); // Remove held item
 	} else {
 		std::swap(player.SpdList[ii], player.HoldItem);
 	}
@@ -1217,6 +1224,13 @@ void DrawInv(const Surface &out)
 			}
 
 			DrawItem(myPlayer.InvList[ii], out, position, sprite);
+
+			// 显示堆叠数（左下角）
+			if (myPlayer.InvList[ii]._iStackCount > 1) {
+				DrawString(out, StrCat(myPlayer.InvList[ii]._iStackCount),
+				    { position + Displacement { 2, 14 }, InventorySlotSizeInPixels },
+				    { .flags = UiFlags::ColorWhite });
+			}
 		}
 	}
 
@@ -1291,6 +1305,13 @@ void DrawInvBelt(const Surface &out)
 
 		DrawItem(myPlayer.SpdList[i], out, position, sprite);
 
+		// 显示堆叠数（左下角，避免和右下角快捷键冲突）
+		if (myPlayer.SpdList[i]._iStackCount > 1) {
+			DrawString(out, StrCat(myPlayer.SpdList[i]._iStackCount),
+			    { position + Displacement { 2, 14 }, InventorySlotSizeInPixels },
+			    { .flags = UiFlags::ColorWhite });
+		}
+
 		if (myPlayer.SpdList[i].isUsable()
 		    && myPlayer.SpdList[i]._itype != ItemType::Gold) {
 			auto beltKey = StrCat("BeltItem", i + 1);
@@ -1322,10 +1343,33 @@ bool AutoPlaceItemInBelt(Player &player, const Item &item, bool persistItem, boo
 		return false;
 	}
 
+	// Try to stack into an existing belt item
+	if (CanStackItem(item)) {
+		for (Item &beltItem : player.SpdList) {
+			if (!beltItem.isEmpty() && beltItem.IDidx == item.IDidx) {
+				int maxStack = GetMaxStackCount(beltItem, player);
+				if (beltItem._iStackCount < maxStack) {
+					if (persistItem) {
+						beltItem._iStackCount++;
+						player.CalcScrolls();
+						RedrawComponent(PanelDrawComponent::Belt);
+						if (sendNetworkMessage) {
+							const auto beltIndex = static_cast<int>(std::distance<const Item *>(&player.SpdList[0], &beltItem));
+							NetSendCmdChBeltItem(false, beltIndex);
+						}
+					}
+					return true;
+				}
+			}
+		}
+	}
+
+	// Place in an empty slot
 	for (Item &beltItem : player.SpdList) {
 		if (beltItem.isEmpty()) {
 			if (persistItem) {
 				beltItem = item;
+				beltItem._iStackCount = 1;
 				player.CalcScrolls();
 				RedrawComponent(PanelDrawComponent::Belt);
 				if (sendNetworkMessage) {
@@ -2217,8 +2261,13 @@ bool UseInvItem(int cii)
 			CloseInventory();
 			return true;
 		}
-		if (!item->isScroll() && !item->isRune())
-			player.RemoveSpdBarItem(c);
+		if (!item->isScroll() && !item->isRune()) {
+			if (item->_iStackCount > 1) {
+				item->_iStackCount--;
+			} else {
+				player.RemoveSpdBarItem(c);
+			}
+		}
 		return true;
 	}
 	if (player.InvList[c]._iMiscId == IMISC_MAPOFDOOM)
@@ -2228,8 +2277,13 @@ bool UseInvItem(int cii)
 		CloseInventory();
 		return true;
 	}
-	if (!item->isScroll() && !item->isRune())
-		player.RemoveInvItem(c);
+	if (!item->isScroll() && !item->isRune()) {
+		if (item->_iStackCount > 1) {
+			item->_iStackCount--;
+		} else {
+			player.RemoveInvItem(c);
+		}
+	}
 
 	return true;
 }

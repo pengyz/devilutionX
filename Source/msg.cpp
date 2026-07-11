@@ -2678,6 +2678,7 @@ size_t HandleCmd(size_t (*handler)(const TCmdImpl &, const Player &), const Play
 void PrepareItemForNetwork(const Item &item, TItem &messageItem)
 {
 	messageItem.bId = item._iIdentified ? 1 : 0;
+	messageItem.bId = item._iStackCount;
 	messageItem.bDur = item._iDurability;
 	messageItem.bMDur = item._iMaxDur;
 	messageItem.bCh = item._iCharges;
@@ -2702,6 +2703,7 @@ void RecreateItem(const Player &player, const TItem &messageItem, Item &item)
 	    Swap32LE(messageItem.dwSeed), Swap16LE(messageItem.wValue), dwBuff);
 	if (messageItem.bId != 0)
 		item._iIdentified = true;
+	item._iStackCount = std::clamp<int>(messageItem.bId, 1, 127);
 	item._iMaxDur = messageItem.bMDur;
 	item._iDurability = ClampDurability(item, messageItem.bDur);
 	item._iMaxCharges = std::clamp<int>(messageItem.bMCh, 0, item._iMaxCharges);

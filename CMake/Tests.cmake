@@ -52,6 +52,16 @@ set(tests
   spell_tooltip_test
   char_panel_test
   game_menu_test
+  stack_limit_test
+  gold_drop_test
+  spell_ux_test
+  light_suppression_test
+  monster_activation_test
+  consumable_stack_test
+  room_decoration_test
+  quest_reward_test
+  combat_integration_test
+  world_state_test
 )
 set(standalone_tests
   codec_test

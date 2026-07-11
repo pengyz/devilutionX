@@ -584,6 +584,15 @@ add_devilutionx_object_library(libdevilutionx_monster
   tables/monstdat.cpp
   monster.cpp
 )
+
+add_devilutionx_object_library(libdevilutionx_world_state
+  world_state.cpp
+)
+target_link_dependencies(libdevilutionx_world_state
+  PUBLIC
+  magic_enum::magic_enum
+  libdevilutionx_txtdata
+)
 target_link_dependencies(libdevilutionx_monster
   PUBLIC
   DevilutionX::SDL
@@ -991,6 +1000,7 @@ target_link_dependencies(libdevilutionx PUBLIC
   libdevilutionx_light_render
   libdevilutionx_lighting
   libdevilutionx_monster
+  libdevilutionx_world_state
   libdevilutionx_mpq
   libdevilutionx_multiplayer
   libdevilutionx_options

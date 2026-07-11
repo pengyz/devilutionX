@@ -50,6 +50,8 @@ struct PlayerData {
 	uint8_t portrait;
 	/* Class Inventory UI File */
 	std::string inv;
+	/* Class Passive Skill Description */
+	std::string passiveDescription;
 };
 
 struct ClassAttributes {

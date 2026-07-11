@@ -128,6 +128,24 @@ extern DVL_API_FOR_TEST std::vector<std::pair<std::string, std::vector<TownerDia
 DVL_API_FOR_TEST const char *TownerNameForTalkID(TalkID s);
 
 /**
+ * @brief Check if Adria offers spell choice after mushroom quest
+ * @return True if mushroom quest is completed
+ */
+bool DoesAdriaOfferSpellChoice();
+
+/**
+ * @brief Check if Pepin gives regeneration potion after poison water quest
+ * @return True if poison water quest is completed
+ */
+bool DoesPepinGiveRegenerationPotion();
+
+/**
+ * @brief Check if Griswold offers custom weapon after anvil quest
+ * @return True if anvil quest is completed
+ */
+bool DoesGriswoldOfferCustomWeapon();
+
+/**
  * @brief Registers a dynamic dialog option for a towner's talk menu.
  *
  * Options are inserted into empty even-numbered lines before the towner's "leave" option.
