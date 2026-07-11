@@ -15,6 +15,12 @@ protected:
 	{
 		UITest::SetUpTestSuite();
 	}
+
+	static void TearDownTestSuite()
+	{
+		SpellDescLines.clear();
+		UITest::TearDownTestSuite();
+	}
 };
 
 // ---- Layer 2: Data Loading ----

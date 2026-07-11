@@ -72,7 +72,7 @@ struct SpellDescLine {
 	std::string formulaText;
 };
 
-extern std::vector<SpellDescLine> SpellDescLines;
+extern DVL_API_FOR_TEST std::vector<SpellDescLine> SpellDescLines;
 
 tl::expected<void, std::string> LoadSpellDescData();
 std::vector<const SpellDescLine *> GetSpellDescLines(SpellID spell, DescSection section);
