@@ -584,9 +584,10 @@ void RechargeItem(Item &item, Player &player);
 bool ApplyOilToItem(Item &item, Player &player);
 
 /**
- * @brief Returns the maximum stack count for a given item and player class.
+ * @brief Maximum stack count for a consumable. Potions 5, scrolls 3, others 1.
  * @param item The item to check the stack limit for.
- * @param player The player whose class affects the stack limit.
+ * @param player Unused. Retained for call-site stability; class differentiation
+ *               was reverted because it produced round trips, not tradeoffs.
  * @return The maximum stack count.
  */
 int GetMaxStackCount(const Item &item, const Player &player);

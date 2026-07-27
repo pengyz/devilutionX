@@ -79,69 +79,32 @@ TEST_F(ConsumableStackTest, QuestItemCannotStack)
 	EXPECT_FALSE(CanStackItem(item));
 }
 
-TEST_F(ConsumableStackTest, WarriorHasHigherPotionStackLimit)
+TEST_F(ConsumableStackTest, PotionStackLimitIsClassIndependent)
 {
-	Player &warrior = Players[0];
-	warrior._pClass = HeroClass::Warrior;
-
 	Item potion;
 	potion._itype = ItemType::Misc;
 	potion._iMiscId = IMISC_HEAL;
 
-	int maxStack = GetMaxStackCount(potion, warrior);
-	EXPECT_EQ(maxStack, 8); // Base 5 + 3 warrior bonus
+	for (HeroClass heroClass : { HeroClass::Warrior, HeroClass::Rogue, HeroClass::Sorcerer }) {
+		Player &player = Players[0];
+		player._pClass = heroClass;
+		EXPECT_EQ(GetMaxStackCount(potion, player), 5)
+		    << "class " << static_cast<int>(heroClass);
+	}
 }
 
-TEST_F(ConsumableStackTest, SorcererHasLowerPotionStackLimit)
+TEST_F(ConsumableStackTest, ScrollStackLimitIsClassIndependent)
 {
-	Player &sorcerer = Players[0];
-	sorcerer._pClass = HeroClass::Sorcerer;
-
-	Item potion;
-	potion._itype = ItemType::Misc;
-	potion._iMiscId = IMISC_HEAL;
-
-	int maxStack = GetMaxStackCount(potion, sorcerer);
-	EXPECT_EQ(maxStack, 3); // Base 5 - 2 sorcerer penalty
-}
-
-TEST_F(ConsumableStackTest, RogueHasBasePotionStackLimit)
-{
-	Player &rogue = Players[0];
-	rogue._pClass = HeroClass::Rogue;
-
-	Item potion;
-	potion._itype = ItemType::Misc;
-	potion._iMiscId = IMISC_HEAL;
-
-	int maxStack = GetMaxStackCount(potion, rogue);
-	EXPECT_EQ(maxStack, 5); // Base 5
-}
-
-TEST_F(ConsumableStackTest, WarriorHasHigherScrollStackLimit)
-{
-	Player &warrior = Players[0];
-	warrior._pClass = HeroClass::Warrior;
-
 	Item scroll;
 	scroll._itype = ItemType::Misc;
 	scroll._iMiscId = IMISC_SCROLL;
 
-	int maxStack = GetMaxStackCount(scroll, warrior);
-	EXPECT_EQ(maxStack, 4); // Base 3 + 1 warrior bonus
-}
-
-TEST_F(ConsumableStackTest, ScrollBaseStackLimit)
-{
-	Player &player = Players[0];
-	player._pClass = HeroClass::Rogue;
-
-	Item scroll;
-	scroll._itype = ItemType::Misc;
-	scroll._iMiscId = IMISC_SCROLL;
-
-	int maxStack = GetMaxStackCount(scroll, player);
-	EXPECT_EQ(maxStack, 3); // Base 3
+	for (HeroClass heroClass : { HeroClass::Warrior, HeroClass::Rogue, HeroClass::Sorcerer }) {
+		Player &player = Players[0];
+		player._pClass = heroClass;
+		EXPECT_EQ(GetMaxStackCount(scroll, player), 3)
+		    << "class " << static_cast<int>(heroClass);
+	}
 }
 
 TEST_F(ConsumableStackTest, NonStackableItemReturnsOne)
@@ -196,7 +159,7 @@ TEST_F(ConsumableStackTest, BeltStackingRespectsMaxCount)
 {
 	// When a belt slot is at max stack, new items should go to an empty slot
 	Player &player = Players[0];
-	player._pClass = HeroClass::Sorcerer; // Potion max stack is 3
+	player._pClass = HeroClass::Sorcerer; // Potion max stack is 5 for every class
 
 	// Clear belt
 	for (auto &item : player.SpdList) {
@@ -207,13 +170,13 @@ TEST_F(ConsumableStackTest, BeltStackingRespectsMaxCount)
 	Item potion;
 	potion._itype = ItemType::Misc;
 	potion._iMiscId = IMISC_HEAL;
-	potion._iStackCount = 3;
+	potion._iStackCount = 5;
 	potion.IDidx = IDI_HEAL;
 	player.SpdList[0] = potion;
 
 	// Verify slot is at max capacity
-	EXPECT_EQ(GetMaxStackCount(potion, player), 3);
-	EXPECT_EQ(player.SpdList[0]._iStackCount, 3);
+	EXPECT_EQ(GetMaxStackCount(potion, player), 5);
+	EXPECT_EQ(player.SpdList[0]._iStackCount, 5);
 
 	// A new item cannot stack into the full slot
 	EXPECT_FALSE(player.SpdList[0]._iStackCount < GetMaxStackCount(player.SpdList[0], player));
@@ -342,20 +305,6 @@ TEST_F(ConsumableStackTest, NetworkSyncClampValue)
 	EXPECT_EQ(clamped, 127);
 }
 
-TEST_F(ConsumableStackTest, WarriorPassiveDescription)
-{
-	// 战士应该有"物品携带"被动
-	// 这是占位符 - 实际实现取决于技能系统
-	EXPECT_TRUE(true);
-}
-
-TEST_F(ConsumableStackTest, SorcererPassiveDescription)
-{
-	// 法师应该有"轻装出行"被动
-	// 这是占位符 - 实际实现取决于技能系统
-	EXPECT_TRUE(true);
-}
-
 TEST_F(ConsumableStackTest, FullStackingWorkflow)
 {
 	Player &warrior = Players[0];
@@ -374,7 +323,7 @@ TEST_F(ConsumableStackTest, FullStackingWorkflow)
 	potion.IDidx = IDI_HEAL;
 
 	int maxStack = GetMaxStackCount(potion, warrior);
-	EXPECT_EQ(maxStack, 8);
+	EXPECT_EQ(maxStack, 5);
 
 	// Step 1: Place first potion in empty belt slot
 	EXPECT_TRUE(CanStackItem(potion));
@@ -382,8 +331,8 @@ TEST_F(ConsumableStackTest, FullStackingWorkflow)
 	warrior.SpdList[0] = potion;
 	EXPECT_EQ(warrior.SpdList[0]._iStackCount, 1);
 
-	// Step 2: Simulate stacking 7 more potions into slot 0
-	for (int i = 1; i < 8; i++) {
+	// Step 2: Simulate stacking 4 more potions into slot 0
+	for (int i = 1; i < 5; i++) {
 		EXPECT_TRUE(CanStackItem(potion));
 		EXPECT_EQ(warrior.SpdList[0].IDidx, potion.IDidx);
 		EXPECT_LT(warrior.SpdList[0]._iStackCount, GetMaxStackCount(warrior.SpdList[0], warrior));
@@ -391,13 +340,13 @@ TEST_F(ConsumableStackTest, FullStackingWorkflow)
 	}
 
 	// Step 3: Verify full stack
-	EXPECT_EQ(warrior.SpdList[0]._iStackCount, 8);
+	EXPECT_EQ(warrior.SpdList[0]._iStackCount, 5);
 	EXPECT_FALSE(warrior.SpdList[0]._iStackCount < GetMaxStackCount(warrior.SpdList[0], warrior));
 
 	// Step 4: Use one potion (decrement stack)
 	EXPECT_GT(warrior.SpdList[0]._iStackCount, 1);
 	warrior.SpdList[0]._iStackCount--;
-	EXPECT_EQ(warrior.SpdList[0]._iStackCount, 7);
+	EXPECT_EQ(warrior.SpdList[0]._iStackCount, 4);
 
 	// Step 5: Verify stack can still accept more
 	EXPECT_LT(warrior.SpdList[0]._iStackCount, GetMaxStackCount(warrior.SpdList[0], warrior));

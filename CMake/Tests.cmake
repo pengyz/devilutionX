@@ -52,7 +52,6 @@ set(tests
   spell_tooltip_test
   char_panel_test
   game_menu_test
-  stack_limit_test
   spell_ux_test
   light_suppression_test
   monster_activation_test
