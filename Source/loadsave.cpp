@@ -1946,7 +1946,7 @@ void SaveLevel(SaveWriter &saveWriter, LevelConversionData *levelConversionData)
 {
 	Player &myPlayer = *MyPlayer;
 
-	DoUnVision(myPlayer.position.tile, GetEffectiveLightRadius(myPlayer, currlevel)); // fix for vision staying on the level
+	DoUnVision(myPlayer.position.tile, myPlayer._pLightRad); // fix for vision staying on the level
 
 	if (leveltype == DTYPE_TOWN)
 		DungeonSeeds[0] = GenerateSeed();

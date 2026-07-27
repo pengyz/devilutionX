@@ -19,8 +19,6 @@
 
 namespace devilution {
 
-struct Player;
-
 struct LightPosition {
 	WorldTilePosition tile;
 	/** Pixel offset from tile. */
@@ -78,21 +76,6 @@ void ChangeVisionRadius(size_t id, int r);
 void ChangeVisionXY(size_t id, Point position);
 void ProcessVisionList();
 void lighting_color_cycling();
-
-/**
- * @brief Get the light suppression multiplier for a dungeon level
- * @param dungeonLevel The dungeon level (0-24)
- * @return Light multiplier (0.0 to 1.0)
- */
-float GetLightSuppressionMultiplier(int dungeonLevel);
-
-/**
- * @brief Get the effective light radius for a player considering suppression
- * @param player The player
- * @param dungeonLevel The dungeon level
- * @return Effective light radius
- */
-int GetEffectiveLightRadius(const Player &player, int dungeonLevel);
 
 constexpr int MaxCrawlRadius = 18;
 

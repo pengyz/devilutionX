@@ -2507,11 +2507,10 @@ void InitPlayer(Player &player, bool firstTime)
 		player.destAction = ACTION_NONE;
 
 		if (&player == MyPlayer) {
-			int effectiveLight = GetEffectiveLightRadius(player, currlevel);
-			player.lightId = AddLight(player.position.tile, effectiveLight);
+			player.lightId = AddLight(player.position.tile, player._pLightRad);
 			ChangeLightXY(player.lightId, player.position.tile); // fix for a bug where old light is still visible at the entrance after reentering level
 		}
-		ActivateVision(player.position.tile, GetEffectiveLightRadius(player, currlevel), player.getId());
+		ActivateVision(player.position.tile, player._pLightRad, player.getId());
 	}
 
 	player._pAblSpells = GetSpellBitmask(GetPlayerStartingLoadoutForClass(player._pClass).skill);

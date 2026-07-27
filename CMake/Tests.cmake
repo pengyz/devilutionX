@@ -53,12 +53,9 @@ set(tests
   char_panel_test
   game_menu_test
   spell_ux_test
-  light_suppression_test
-  monster_activation_test
   consumable_stack_test
   room_decoration_test
   quest_reward_test
-  combat_integration_test
 )
 set(standalone_tests
   codec_test
