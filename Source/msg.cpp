@@ -2677,8 +2677,12 @@ size_t HandleCmd(size_t (*handler)(const TCmdImpl &, const Player &), const Play
 
 void PrepareItemForNetwork(const Item &item, TItem &messageItem)
 {
-	messageItem.bId = item._iIdentified ? 1 : 0;
-	messageItem.bId = item._iStackCount;
+	// bId packs bit 0 identified, bits 1-7 stack count minus one (1-32).
+	// Storing count-1 keeps the byte identical to what upstream sends for every
+	// unstacked item, so a mixed-version game still reads the identified flag
+	// correctly in both directions.
+	messageItem.bId = static_cast<uint8_t>(((std::clamp<int>(item._iStackCount, 1, 32) - 1) << 1)
+	    | (item._iIdentified ? 1 : 0));
 	messageItem.bDur = item._iDurability;
 	messageItem.bMDur = item._iMaxDur;
 	messageItem.bCh = item._iCharges;
@@ -2701,9 +2705,9 @@ void RecreateItem(const Player &player, const TItem &messageItem, Item &item)
 	RecreateItem(player, item,
 	    static_cast<_item_indexes>(Swap16LE(messageItem.wIndx)), Swap16LE(messageItem.wCI),
 	    Swap32LE(messageItem.dwSeed), Swap16LE(messageItem.wValue), dwBuff);
-	if (messageItem.bId != 0)
+	if ((messageItem.bId & 1) != 0)
 		item._iIdentified = true;
-	item._iStackCount = std::clamp<int>(messageItem.bId, 1, 127);
+	item._iStackCount = static_cast<int8_t>(((messageItem.bId >> 1) & 0x7F) + 1);
 	item._iMaxDur = messageItem.bMDur;
 	item._iDurability = ClampDurability(item, messageItem.bDur);
 	item._iMaxCharges = std::clamp<int>(messageItem.bMCh, 0, item._iMaxCharges);
