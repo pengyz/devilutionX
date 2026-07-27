@@ -1455,5 +1455,96 @@ TEST_F(NetPackTest, UnPackNetPlayer_invalid_monsterItemLevel)
 	ASSERT_TRUE(TestNetPackValidation());
 }
 
+// Regression: bId packs identified (bit 0), quality (bits 1-2) and stack count
+// minus one (bits 3-7). A previous version assigned the stack count over the
+// whole byte, destroying quality and making _iIdentified a function of stack
+// parity. Storing count-1 keeps unstacked items byte-identical to upstream.
+TEST(PackBitFieldTest, PackItem_bId_PacksIdentifiedQualityAndStackCount)
+{
+	struct Case {
+		bool identified;
+		item_quality quality;
+		int8_t stackCount;
+		uint8_t expectedBId;
+	};
+
+	// clang-format off
+	const Case cases[] = {
+		{ false, ITEM_QUALITY_NORMAL,  1, 0b00000000 },
+		{ true,  ITEM_QUALITY_NORMAL,  1, 0b00000001 },
+		{ false, ITEM_QUALITY_MAGIC,   1, 0b00000010 },
+		{ true,  ITEM_QUALITY_MAGIC,   1, 0b00000011 },
+		{ true,  ITEM_QUALITY_UNIQUE,  1, 0b00000101 },
+		{ true,  ITEM_QUALITY_NORMAL,  2, 0b00001001 },
+		{ true,  ITEM_QUALITY_MAGIC,   5, 0b00100011 },
+		{ true,  ITEM_QUALITY_UNIQUE, 32, 0b11111101 },
+	};
+	// clang-format on
+
+	for (const Case &c : cases) {
+		Item item;
+		item._itype = ItemType::Misc;
+		item._iMiscId = IMISC_HEAL;
+		item._iIdentified = c.identified;
+		item._iMagical = c.quality;
+		item._iStackCount = c.stackCount;
+
+		ItemPack packed;
+		PackItem(packed, item, /*isHellfire=*/false);
+
+		EXPECT_EQ(packed.bId, c.expectedBId)
+		    << "identified=" << c.identified
+		    << " quality=" << static_cast<int>(c.quality)
+		    << " stackCount=" << static_cast<int>(c.stackCount);
+	}
+}
+
+// An unstacked item must produce the same byte upstream would write, so the two
+// save formats stay interchangeable.
+TEST(PackBitFieldTest, PackItem_bId_UnstackedItemMatchesUpstreamEncoding)
+{
+	for (item_quality quality : { ITEM_QUALITY_NORMAL, ITEM_QUALITY_MAGIC, ITEM_QUALITY_UNIQUE }) {
+		for (bool identified : { false, true }) {
+			Item item;
+			item._itype = ItemType::Misc;
+			item._iMiscId = IMISC_HEAL;
+			item._iIdentified = identified;
+			item._iMagical = quality;
+			item._iStackCount = 1;
+
+			ItemPack packed;
+			PackItem(packed, item, /*isHellfire=*/false);
+
+			const uint8_t upstreamEncoding = static_cast<uint8_t>((quality << 1) | (identified ? 1 : 0));
+			EXPECT_EQ(packed.bId, upstreamEncoding)
+			    << "quality=" << static_cast<int>(quality) << " identified=" << identified;
+		}
+	}
+}
+
+// Stack counts are clamped into the five bits available, and a zero stack count
+// reads back as 1.
+TEST(PackBitFieldTest, PackItem_bId_ClampsStackCount)
+{
+	Item item;
+	item._itype = ItemType::Misc;
+	item._iMiscId = IMISC_HEAL;
+	item._iIdentified = true;
+	item._iMagical = ITEM_QUALITY_NORMAL;
+
+	ItemPack packed;
+
+	item._iStackCount = 0;
+	PackItem(packed, item, /*isHellfire=*/false);
+	EXPECT_EQ(packed.bId >> 3, 0) << "a zero stack count must be stored as 1 (encoded 0)";
+
+	item._iStackCount = 127;
+	PackItem(packed, item, /*isHellfire=*/false);
+	EXPECT_EQ(packed.bId >> 3, 31) << "stack count must be clamped to five bits";
+
+	// The low three bits survive clamping.
+	EXPECT_EQ(packed.bId & 0b111, 0b001);
+}
+
 } // namespace
 } // namespace devilution
