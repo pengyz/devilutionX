@@ -365,11 +365,10 @@ void LoadMonsterData();
  */
 size_t GetNumMonsterSprites();
 
-// Runtime AI registration (for mod extensions)
+// AI dispatch table. Exposed for tests; there is no registration entry point.
 struct Monster;
 using AiFunction = void (*)(Monster &monster);
 extern std::array<AiFunction, 128> AiProc;
-void RegisterAiFunction(MonsterAIID id, AiFunction fn);
 
 } // namespace devilution
 

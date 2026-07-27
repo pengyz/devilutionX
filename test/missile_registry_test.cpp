@@ -12,17 +12,6 @@ using ::testing::IsNull;
 
 namespace {
 
-// Custom missile function for testing registry
-void TestCustomAddFn(Missile &, AddMissileParameter &)
-{
-	// no-op for test
-}
-
-void TestCustomProcessFn(Missile &)
-{
-	// no-op for test
-}
-
 // List of all built-in AddFn names from misdat.tsv
 const char *g_builtinAddFnNames[] = {
 	"AddOpenNest", "AddRuneOfFire", "AddRuneOfLight", "AddRuneOfNova",
@@ -81,24 +70,6 @@ TEST(MissileRegistryTest, AllBuiltinProcessFnNamesResolve)
 		EXPECT_NE(*result, nullptr)
 		    << "Built-in ProcessFn " << g_builtinProcessFnNames[i] << " resolved to nullptr";
 	}
-}
-
-TEST(MissileRegistryTest, RegisterCustomAddFn)
-{
-	RegisterMissileAddFn("TestCustomAdd", TestCustomAddFn);
-
-	auto result = ParseMissileAddFn("TestCustomAdd");
-	ASSERT_TRUE(result.has_value());
-	EXPECT_EQ(*result, reinterpret_cast<MissileData::AddFn>(TestCustomAddFn));
-}
-
-TEST(MissileRegistryTest, RegisterCustomProcessFn)
-{
-	RegisterMissileProcessFn("TestCustomProcess", TestCustomProcessFn);
-
-	auto result = ParseMissileProcessFn("TestCustomProcess");
-	ASSERT_TRUE(result.has_value());
-	EXPECT_EQ(*result, reinterpret_cast<MissileData::ProcessFn>(TestCustomProcessFn));
 }
 
 TEST(MissileRegistryTest, EmptyStringReturnsNullptr)

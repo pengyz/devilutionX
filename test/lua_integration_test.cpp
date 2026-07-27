@@ -8,41 +8,6 @@
 
 using namespace devilution;
 
-namespace {
-
-int g_aiCalled = 0;
-void IntegrationTestAi(Monster &)
-{
-	g_aiCalled++;
-}
-
-void IntegrationTestAddFn(Missile &, AddMissileParameter &) {}
-
-}
-
-TEST(LuaIntegrationTest, AiRegistrationAndDispatchWorkTogether)
-{
-	g_aiCalled = 0;
-	constexpr MonsterAIID customAi = static_cast<MonsterAIID>(55);
-	RegisterAiFunction(customAi, IntegrationTestAi);
-
-	Monster monster {};
-	monster.ai = customAi;
-	AiProc[static_cast<size_t>(customAi)](monster);
-	EXPECT_EQ(g_aiCalled, 1);
-
-	AiProc[static_cast<size_t>(customAi)](monster);
-	EXPECT_EQ(g_aiCalled, 2);
-}
-
-TEST(LuaIntegrationTest, MissileAddFnRegistrationAndParse)
-{
-	RegisterMissileAddFn("IntegrationTestMissile", IntegrationTestAddFn);
-	auto result = ParseMissileAddFn("IntegrationTestMissile");
-	ASSERT_TRUE(result.has_value());
-	EXPECT_NE(*result, nullptr);
-}
-
 TEST(LuaIntegrationTest, QuestScriptFieldAndCheckQuestsCoexist)
 {
 	LoadQuestData();

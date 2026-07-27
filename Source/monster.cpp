@@ -3138,27 +3138,6 @@ static_assert(static_cast<int>(MonsterAIID::BoneDemon) < static_cast<int>(AiProc
 
 namespace {
 
-void FallbackAiImpl(Monster &monster)
-{
-	if (monster.activeForTicks == 0)
-		return;
-	if (monster.goal == MonsterGoal::Normal) {
-		monster.mode = MonsterMode::Stand;
-	}
-}
-
-} // namespace
-
-void RegisterAiFunction(MonsterAIID id, AiFunction fn)
-{
-	size_t index = static_cast<size_t>(static_cast<int8_t>(id));
-	if (index >= AiProc.size())
-		return;
-	AiProc[index] = fn != nullptr ? fn : &FallbackAiImpl;
-}
-
-namespace {
-
 bool IsRelativeMoveOK(const Monster &monster, Point position, Direction mdir)
 {
 	const Point futurePosition = position + mdir;

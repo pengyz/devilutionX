@@ -312,16 +312,6 @@ void InitDefaultMissileRegistries()
 	g_processFnRegistry["ProcessRedPortal"] = ProcessRedPortal;
 }
 
-void RegisterMissileAddFn(std::string_view name, MissileData::AddFn fn)
-{
-	g_addFnRegistry[std::string(name)] = fn;
-}
-
-void RegisterMissileProcessFn(std::string_view name, MissileData::ProcessFn fn)
-{
-	g_processFnRegistry[std::string(name)] = fn;
-}
-
 // NOLINTNEXTLINE(readability-function-cognitive-complexity)
 tl::expected<MissileData::AddFn, std::string> ParseMissileAddFn(std::string_view value)
 {
