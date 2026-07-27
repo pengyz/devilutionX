@@ -1,3 +1,5 @@
+> **分类**：规范类（豁免宪章第 4 节 7 段结构，仍受禁令清单约束）　**状态**：生效　**评判基准**：`2026-07-27-better-d1-design-charter.md`
+
 # Spell Tooltip UI Design Language
 
 ## 设计原则

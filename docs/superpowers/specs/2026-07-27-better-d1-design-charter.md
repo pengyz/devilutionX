@@ -332,6 +332,7 @@ ManaShield 魔法需求 = 25 — assets/txtdata/spells/spelldat.tsv:minIntellige
 | `better-d1/designs/narrative-system.md` | 50 行纯愿望，零可落地内容 |
 | `better-d1/designs/combat-system.md` | 纯愿望 + 全 ✅ 假自检表 |
 | `better-d1/designs/living-dungeon.md` | 纯愿望 + 35 格中 15 格为空的对话矩阵 + 依赖已删除的 `world_state` |
+| `better-d1/designs/quest-system.md` | 纯愿望：NPC 评论表、Butcher / Skeleton King「优化后」表均无机制。其唯一落地过的部分（Adria / Pepin / Griswold 三个奖励函数）已作为死代码删除 |
 | `better-d1/designs/resource-system.md` | 属性上限事实迁入待立项的法术实用性规格；三张职业稀缺曲线表是无机制的愿望 |
 | `better-d1/design-decision-template.md` | 折叠进本文档第 4 节 |
 | `better-d1/README.md` | 索引由目录列表承担 |
@@ -351,6 +352,7 @@ ManaShield 魔法需求 = 25 — assets/txtdata/spells/spelldat.tsv:minIntellige
 | `plans/2026-07-05-spell-tooltip-system-v2.md` | 已执行 |
 | `plans/2026-07-06-skill-descriptions-v2.md` | 已执行 |
 | `plans/2026-07-07-consumable-stacking.md` | 已执行 |
+| `plans/2026-07-06-wire-up-skeleton-code.md` | 已执行（初版归档清单遗漏，执行中发现） |
 
 ### 归档并标注「含已核实错误，勿作参考」
 
@@ -638,3 +640,7 @@ ManaShield 魔法需求 = 25 — assets/txtdata/spells/spelldat.tsv:minIntellige
 | 16 | 删除 `RegisterAiFunction`、`RegisterMissileAddFn`、`RegisterMissileProcessFn` 三个入口点，保留已在生产使用的派发 refactor | 已定 |
 | 17 | 新增深度层红线 14（近战/远程影响须分别评估）与禁令 7（不改变文件行尾） | 已定 |
 | 18 | 测试构建修复与行尾回退排在本次范围最前 | 已定 |
+| 19 | `better-d1/designs/quest-system.md` 删除（初版裁决表遗漏，执行中发现） | 已定 |
+| 20 | 行尾污染实际为 6 个文件，非 4 个：初版只扫了 `Source/`，遗漏 `assets/txtdata/classes/classdat.tsv` 与 `mods/Hellfire/txtdata/spells/spelldat.tsv` | 已定 |
+| 21 | `pack.cpp` 的 `bId` 覆写为 P0 数据损坏，先于清理其余项修复；堆叠数存 `count-1` 以保持与上游存档逐字节兼容 | 已定 |
+| 22 | 恢复测试构建暴露 17 项既有失败。`bId` 修复治好 7 项，剩余 10 项记为独立立项，本次清理的门禁为「无新增失败」而非「全部通过」 | 已定 |

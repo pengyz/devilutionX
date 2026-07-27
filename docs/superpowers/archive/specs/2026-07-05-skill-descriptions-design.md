@@ -1,3 +1,5 @@
+> **已废弃**：被 `2026-07-05-spell-tooltip-system-v2-design.md` 与 `2026-07-06-skill-descriptions-v2-design.md` 取代。
+
 # Skill Description & Upgrade Preview System
 
 ## Problem

@@ -1,3 +1,11 @@
+> **已废弃 — 内容含已核实错误，勿作参考。**
+>
+> - ManaShield 写作需 45 魔法，实际 25（`assets/txtdata/spells/spelldat.tsv:minIntelligence`）
+> - Elemental 写作需 70，实际 68
+> - Fireball（48）与 Mana Shield（25）被列为法师专属，实际魔法上限 50 的战士均可学
+>
+> 重写见宪章待立项清单中的法术实用性。
+
 # 法术系统
 
 > D1 的法术系统通过属性上限实现了隐式职业边界。法术的真正问题不是"能不能学"，而是"学了有没有用"。

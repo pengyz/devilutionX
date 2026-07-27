@@ -1,3 +1,7 @@
+> **分类**：Base　**状态**：已实施　**评判基准**：`2026-07-27-better-d1-design-charter.md`
+>
+> 记账口径：本系统属 Base（玩家看到不同的 tooltip），但体验收益弱——D1 的法术获取是书本驱动的，玩家学他捡到的那本，知道下一级伤害变化不改变决策。其主要实际价值是让 tooltip 可数据驱动配置，即降低未来改动成本。
+
 # Spell Tooltip System v2: Data-Driven Skill Descriptions
 
 ## Problem

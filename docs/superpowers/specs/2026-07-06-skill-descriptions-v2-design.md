@@ -1,3 +1,5 @@
+> **分类**：Base　**状态**：已实施　**评判基准**：`2026-07-27-better-d1-design-charter.md`
+
 # Skill Description System v2 — Complete & Aligned
 
 ## Problem

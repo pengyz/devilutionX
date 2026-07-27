@@ -1,3 +1,5 @@
+> **已废弃**：一次性清理任务。光照与法术需求文本的接线已执行，`world_state` 与 `passiveDescription` 的删除已执行；其接线 `GetMonsterActivationRadius` 的计划项已随光照压制撤销而作废。
+
 # Wire Up Skeleton Code — Better D1
 
 ## Goal

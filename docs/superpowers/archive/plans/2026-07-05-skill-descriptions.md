@@ -1,3 +1,5 @@
+> **已执行并归档。**
+
 # Skill Description System — Implementation Plan
 
 > **Goal:** Add spell/skill descriptions and upgrade preview to floating tooltips.

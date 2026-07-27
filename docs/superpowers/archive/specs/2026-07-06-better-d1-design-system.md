@@ -1,3 +1,5 @@
+> **已废弃**：被 `specs/2026-07-27-better-d1-design-charter.md` 取代。本文档的五支柱与红线清单为不可判定版本，且与 `design-decision-template.md` 中的另一套五支柱冲突。
+
 # Better D1 — 设计系统
 
 > D1 是 1996 年的游戏。Better D1 是 2026 年的独立游戏。同一个世界，不同的体验。
