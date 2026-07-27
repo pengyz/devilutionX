@@ -566,9 +566,13 @@ ManaShield 魔法需求 = 25 — assets/txtdata/spells/spelldat.tsv:minIntellige
 
 ### 本次不做
 
-以下均为改造而非撤销，各自独立立项：深度层开关实现、腰带堆叠改背包堆叠、Base 层未文档化改动的补文档、三篇 designs 的内容重写。
+以下均为改造而非撤销，各自独立立项：深度层开关实现、Base 层未文档化改动的补文档、三篇 designs 的内容重写。消耗品堆叠的最终形态并入消耗品经济重构一并裁决（决策 26）。
 
-本次执行完毕后，Base 层的承诺为真：**平衡完全等于原版，只是摩擦更少。** 光照压制已撤销（`lighting.cpp` 与 `lighting.h` 逐字节等同上游），金币掉落计算等同上游，堆叠上限不再因职业而异。唯一残留的平衡偏差是腰带堆叠容量，它在待立项清单优先级 3。
+本次执行完毕后，Base 层的承诺**接近**为真：光照压制已撤销（`lighting.cpp` 与 `lighting.h` 逐字节等同上游），金币掉落计算等同上游，堆叠上限不再因职业而异。
+
+唯一残留的平衡偏差是**腰带堆叠容量**：原版腰带 8 格每格一件，当前为 8 格 × 每格最多 5 件。它按分类判定规则第 6 条属 Depth，却在底座层无条件生效。决策 26 裁决暂不处理——移除它会连带删掉整套 `_iStackCount` 基础设施与 20 个测试，而改成背包堆叠又需要先有消耗品经济模型。该项已并入待立项的消耗品经济重构一并裁决。
+
+在那之前，「底座层不改变任何平衡」这句话带一个已知例外，本节即为该例外的记录。
 
 执行中额外修复了两处未在原范围内的 P0 数据损坏（`pack.cpp` 与 `msg.cpp` 的 `bId` 覆写），见决策 21。
 
@@ -577,15 +581,14 @@ ManaShield 魔法需求 = 25 — assets/txtdata/spells/spelldat.tsv:minIntellige
 | 待立项 | 分类 | 优先级 | 依赖 | 参考文件 |
 |---|---|---|---|---|
 | Base 层未文档化改动补文档：抽象金币计数器、物品对比、两个 Lua 模块、stash / trigs / visual_store / autopickup 改动 | Base + Infra | 1 | — | 无 |
-| 腰带堆叠改背包堆叠 | Base | 2 | — | `archive/specs/2026-07-07-consumable-stacking-design.md` |
-| 未命中反馈：`to-hit` roll 失败时给玩家反馈 | Base | 3 | — | 无 |
-| timedemo 关闭阶段的 `heap-use-after-free`（`lua-5.4.7/src/lstring.c:247` 的 `luaS_new`，发生在 `LuaShutdown()` 之后） | Infra | 4 | — | 无 |
-| benchmark 目标无法链接：系统 `libbenchmark_main.a` 为 LTO 11.2，编译器 g++ 13.4 要求 13.1 | Infra | 5 | — | 无 |
-| 深度层开关实现 | Infra | 6 | — | 无 |
-| 深度层旗舰改动（方向待定） | Depth | 7 | 深度层开关 | — |
-| 消耗品经济重构：取消符文及伤害卷轴掉落，重新推导补偿形状 | Depth | 8 | 深度层开关 | `archive/specs/consumable-system.md` |
-| 法术实用性：Rage / Etherealize / Golem | Depth | 9 | — | `archive/specs/spell-system.md` |
-| 事实漂移机械校验脚本 | Infra | 10 | — | 无 |
+| 未命中反馈：`to-hit` roll 失败时给玩家反馈 | Base | 2 | — | 无 |
+| timedemo 关闭阶段的 `heap-use-after-free`（`lua-5.4.7/src/lstring.c:247` 的 `luaS_new`，发生在 `LuaShutdown()` 之后） | Infra | 3 | — | 无 |
+| benchmark 目标无法链接：系统 `libbenchmark_main.a` 为 LTO 11.2，编译器 g++ 13.4 要求 13.1 | Infra | 4 | — | 无 |
+| 深度层开关实现 | Infra | 5 | — | 无 |
+| 深度层旗舰改动（方向待定） | Depth | 6 | 深度层开关 | — |
+| 消耗品经济重构：取消符文及伤害卷轴掉落，重新推导补偿形状，**并一并裁决消耗品堆叠的最终形态**（见决策 26） | Depth | 7 | 深度层开关 | `archive/specs/consumable-system.md`、`archive/specs/2026-07-07-consumable-stacking-design.md` |
+| 法术实用性：Rage / Etherealize / Golem | Depth | 8 | — | `archive/specs/spell-system.md` |
+| 事实漂移机械校验脚本 | Infra | 9 | — | 无 |
 
 ### 待修复的 10 项测试失败（已于 2026-07-27 全部修复）
 
@@ -630,7 +633,7 @@ ManaShield 魔法需求 = 25 — assets/txtdata/spells/spelldat.tsv:minIntellige
 | 选项恢复 | `grep floatingInfoBox Source/items.cpp` | 有匹配 |
 | 光照压制撤销 | grep `GetLightSuppressionMultiplier`、`GetEffectiveLightRadius` | 无匹配 |
 | 死代码清零 | grep 第 7 节七个函数名 | 全部无匹配 |
-| Base 层承诺为真 | 对比原版：掉落数值、光照半径、腰带容量 | 除腰带容量外全部与上游一致；腰带容量偏差已记录于待立项优先级 2 |
+| Base 层承诺为真 | 对比原版：掉落数值、光照半径、腰带容量 | 除腰带容量外全部与上游一致；腰带容量偏差为已知例外，见第 9 节与决策 26 |
 
 ### 不测试的维度
 
@@ -651,7 +654,7 @@ ManaShield 魔法需求 = 25 — assets/txtdata/spells/spelldat.tsv:minIntellige
 | 7 | 本次范围限于宪章 + 文档重组 + 撤销类代码改动 | 已定 |
 | 8 | 目录扁平化，删除 `better-d1/` 整层，不设索引文件 | 已定 |
 | 9 | `better-d1-implementation.md` 直接删除，不归档 | 已定 |
-| 10 | 腰带堆叠改为背包堆叠、腰带不堆叠 | 已定 |
+| 10 | 腰带堆叠改为背包堆叠、腰带不堆叠 | **已撤销**，见决策 26 |
 | 11 | 底座层支柱 1 由「规则透明，世界不透明」重写为「未知必须可以被行动解决」 | 已定 |
 | 12 | 分类判定规则增加第 6 条；底座层红线 5 收紧 | 已定 |
 | 13 | 先完成 Base 层再开始 Depth 层；两者基本正交，Depth 的新增不会推翻 Base 的优化 | 已定 |
@@ -667,3 +670,4 @@ ManaShield 魔法需求 = 25 — assets/txtdata/spells/spelldat.tsv:minIntellige
 | 23 | 通用红线 4 补上「验收标准是否全部通过」。清理时把 `skill-descriptions-v2` 标为「已实施」是错的——只核实了函数有生产调用者，未核实验收标准，而它的第一条要求（补全可学法术描述）在 `assets/` 表中有 18 项未做。红线原表述允许这种漏判 | 已定 |
 | 24 | 10 项既有失败全部修复，629 项测试零失败。执行中发现第三处 P0：`SaveItem` 无条件追加 `_iStackCount` 而 `LoadItem` 条件读取，主存档路径从不设置标志，导致单人存档读写损坏。改为存入已有的对齐填充字节，记录尺寸回到上游 368/372，双向兼容且无需版本判别位 | 已定 |
 | 25 | timedemo 参考存档重新生成，基准从「与上游一致」改为「与本分支一致」。抽象金币计数器改变了英雄状态表示，与上游对照已不可能；在三处数据损坏修复后重新生成，确定性经两次运行验证 | 已定 |
+| 26 | 决策 10 撤销。消耗品堆叠原样保留，不改背包堆叠、不移除。背包堆叠需与消耗品经济重构一并设计——那项工作才会确定「玩家应该能带多少补给」，在此之前单独放宽背包容量是在与它反方向拉。执行中另发现：删除腰带堆叠会使整套 `_iStackCount` 基础设施成为死代码（唯一两个生产者都在腰带侧），连带需删 20 个测试并把三处持久化回退到上游编码，代价与收益不成比例 | 已定 |
