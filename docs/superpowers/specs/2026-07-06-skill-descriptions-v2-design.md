@@ -1,4 +1,6 @@
 > **分类**：Base　**状态**：已实施　**评判基准**：`2026-07-27-better-d1-design-charter.md`
+>
+> 状态修订记录：2026-07-27 的宪章清理最初把本文档标为「已实施」，但当时只核实了它声明的函数有生产调用者，未核实验收标准。实际上第一条要求（为全部可学法术补描述）在 `assets/txtdata/spells/spelldat.tsv` 中有 18 项未完成——描述只填进了 `mods/Hellfire/` 的表。该缺口已由 `SpelldatTest.AllLearnableSpellsHaveDescriptions` 暴露并补齐，状态因此恢复为「已实施」。
 
 # Skill Description System v2 — Complete & Aligned
 
