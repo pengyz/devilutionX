@@ -73,6 +73,14 @@ if(NOT VERSION_SUFFIX)
   endif()
 endif()
 
+# The iOS toolchain file reads DEPLOYMENT_TARGET when it is processed by
+# `project()`, so the default must be set before that.
+# libc++'s <format> requires the floating-point std::to_chars symbols,
+# which are only available in the iOS 16.3+ system libc++.
+if(CMAKE_TOOLCHAIN_FILE MATCHES "ios\\.toolchain\\.cmake" AND NOT DEFINED DEPLOYMENT_TARGET)
+  set(DEPLOYMENT_TARGET "16.3")
+endif()
+
 project(DevilutionX
   VERSION ${VERSION_NUM}
   LANGUAGES C CXX)
@@ -181,7 +189,7 @@ else()
   set(SUPPORTS_MPQ ON)
 endif()
 
-# By default, devilutionx.mpq and mods/Hellfire.mpq are built only if smpq is installed and MPQ support is enabled.
+# By default, devilutionx.mpq and mods/hf.mpq are built only if smpq is installed and MPQ support is enabled.
 if(SUPPORTS_MPQ AND NOT UNPACKED_MPQS)
   if(BUILD_ASSETS_MPQ OR (CPACK STREQUAL "ON" AND (WIN32 OR CMAKE_SYSTEM_NAME STREQUAL "Linux")))
     find_program(SMPQ smpq REQUIRED)
@@ -193,7 +201,7 @@ if(SUPPORTS_MPQ AND NOT UNPACKED_MPQS)
   else()
     set(_has_smpq OFF)
   endif()
-  option(BUILD_ASSETS_MPQ "If true, assets are packaged into devilutionx.mpq and mods/Hellfire to Hellfire.mpq." ${_has_smpq})
+  option(BUILD_ASSETS_MPQ "If true, assets are packaged into devilutionx.mpq and mods/hf to hf.mpq." ${_has_smpq})
 else()
   set(BUILD_ASSETS_MPQS OFF)
 endif()
@@ -333,11 +341,11 @@ if(GPERF)
   endif()
 endif()
 
-set(CMAKE_CXX_STANDARD 20)
+set(CMAKE_CXX_STANDARD 23)
 
 # On some platforms, such as DJGPP,
-# `-std=c++20` defines `__STRICT_ANSI__` which disables
-# all POSIX extensions, so we need to use `-std=gnu++20` instead.
+# `-std=c++23` defines `__STRICT_ANSI__` which disables
+# all POSIX extensions, so we need to use `-std=gnu++23` instead.
 set(CMAKE_CXX_EXTENSIONS ON)
 
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
@@ -355,7 +363,7 @@ include(Dependencies)
 # Mixing `-static-libstdc++` with a dynamic C++ dependency causes both copies
 # to initialize, which is UB and can cause crashes, e.g. in
 # `std::ios_base_library_init()`.
-if(NOT DEVILUTIONX_STATIC_LIBFMT)
+if(NOT NOSOUND AND NOT DEVILUTIONX_STATIC_SDL_AUDIOLIB)
   set(DEVILUTIONX_STATIC_CXX_STDLIB OFF)
 endif()
 
@@ -368,7 +376,7 @@ elseif(TARGET_PLATFORM STREQUAL "dos")
   set(BIN_TARGET devx)
 endif()
 
-if(ANDROID)
+if(ANDROID AND NOT TERMUX)
   add_library(${BIN_TARGET} SHARED Source/main.cpp)
 elseif(UWP_LIB)
   set(BIN_TARGET libdevilutionx)
@@ -419,7 +427,7 @@ if(EMSCRIPTEN)
     -lidbfs.js
     --shell-file ${CMAKE_CURRENT_SOURCE_DIR}/Packaging/emscripten/index.html
   )
-  
+
   add_dependencies(${BIN_TARGET} hellfire_copied_assets)
   # Add JavaScript to load MPQ files from the server directory at runtime
   target_link_options(${BIN_TARGET} PRIVATE --pre-js ${CMAKE_CURRENT_SOURCE_DIR}/Packaging/emscripten/emscripten_pre.js)
@@ -448,10 +456,14 @@ if(APPLE)
   if(IOS)
     set(MACOSX_BUNDLE_REQUIRED_PLATFORM IPhoneOS)
     set_target_properties(${BIN_TARGET} PROPERTIES XCODE_ATTRIBUTE_TARGETED_DEVICE_FAMILY "1,2")
-    set(CMAKE_OSX_DEPLOYMENT_TARGET "9.0")
+    # libc++'s <format> requires the floating-point std::to_chars symbols,
+    # which are only available in the iOS 16.3+ system libc++.
+    set(CMAKE_OSX_DEPLOYMENT_TARGET "16.3")
   elseif(DARWIN_MAJOR_VERSION GREATER_EQUAL 17)
     set(MACOSX_BUNDLE_REQUIRED_PLATFORM Carbon)
-    set(CMAKE_OSX_DEPLOYMENT_TARGET "10.13.0")
+    # libc++'s <format> requires the floating-point std::to_chars symbols,
+    # which are only available in the macOS 13.3+ system libc++.
+    set(CMAKE_OSX_DEPLOYMENT_TARGET "13.3")
   endif()
   if(DARWIN_MAJOR_VERSION VERSION_LESS 9)
     # Finder on OSX Tiger can only handle icns files with up to 128x128 icons.
@@ -512,7 +524,7 @@ if(VITA)
       NAME ${VITA_APP_NAME}
       FILE Packaging/vita/sce_sys sce_sys
       FILE ${DEVILUTIONX_MPQ} devilutionx.mpq
-      FILE ${HELLFIRE_MPQ} mods/Hellfire.mpq
+      FILE ${HELLFIRE_MPQ} mods/hf.mpq
     )
   else()
     vita_create_vpk(devilutionx.vpk ${VITA_TITLEID} devilutionx.self

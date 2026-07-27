@@ -1,13 +1,12 @@
 #include "panels/level_info.h"
 
-#include <fmt/format.h>
-
 #include "diablo.h"
 #include "engine/render/text_render.hpp"
 #include "engine/surface.hpp"
 #include "game_mode.hpp"
 #include "levels/gendung.h"
 #include "options.h"
+#include "utils/format.hpp"
 #include "utils/language.h"
 
 namespace devilution {
@@ -29,7 +28,7 @@ std::string LevelInfoBar::GetLevelName() const
 {
     if (currlevel == 0)
         return std::string(_("Tristram"));
-    return fmt::format(fmt::runtime(_("{:s} Level {:d}")),
+    return FormatRuntime(_("{:s} Level {:d}"),
         _(TypeNames[static_cast<size_t>(leveltype)]), currlevel);
 }
 

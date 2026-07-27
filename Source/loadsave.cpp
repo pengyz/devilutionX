@@ -9,11 +9,11 @@
 #include <cstddef>
 #include <cstdint>
 #include <cstring>
+#include <expected>
 #include <numeric>
 #include <string>
 
 #include <ankerl/unordered_dense.h>
-#include <expected.hpp>
 
 #include "automap.h"
 #include "codec.h"
@@ -2022,7 +2022,7 @@ void SaveLevel(SaveWriter &saveWriter, LevelConversionData *levelConversionData)
 		myPlayer._pSLvlVisited[setlvlnum] = true;
 }
 
-tl::expected<void, std::string> LoadLevel(LevelConversionData *levelConversionData)
+std::expected<void, std::string> LoadLevel(LevelConversionData *levelConversionData)
 {
 	char szName[MaxMpqPathSize];
 	std::optional<SaveReader> archive = OpenSaveArchive(gSaveNumber);
@@ -2031,7 +2031,7 @@ tl::expected<void, std::string> LoadLevel(LevelConversionData *levelConversionDa
 		GetPermLevelNames(szName);
 	LoadHelper file(std::move(archive), szName);
 	if (!file.IsValid())
-		return tl::make_unexpected(std::string(_("Unable to open save file archive")));
+		return std::unexpected(std::string(_("Unable to open save file archive")));
 
 	if (leveltype != DTYPE_TOWN) {
 		for (int j = 0; j < MAXDUNY; j++) {
@@ -2143,7 +2143,7 @@ bool IsStashSizeValid(size_t stashSize, uint32_t pages, uint32_t itemCount)
 
 } // namespace
 
-tl::expected<void, std::string> ConvertLevels(SaveWriter &saveWriter)
+std::expected<void, std::string> ConvertLevels(SaveWriter &saveWriter)
 {
 	// Backup current level state
 	const bool tmpSetlevel = setlevel;
@@ -2482,17 +2482,17 @@ void RemoveEmptyInventory(Player &player)
 	}
 }
 
-tl::expected<void, std::string> LoadGame(bool firstflag)
+std::expected<void, std::string> LoadGame(bool firstflag)
 {
 	FreeGameMem();
 
 	LoadHelper file(OpenSaveArchive(gSaveNumber), "game");
 	if (!file.IsValid()) {
-		return tl::make_unexpected(std::string(_("Unable to open save file archive")));
+		return std::unexpected(std::string(_("Unable to open save file archive")));
 	}
 
 	if (!IsHeaderValid(file.NextLE<uint32_t>())) {
-		return tl::make_unexpected(std::string(_("Invalid save file")));
+		return std::unexpected(std::string(_("Invalid save file")));
 	}
 
 	if (gbIsHellfireSaveGame) {
@@ -2524,7 +2524,7 @@ tl::expected<void, std::string> LoadGame(bool firstflag)
 	const int tmpNobjects = file.NextBE<int32_t>();
 
 	if (!gbIsHellfire && IsAnyOf(leveltype, DTYPE_NEST, DTYPE_CRYPT)) {
-		return tl::make_unexpected(std::string(_("Player is on a Hellfire only level")));
+		return std::unexpected(std::string(_("Player is on a Hellfire only level")));
 	}
 
 	for (uint8_t i = 0; i < giNumberOfLevels; i++) {
@@ -2956,7 +2956,7 @@ void SaveLevel(SaveWriter &saveWriter)
 	SaveLevel(saveWriter, nullptr);
 }
 
-tl::expected<void, std::string> LoadLevel()
+std::expected<void, std::string> LoadLevel()
 {
 	return LoadLevel(nullptr);
 }

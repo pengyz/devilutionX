@@ -179,8 +179,34 @@
 
 第 7 项的 629 是当前基线。上游 41 个 commit 可能新增或删除测试，届时以「零失败」为准，并记录数量变化及原因。
 
+### 探测与实测补记（2026-07-27）
+
+规格初稿的事实基础遗漏了目录重命名：上游把 `mods/Hellfire/` 整体重命名为 `mods/hf/`，且新路径下已有 `spelldat.tsv` 而无 `spelldesc.tsv`。静态内容比对无法发现重命名，需要实际 merge 才暴露。实际执行时 git 把整个目录识别为重命名，我方对 `spelldat.tsv` 的两项修复（18 条描述同步、3 行字段补齐）随之自动带入新路径，只需手工落位 `spelldesc.tsv`。
+
+探测性 merge（`--no-commit` 后 `--abort`）与实际执行的结果一致：
+
+| 项 | 值 |
+|---|---|
+| 冲突文件数 | 14 |
+| 冲突块总数 | 31 |
+| `Source/levels/trigs.cpp` | 15 块 |
+
+**验收标准 9 的结论：行尾回退的收益成立。** `c843f4240` 处理过的 6 个文件中，5 个自动合并成功（含 `diablo.cpp` 与 `qol/stash.cpp`），唯一冲突的 `Source/inv.cpp` 只有 1 个 6 行的行级冲突块。若未做行尾回退，这 6 个文件会全部整文件冲突，约 13000 行。
+
+### 执行中暴露的三处规格未预料问题
+
+**1. `ParseMissileAddFn` / `ParseMissileProcessFn` 在上游是文件内部函数。** 它们位于 `misdat.cpp` 的匿名命名空间内（`namespace {` 至 `} // namespace`），上游不在头文件中声明。我方为测试而在 `misdat.h` 添加了声明。Task 7 采用上游版本后，`test/missile_registry_test.cpp` 的 4 个测试无法链接。裁决：删除该测试文件——它断言的是上游用匿名命名空间明确表达为「非契约」的内部实现，而真正需要保护的行为（`misdat.tsv` 能被正确加载）由 `missiles_test.cpp` 的 `LoadMissileData()` 覆盖。
+
+**2. `fmt::formatter<StringOrView>` 特化确有一个消费者。** 该特化为我方新增，上游无。我按 `.str()` 调用点搜索后判定无消费者并删除，但漏了「函数返回值直接传入」的形态：`items.cpp:4208` 的 `FormatRuntime(_("Equipped: {:s}"), equipped->getName())`，而 `getName()` 返回 `StringOrView`。按上游约定在调用点补 `.str()`，不恢复特化。
+
+**3. `tools/mpqextract/main.c` 在本分支上从未编译通过。** 它调用的 `mpqfs_last_error()` 不存在，`mpqfs_open` 与 `mpqfs_read_file` 的参数个数也不对——整个文件从未对照真实 API。之所以一直未暴露，是 `BUILD_DEV_TOOLS` 默认为 `OFF`（`CMakeLists.txt:754`），而本机 build 缓存中被显式设为 `ON`，上游 `f11d3c390 Update mpqfs` 后它进入构建路径。已按真实 API 重写：`mpqfs_open(path, &archive)` 与 `mpqfs_read_file(archive, name, &data, &size)` 均返回 `mpqfs_error_code`，错误信息改用 `mpqfs_error_message(rc)`。同批的 `cel2png` 与 `png2clx` 构建正常，问题孤立于此文件。
+
+这三项与 `world_state_test` 是同一类问题：**代码写了、未被构建、错误因此长期隐藏。** `mpqextract` 藏得最久——整个分支生命周期。
+
 ## 7. 状态
 
-**已批准。** 未实施。
+**已实施。** 2026-07-27 完成，九项验收标准全部通过，651 项测试零失败。
+
+测试总数由 629 变为 651：删除 `missile_registry_test` 的 6 项，上游 41 个 commit 净增其余。门禁判据为零失败而非固定数量，故不影响结论。
 
 实施计划见 `plans/2026-07-27-upstream-integration.md`。

@@ -16,8 +16,6 @@
 #include <SDL.h>
 #endif
 
-#include <fmt/format.h>
-
 #include "DiabloUI/ui_flags.hpp"
 #include "controls/control_mode.hpp"
 #include "controls/plrctrls.h"
@@ -44,6 +42,7 @@
 #include "stores.h"
 #include "towners.h"
 #include "utils/display.h"
+#include "utils/format.hpp"
 #include "utils/format_int.hpp"
 #include "utils/is_of.hpp"
 #include "utils/language.h"
@@ -1985,7 +1984,7 @@ int8_t CheckInvHLight()
 			AddInfoBoxString(_("Fully Repaired"));
 	} else if (pi->_itype == ItemType::Gold) {
 		const int nGold = pi->_ivalue;
-		FloatingInfoString = fmt::format(fmt::runtime(ngettext("{:s} gold piece", "{:s} gold pieces", nGold)), FormatInteger(nGold));
+		FloatingInfoString = FormatRuntime(ngettext("{:s} gold piece", "{:s} gold pieces", nGold), FormatInteger(nGold));
 	} else {
 		InfoColor = pi->getTextColor();
 		FloatingInfoString = pi->getName();

@@ -2,6 +2,8 @@
 
 #include <algorithm>
 #include <charconv>
+#include <expected>
+#include <format>
 #include <string>
 
 #ifdef USE_SDL3
@@ -10,8 +12,6 @@
 #include <SDL.h>
 #endif
 
-#include <fmt/format.h>
-
 #include "appfat.h"
 #include "data/file.hpp"
 #include "data/iterators.hpp"
@@ -19,6 +19,7 @@
 #include "panels/spell_book.hpp"
 #include "player.h"
 #include "spells.h"
+#include "utils/format.hpp"
 #include "utils/language.h"
 
 namespace devilution {
@@ -248,7 +249,7 @@ DescSource ParseDescSource(std::string_view value)
 	if (value == "ringoffire_radius") return DescSource::RingOfFireRadius;
 	if (value == "rage_duration") return DescSource::RageDuration;
 	if (value == "rage_hpcost") return DescSource::RageHPCost;
-	app_fatal(fmt::format("Unknown DescSource: {}", value));
+	app_fatal(std::format("Unknown DescSource: {}", value));
 	return DescSource::None;
 }
 
@@ -265,7 +266,7 @@ DescFormat ParseDescFormat(std::string_view value)
 	if (value == "special") return DescFormat::Special;
 	if (value == "level_display") return DescFormat::LevelDisplay;
 	if (value == "heal_delta") return DescFormat::HealDelta;
-	app_fatal(fmt::format("Unknown DescFormat: {}", value));
+	app_fatal(std::format("Unknown DescFormat: {}", value));
 	return DescFormat::Text;
 }
 
@@ -274,7 +275,7 @@ DescSection ParseDescSection(std::string_view value)
 	if (value == "desc") return DescSection::Desc;
 	if (value == "upgrade") return DescSection::Upgrade;
 	if (value == "warning") return DescSection::Warning;
-	app_fatal(fmt::format("Unknown DescSection: {}", value));
+	app_fatal(std::format("Unknown DescSection: {}", value));
 	return DescSection::Desc;
 }
 
@@ -332,20 +333,20 @@ SpellID ParseSpellIdForDesc(std::string_view value)
 	if (value == "RuneOfNova") return SpellID::RuneOfNova;
 	if (value == "RuneOfImmolation") return SpellID::RuneOfImmolation;
 	if (value == "RuneOfStone") return SpellID::RuneOfStone;
-	app_fatal(fmt::format("Unknown SpellID: {}", value));
+	app_fatal(std::format("Unknown SpellID: {}", value));
 	return SpellID::Null;
 }
 
 } // namespace
 
-tl::expected<void, std::string> LoadSpellDescData()
+std::expected<void, std::string> LoadSpellDescData()
 {
 	constexpr std::string_view filename = "txtdata\\spells\\spelldesc.tsv";
 	SpellDescLines.clear();
 
 	auto loadResult = DataFile::load(filename);
 	if (!loadResult.has_value()) {
-		return tl::make_unexpected(fmt::format("Failed to load {}", filename));
+		return std::unexpected(std::format("Failed to load {}", filename));
 	}
 	DataFile dataFile = std::move(*loadResult);
 
@@ -358,7 +359,7 @@ tl::expected<void, std::string> LoadSpellDescData()
 		}
 
 		if (fields.size() < 4) {
-			return tl::make_unexpected(fmt::format("{}: row has fewer than 4 columns", filename));
+			return std::unexpected(std::format("{}: row has fewer than 4 columns", filename));
 		}
 
 		SpellDescLine line;
@@ -367,7 +368,7 @@ tl::expected<void, std::string> LoadSpellDescData()
 
 		auto parseIntResult = std::from_chars(fields[2].data(), fields[2].data() + fields[2].size(), line.priority);
 		if (parseIntResult.ec != std::errc()) {
-			return tl::make_unexpected(fmt::format("{}: invalid priority '{}'", filename, fields[2]));
+			return std::unexpected(std::format("{}: invalid priority '{}'", filename, fields[2]));
 		}
 
 		line.format = ParseDescFormat(fields[3]);
@@ -407,7 +408,7 @@ std::string FormatDescLine(const SpellDescLine &line, const Player &player, Spel
 
 	switch (line.format) {
 	case DescFormat::LevelDisplay:
-		return fmt::format(fmt::runtime(_("Level {:d} / {:d}")), level, MaxSpellLevel);
+		return FormatRuntime(_("Level {:d} / {:d}"), level, MaxSpellLevel);
 
 	case DescFormat::Special:
 		return std::string(label);
@@ -419,49 +420,49 @@ std::string FormatDescLine(const SpellDescLine &line, const Player &player, Spel
 
 	case DescFormat::Mana: {
 		int mana = GetSourceValue(line.source, player, spell, level);
-		return fmt::format("{:s}: {:d}", label, mana);
+		return std::format("{:s}: {:d}", label, mana);
 	}
 
 	case DescFormat::ManaDelta: {
 		int curMana = GetSourceValue(line.source, player, spell, level);
 		int nextMana = GetSourceValue(line.source, player, spell, level + 1);
-		return fmt::format("{:s}: {:d} -> {:d}", label, curMana, nextMana);
+		return std::format("{:s}: {:d} -> {:d}", label, curMana, nextMana);
 	}
 
 	case DescFormat::DamageRange: {
 		DamageRange dr = GetSpellDamage(spell, level);
-		return fmt::format("{:s}: {:d} - {:d}", label, dr.min, dr.max);
+		return std::format("{:s}: {:d} - {:d}", label, dr.min, dr.max);
 	}
 
 	case DescFormat::HealRange: {
 		DamageRange dr = GetSpellDamage(spell, level);
-		return fmt::format("{:s}: {:d} - {:d}", label, dr.min, dr.max);
+		return std::format("{:s}: {:d} - {:d}", label, dr.min, dr.max);
 	}
 
 	case DescFormat::ValueSingle: {
 		int val = GetSourceValue(line.source, player, spell, level);
-		return fmt::format("{:s}: {:d}", label, val);
+		return std::format("{:s}: {:d}", label, val);
 	}
 
 	case DescFormat::ValueDelta: {
 		int cur = GetSourceValue(line.source, player, spell, level);
 		int next = GetSourceValue(line.source, player, spell, level + 1);
 		if (cur == next) return ""; // No change, skip
-		return fmt::format("{:s}: {:d} -> {:d}", label, cur, next);
+		return std::format("{:s}: {:d} -> {:d}", label, cur, next);
 	}
 
 	case DescFormat::DamageDelta: {
 		DamageRange cur = GetSpellDamage(spell, level);
 		DamageRange next = GetSpellDamage(spell, level + 1);
 		if (cur.min == next.min && cur.max == next.max) return ""; // No change, skip
-		return fmt::format("{:s}: {:d}-{:d} -> {:d}-{:d}", label, cur.min, cur.max, next.min, next.max);
+		return std::format("{:s}: {:d}-{:d} -> {:d}-{:d}", label, cur.min, cur.max, next.min, next.max);
 	}
 
 	case DescFormat::HealDelta: {
 		DamageRange cur = GetSpellDamage(spell, level);
 		DamageRange next = GetSpellDamage(spell, level + 1);
 		if (cur.min == next.min && cur.max == next.max) return ""; // No change, skip
-		return fmt::format("{:s}: {:d}-{:d} -> {:d}-{:d}", label, cur.min, cur.max, next.min, next.max);
+		return std::format("{:s}: {:d}-{:d} -> {:d}-{:d}", label, cur.min, cur.max, next.min, next.max);
 	}
 	}
 	return "";
@@ -504,7 +505,7 @@ SpellTooltip BuildSpellTooltip(const Player &player, SpellID spell)
 	auto descLines = GetSpellDescLines(spell, DescSection::Desc);
 	if (descLines.empty()) {
 		// No desc config for this spell — show minimal info
-		tooltip.lines.emplace_back(fmt::format(fmt::runtime(_("Level {:d} / {:d}")), level, MaxSpellLevel), UiFlags::ColorWhite);
+		tooltip.lines.emplace_back(FormatRuntime(_("Level {:d} / {:d}"), level, MaxSpellLevel), UiFlags::ColorWhite);
 		return tooltip;
 	}
 
@@ -601,16 +602,16 @@ SpellTooltip BuildSpellListTooltip(const Player &player, SpellID spell, SpellTyp
 	// Title varies by source type
 	switch (type) {
 	case SpellType::Skill:
-		tooltip.title = fmt::format(fmt::runtime(_("{:s} Skill")), pgettext("spell", sd.sNameText));
+		tooltip.title = FormatRuntime(_("{:s} Skill"), pgettext("spell", sd.sNameText));
 		break;
 	case SpellType::Spell:
-		tooltip.title = fmt::format(fmt::runtime(_("{:s} Spell")), pgettext("spell", sd.sNameText));
+		tooltip.title = FormatRuntime(_("{:s} Spell"), pgettext("spell", sd.sNameText));
 		break;
 	case SpellType::Scroll:
-		tooltip.title = fmt::format(fmt::runtime(_("Scroll of {:s}")), pgettext("spell", sd.sNameText));
+		tooltip.title = FormatRuntime(_("Scroll of {:s}"), pgettext("spell", sd.sNameText));
 		break;
 	case SpellType::Charges:
-		tooltip.title = fmt::format(fmt::runtime(_("Staff of {:s}")), pgettext("spell", sd.sNameText));
+		tooltip.title = FormatRuntime(_("Staff of {:s}"), pgettext("spell", sd.sNameText));
 		break;
 	default:
 		tooltip.title = pgettext("spell", sd.sNameText);

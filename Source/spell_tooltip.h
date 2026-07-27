@@ -4,7 +4,7 @@
 #include <string>
 #include <vector>
 
-#include <expected.hpp>
+#include <expected>
 
 #include "engine/render/text_render.hpp"
 #include "player.h"
@@ -74,7 +74,7 @@ struct SpellDescLine {
 
 extern DVL_API_FOR_TEST std::vector<SpellDescLine> SpellDescLines;
 
-tl::expected<void, std::string> LoadSpellDescData();
+std::expected<void, std::string> LoadSpellDescData();
 std::vector<const SpellDescLine *> GetSpellDescLines(SpellID spell, DescSection section);
 std::string FormatDescLine(const SpellDescLine &line, const Player &player, SpellID spell, int level);
 

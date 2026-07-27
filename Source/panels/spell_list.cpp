@@ -2,8 +2,6 @@
 
 #include <cstdint>
 
-#include <fmt/format.h>
-
 #include "control/control.hpp"
 #include "controls/control_mode.hpp"
 #include "controls/plrctrls.h"
@@ -18,6 +16,7 @@
 #include "spell_tooltip.h"
 #include "spells.h"
 #include "utils/algorithm/container.hpp"
+#include "utils/format.hpp"
 #include "utils/language.h"
 #include "utils/str_cat.hpp"
 #include "utils/utf8.hpp"
@@ -182,16 +181,16 @@ void DrawSpellList(const Surface &out)
 			const int scrollCount = c_count_if(InventoryAndBeltPlayerItemsRange { myPlayer }, [spellId](const Item &item) {
 				return item.isScrollOf(spellId);
 			});
-			AddInfoBoxString(fmt::format(fmt::runtime(ngettext("{:d} Scroll", "{:d} Scrolls", scrollCount)), scrollCount));
+			AddInfoBoxString(FormatRuntime(ngettext("{:d} Scroll", "{:d} Scrolls", scrollCount), scrollCount));
 		}
 		if (spellListItem.type == SpellType::Charges) {
 			int charges = myPlayer.InvBody[INVLOC_HAND_LEFT]._iCharges;
-			AddInfoBoxString(fmt::format(fmt::runtime(ngettext("{:d} Charge", "{:d} Charges", charges)), charges));
+			AddInfoBoxString(FormatRuntime(ngettext("{:d} Charge", "{:d} Charges", charges), charges));
 		}
 
 		std::optional<std::string_view> fullHotkeyName = GetHotkeyName(spellId, spellListItem.type);
 		if (fullHotkeyName) {
-			AddInfoBoxString(fmt::format(fmt::runtime(_("Spell Hotkey {:s}")), *fullHotkeyName));
+			AddInfoBoxString(FormatRuntime(_("Spell Hotkey {:s}"), *fullHotkeyName));
 		}
 	}
 }
