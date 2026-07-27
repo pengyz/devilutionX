@@ -576,27 +576,30 @@ ManaShield 魔法需求 = 25 — assets/txtdata/spells/spelldat.tsv:minIntellige
 
 | 待立项 | 分类 | 优先级 | 依赖 | 参考文件 |
 |---|---|---|---|---|
-| **修复 10 项既有测试失败**（详见下方清单） | Base | 1 | — | 无 |
-| Base 层未文档化改动补文档：抽象金币计数器、物品对比、两个 Lua 模块、stash / trigs / visual_store / autopickup 改动 | Base + Infra | 2 | — | 无 |
-| 腰带堆叠改背包堆叠 | Base | 3 | — | `archive/specs/2026-07-07-consumable-stacking-design.md` |
-| 未命中反馈：`to-hit` roll 失败时给玩家反馈 | Base | 4 | — | 无 |
-| 深度层开关实现 | Infra | 5 | — | 无 |
-| 深度层旗舰改动（方向待定） | Depth | 6 | 深度层开关 | — |
-| 消耗品经济重构：取消符文及伤害卷轴掉落，重新推导补偿形状 | Depth | 7 | 深度层开关 | `archive/specs/consumable-system.md` |
-| 法术实用性：Rage / Etherealize / Golem | Depth | 8 | — | `archive/specs/spell-system.md` |
-| 事实漂移机械校验脚本 | Infra | 9 | — | 无 |
+| Base 层未文档化改动补文档：抽象金币计数器、物品对比、两个 Lua 模块、stash / trigs / visual_store / autopickup 改动 | Base + Infra | 1 | — | 无 |
+| 腰带堆叠改背包堆叠 | Base | 2 | — | `archive/specs/2026-07-07-consumable-stacking-design.md` |
+| 未命中反馈：`to-hit` roll 失败时给玩家反馈 | Base | 3 | — | 无 |
+| timedemo 关闭阶段的 `heap-use-after-free`（`lua-5.4.7/src/lstring.c:247` 的 `luaS_new`，发生在 `LuaShutdown()` 之后） | Infra | 4 | — | 无 |
+| benchmark 目标无法链接：系统 `libbenchmark_main.a` 为 LTO 11.2，编译器 g++ 13.4 要求 13.1 | Infra | 5 | — | 无 |
+| 深度层开关实现 | Infra | 6 | — | 无 |
+| 深度层旗舰改动（方向待定） | Depth | 7 | 深度层开关 | — |
+| 消耗品经济重构：取消符文及伤害卷轴掉落，重新推导补偿形状 | Depth | 8 | 深度层开关 | `archive/specs/consumable-system.md` |
+| 法术实用性：Rage / Etherealize / Golem | Depth | 9 | — | `archive/specs/spell-system.md` |
+| 事实漂移机械校验脚本 | Infra | 10 | — | 无 |
 
-### 待修复的 10 项测试失败
+### 待修复的 10 项测试失败（已于 2026-07-27 全部修复）
 
-恢复测试构建后暴露 17 项失败，`bId` 修复治好 7 项，余下 10 项按根因分组：
+恢复测试构建后暴露 17 项失败。`bId` 修复治好 7 项，其余 10 项按根因分组修复如下，最终 629 项测试全部通过：
 
-| 根因 | 失败测试 | 说明 |
+| 根因 | 失败测试 | 处置 |
 |---|---|---|
-| 抽象金币计数器（commit `0171b2751`）改变了架构，测试仍编码旧期望 | `InvTest.CalculateGold`、`InvTest.GoldAutoPlace`、`Player.CreatePlayer` | `CalculateGold` 现在返回 `_pGold` 而非遍历 `InvList` 求和；`CreatePlrItems` 不再创建金币 `InvList` 条目。测试需改写为新架构 |
-| **空指针崩溃** | `QuestScriptTest.EmptyScriptDoesNotCrash`、`QuestScriptTest.ExistingLogicUnaffectedByEmptyScript` | `test/quest_script_test.cpp:40` 对空 vector 取引用。这是 runtime error 不是断言失败，严重度高于其余各项 |
-| 数据文件列不匹配 | `PackTest.UnPackItem_hellfire` | 报「`txtdata\spells\spelldat.tsv` 列不匹配」。已排除行尾成因（回退 CRLF 后仍失败），真实原因未定 |
-| spelldesc 覆盖缺口 | `SpelldatTest.AllLearnableSpellsHaveDescriptions` | 部分可学法术缺描述 |
-| 未归因 | `VisualStoreTest.SmithSell_Success`、`InventoryUITest.AutoPlaceBelt_Full`、`Timedemo.WarriorLevel1to2` | — |
+| 抽象金币计数器（commit `0171b2751`）改变了架构，测试仍编码旧期望 | `InvTest.CalculateGold`、`InvTest.GoldAutoPlace`、`Player.CreatePlayer`、`VisualStoreTest.SmithSell_Success` | 删除退化为恒等函数的 `CalculateGold` 及其自赋值调用点；其余测试改断言 `_pGold` 与「金币不占背包格」 |
+| 测试污染导致空指针崩溃 | `QuestScriptTest.EmptyScriptDoesNotCrash`、`QuestScriptTest.ExistingLogicUnaffectedByEmptyScript` | 两个测试索引 `QuestsData` 却从不加载它，只在跟随其他测试运行时才碰巧通过。改用 fixture 在 `SetUp` 加载 |
+| 腰底堆叠使 helper 的后置条件失效 | `InventoryUITest.AutoPlaceBelt_Full` | `FillBelt` 放 8 瓶相同药水却只占 2 格。改为循环至放置被拒并断言每格已占 |
+| 数据缺口 | `SpelldatTest.AllLearnableSpellsHaveDescriptions` | 18 个可学法术在 `assets/` 表中描述为空（文本只填进了 Hellfire 表）。从 Hellfire 表同步 |
+| 数据文件字段截断 | `PackTest.UnPackItem_hellfire` | Hellfire 法术表有 3 行只有 23 个字段而非 24，读取器越界。补齐制表符 |
+| **存档格式读写不对称（P0）** | `Timedemo.WarriorLevel1to2` | `SaveItem` 无条件追加 `_iStackCount`，`LoadItem` 只在标志为真时读，而主存档路径从不设置该标志。偏移累积导致 `LoadDroppedItems` 越界写。改为存入 `_iMinDex` 后的对齐填充字节，记录尺寸回到上游的 368/372，无需版本判别位，双向兼容 |
+| 设计性偏离 | `Timedemo.WarriorLevel1to2`（存档修复后） | 参考存档是上游产物，而抽象金币计数器改变了英雄状态表示。在三处数据损坏修复后重新生成参考存档 |
 
 时间线说明这是如何积累的：抽象金币计数器 2026-06-29 破坏一批，堆叠数网络同步 2026-07-07 引入 `bId` 覆写，测试构建 2026-07-11 才损坏。也就是说 `bId` bug 引入后有 4 天测试可跑但无人运行，之后构建损坏把全部失败一并隐藏。
 
@@ -615,7 +618,7 @@ ManaShield 魔法需求 = 25 — assets/txtdata/spells/spelldat.tsv:minIntellige
 | 验证项 | 方法 | 通过标准 |
 |---|---|---|
 | 测试构建可用 | 构建测试目标 | 编译通过 |
-| 全部测试通过 | 运行测试套件 | 通过 |
+| 全部测试通过 | 运行测试套件 | 通过。2026-07-27 达成：629 项全通过，0 失败 |
 | 行尾合规 | 检查 4 个文件是否含 CRLF | 4 个文件均为 CRLF |
 | 行尾噪声清除 | `git diff origin/master...HEAD --numstat` 对比 `-w` 版本 | 两者差值 < 100 行 |
 | 支柱单一真相来源 | 在 `docs/` 下 grep 支柱名称 | 只出现在本文档一处 |
@@ -662,3 +665,5 @@ ManaShield 魔法需求 = 25 — assets/txtdata/spells/spelldat.tsv:minIntellige
 | 21 | `pack.cpp` 的 `bId` 覆写为 P0 数据损坏，先于清理其余项修复；堆叠数存 `count-1` 以保持与上游存档逐字节兼容。执行中发现 `msg.cpp` 的 `TItem` 网络路径有同一 bug 的第二处，一并修复 | 已定 |
 | 22 | 恢复测试构建暴露 17 项既有失败。`bId` 修复治好 7 项，剩余 10 项记为独立立项，本次清理的门禁为「无新增失败」而非「全部通过」 | 已定 |
 | 23 | 通用红线 4 补上「验收标准是否全部通过」。清理时把 `skill-descriptions-v2` 标为「已实施」是错的——只核实了函数有生产调用者，未核实验收标准，而它的第一条要求（补全可学法术描述）在 `assets/` 表中有 18 项未做。红线原表述允许这种漏判 | 已定 |
+| 24 | 10 项既有失败全部修复，629 项测试零失败。执行中发现第三处 P0：`SaveItem` 无条件追加 `_iStackCount` 而 `LoadItem` 条件读取，主存档路径从不设置标志，导致单人存档读写损坏。改为存入已有的对齐填充字节，记录尺寸回到上游 368/372，双向兼容且无需版本判别位 | 已定 |
+| 25 | timedemo 参考存档重新生成，基准从「与上游一致」改为「与本分支一致」。抽象金币计数器改变了英雄状态表示，与上游对照已不可能；在三处数据损坏修复后重新生成，确定性经两次运行验证 | 已定 |
