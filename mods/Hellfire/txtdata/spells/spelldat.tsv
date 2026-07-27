@@ -14,10 +14,10 @@ Fireball	Fireball	CastFire	800	30	16	Fire,Targeted	8	7	48	Fireball	1	10	40	80	A 
 Guardian	Guardian	CastFire	1400	95	50	Fire,Targeted	9	8	61	Guardian	2	30	16	32	Summons a guardian that fires at nearby enemies.								
 ChainLightning	Chain Lightning	CastFire	1100	75	30	Lightning	8	7	54	ChainLightning	1	18	20	60	Strikes a target with lightning that chains to nearby enemies.								
 FlameWave	Flame Wave	CastFire	1000	65	35	Fire,Targeted	9	8	54	FlameWaveControl	3	20	20	40	Sends a wave of flame across the ground damaging all in its path.								
-DoomSerpents	Doom Serpents	CastFire	0	0	0	Lightning	-1	-1	0		0	0	40	80								
-BloodRitual	Blood Ritual	CastFire	0	0	0	Magic	-1	-1	0		0	0	40	80								
+DoomSerpents	Doom Serpents	CastFire	0	0	0	Lightning	-1	-1	0		0	0	40	80									
+BloodRitual	Blood Ritual	CastFire	0	0	0	Magic	-1	-1	0		0	0	40	80									
 Nova	Nova	CastLightning	2100	130	60	Magic	14	10	87	Nova	3	35	16	32	Emits a ring of flame in all directions, damaging nearby enemies.								
-Invisibility	Invisibility	CastFire	0	0	0	Magic	-1	-1	0		0	0	40	80								
+Invisibility	Invisibility	CastFire	0	0	0	Magic	-1	-1	0		0	0	40	80									
 Inferno	Inferno	CastFire	200	10	11	Fire,Targeted	3	2	20	InfernoControl	1	6	20	40	Breathes a continuous stream of fire at enemies.								
 Golem	Golem	CastFire	1800	110	100	Fire,Targeted	11	9	81	Golem	6	60	16	32	Summons a stone golem to fight for the caster.								
 Rage	Rage	CastHealing	0	0	15	Magic	-1	-1	0	Rage	1	1	0	0	Increases the Barbarian's attack speed and damage for a short time.								

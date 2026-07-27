@@ -621,6 +621,7 @@ TEST_F(VisualStoreTest, SmithSell_Success)
 
 	Item sword = MakeSellableSword();
 	const int numInvBefore = MyPlayer->_pNumInv;
+	const int goldBefore = MyPlayer->_pGold;
 	int invIdx = PlaceItemInInventory(sword);
 	ASSERT_GE(invIdx, 0);
 
@@ -628,22 +629,19 @@ TEST_F(VisualStoreTest, SmithSell_Success)
 
 	SellItemToVisualStore(invIdx);
 
-	// The sword should have been removed from the inventory.
-	// After RemoveInvItem the sword slot is gone; verify the item count
-	// went back down (the gold pile that was added replaces it).
-	EXPECT_EQ(MyPlayer->_pNumInv, numInvBefore + 1)
-	    << "Inventory should contain the new gold pile (sword removed, gold added)";
+	// Gold became an abstract counter in 0171b2751, so the proceeds go to
+	// Player::_pGold and the sword's slot is simply freed. The inventory count
+	// therefore returns to what it was before the sword was placed.
+	EXPECT_EQ(MyPlayer->_pNumInv, numInvBefore)
+	    << "The sword should be gone and no gold pile should take its place";
 
-	// Verify gold was physically placed in inventory by summing gold piles.
-	// Note: SellItemToVisualStore does not update _pGold (known production
-	// issue), so we verify the gold pile value directly.
-	int totalGoldInInventory = 0;
+	EXPECT_EQ(MyPlayer->_pGold, goldBefore + expectedSellPrice)
+	    << "The sale proceeds should be added to the gold counter";
+
 	for (int i = 0; i < MyPlayer->_pNumInv; i++) {
-		if (MyPlayer->InvList[i]._itype == ItemType::Gold)
-			totalGoldInInventory += MyPlayer->InvList[i]._ivalue;
+		EXPECT_NE(MyPlayer->InvList[i]._itype, ItemType::Gold)
+		    << "Gold must not occupy an inventory slot, found one at index " << i;
 	}
-	EXPECT_EQ(totalGoldInInventory, expectedSellPrice)
-	    << "Gold piles in inventory should equal the sell price";
 }
 
 TEST_F(VisualStoreTest, WitchSell_AcceptsStaff)
