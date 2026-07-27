@@ -79,13 +79,28 @@ protected:
 		}
 	}
 
-	/** @brief Fill all 8 belt slots with healing potions. */
+	/**
+	 * @brief Fill the belt until it cannot accept another healing potion.
+	 *
+	 * With stacking this takes more than eight potions: identical consumables
+	 * share a slot up to GetMaxStackCount, so the belt is only full once all
+	 * eight slots are occupied and each has reached its stack limit. Loops
+	 * until placement is refused rather than assuming a potion count, so the
+	 * postcondition survives changes to the stack limit.
+	 */
 	void FillBelt()
 	{
-		for (int i = 0; i < MaxBeltItems; i++) {
+		constexpr int SafetyCap = MaxBeltItems * 64;
+		int placed = 0;
+		for (; placed < SafetyCap; placed++) {
 			Item potion = MakePotion();
-			ASSERT_TRUE(AutoPlaceItemInBelt(*MyPlayer, potion, /*persistItem=*/true))
-			    << "Failed to place potion in belt slot " << i;
+			if (!AutoPlaceItemInBelt(*MyPlayer, potion, /*persistItem=*/true))
+				break;
+		}
+		ASSERT_LT(placed, SafetyCap) << "belt never reported itself full";
+		for (int i = 0; i < MaxBeltItems; i++) {
+			ASSERT_FALSE(MyPlayer->SpdList[i].isEmpty())
+			    << "belt slot " << i << " was left empty";
 		}
 	}
 };
@@ -252,7 +267,7 @@ TEST_F(InventoryUITest, AutoPlaceBelt_Full)
 	bool placed = AutoPlaceItemInBelt(*MyPlayer, extraPotion, /*persistItem=*/true);
 
 	EXPECT_FALSE(placed)
-	    << "Should not be able to place a potion when all 8 belt slots are occupied";
+	    << "Should not be able to place a potion once all 8 belt slots are occupied and at their stack limit";
 }
 
 // ===========================================================================
