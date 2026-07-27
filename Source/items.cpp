@@ -1629,12 +1629,14 @@ void ItemDoppel()
 
 void AddItemInfoBoxString(const std::string_view str)
 {
-	AddInfoBoxString(str, true);
+	const bool floatingInfoBoxEnabled = *GetOptions().Gameplay.floatingInfoBox;
+	AddInfoBoxString(str, floatingInfoBoxEnabled);
 }
 
 void AddItemInfoBoxString(std::string &&str)
 {
-	AddInfoBoxString(std::move(str), true);
+	const bool floatingInfoBoxEnabled = *GetOptions().Gameplay.floatingInfoBox;
+	AddInfoBoxString(std::move(str), floatingInfoBoxEnabled);
 }
 
 void PrintItemOil(char iDidx)
