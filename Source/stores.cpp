@@ -2889,19 +2889,4 @@ bool WitchWillBuy(const Item &item)
 	return rv;
 }
 
-bool DoesAdriaOfferSpellChoice()
-{
-	return Quests[Q_MUSHROOM]._qactive == QUEST_DONE;
-}
-
-bool DoesPepinGiveRegenerationPotion()
-{
-	return Quests[Q_PWATER]._qactive == QUEST_DONE;
-}
-
-bool DoesGriswoldOfferCustomWeapon()
-{
-	return Quests[Q_ANVIL]._qactive == QUEST_DONE;
-}
-
 } // namespace devilution

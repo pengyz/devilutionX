@@ -55,7 +55,6 @@ set(tests
   spell_ux_test
   consumable_stack_test
   room_decoration_test
-  quest_reward_test
 )
 set(standalone_tests
   codec_test
