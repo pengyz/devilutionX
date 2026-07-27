@@ -550,7 +550,7 @@ ManaShield 魔法需求 = 25 — assets/txtdata/spells/spelldat.tsv:minIntellige
 
 ## 9. 本次范围与待立项清单
 
-### 本次范围
+### 本次范围（已于 2026-07-27 执行完毕，见 `plans/2026-07-27-charter-cleanup.md`）
 
 按执行顺序：
 
@@ -568,20 +568,37 @@ ManaShield 魔法需求 = 25 — assets/txtdata/spells/spelldat.tsv:minIntellige
 
 以下均为改造而非撤销，各自独立立项：深度层开关实现、腰带堆叠改背包堆叠、Base 层未文档化改动的补文档、三篇 designs 的内容重写。
 
-本次执行完毕后，Base 层的承诺为真：**平衡完全等于原版，只是摩擦更少。** 光照压制已撤销，唯一残留的偏差是腰带堆叠，它在待立项清单优先级 2。
+本次执行完毕后，Base 层的承诺为真：**平衡完全等于原版，只是摩擦更少。** 光照压制已撤销（`lighting.cpp` 与 `lighting.h` 逐字节等同上游），金币掉落计算等同上游，堆叠上限不再因职业而异。唯一残留的平衡偏差是腰带堆叠容量，它在待立项清单优先级 3。
+
+执行中额外修复了两处未在原范围内的 P0 数据损坏（`pack.cpp` 与 `msg.cpp` 的 `bId` 覆写），见决策 21。
 
 ### 待立项清单
 
 | 待立项 | 分类 | 优先级 | 依赖 | 参考文件 |
 |---|---|---|---|---|
-| Base 层未文档化改动补文档：抽象金币计数器、物品对比、两个 Lua 模块、stash / trigs / visual_store / autopickup 改动 | Base + Infra | 1 | — | 无 |
-| 腰带堆叠改背包堆叠 | Base | 2 | — | `archive/specs/2026-07-07-consumable-stacking-design.md` |
-| 未命中反馈：`to-hit` roll 失败时给玩家反馈 | Base | 3 | — | 无 |
-| 深度层开关实现 | Infra | 4 | — | 无 |
-| 深度层旗舰改动（方向待定） | Depth | 5 | 深度层开关 | — |
-| 消耗品经济重构：取消符文及伤害卷轴掉落，重新推导补偿形状 | Depth | 6 | 深度层开关 | `archive/specs/consumable-system.md` |
-| 法术实用性：Rage / Etherealize / Golem | Depth | 7 | — | `archive/specs/spell-system.md` |
-| 事实漂移机械校验脚本 | Infra | 8 | — | 无 |
+| **修复 10 项既有测试失败**（详见下方清单） | Base | 1 | — | 无 |
+| Base 层未文档化改动补文档：抽象金币计数器、物品对比、两个 Lua 模块、stash / trigs / visual_store / autopickup 改动 | Base + Infra | 2 | — | 无 |
+| 腰带堆叠改背包堆叠 | Base | 3 | — | `archive/specs/2026-07-07-consumable-stacking-design.md` |
+| 未命中反馈：`to-hit` roll 失败时给玩家反馈 | Base | 4 | — | 无 |
+| 深度层开关实现 | Infra | 5 | — | 无 |
+| 深度层旗舰改动（方向待定） | Depth | 6 | 深度层开关 | — |
+| 消耗品经济重构：取消符文及伤害卷轴掉落，重新推导补偿形状 | Depth | 7 | 深度层开关 | `archive/specs/consumable-system.md` |
+| 法术实用性：Rage / Etherealize / Golem | Depth | 8 | — | `archive/specs/spell-system.md` |
+| 事实漂移机械校验脚本 | Infra | 9 | — | 无 |
+
+### 待修复的 10 项测试失败
+
+恢复测试构建后暴露 17 项失败，`bId` 修复治好 7 项，余下 10 项按根因分组：
+
+| 根因 | 失败测试 | 说明 |
+|---|---|---|
+| 抽象金币计数器（commit `0171b2751`）改变了架构，测试仍编码旧期望 | `InvTest.CalculateGold`、`InvTest.GoldAutoPlace`、`Player.CreatePlayer` | `CalculateGold` 现在返回 `_pGold` 而非遍历 `InvList` 求和；`CreatePlrItems` 不再创建金币 `InvList` 条目。测试需改写为新架构 |
+| **空指针崩溃** | `QuestScriptTest.EmptyScriptDoesNotCrash`、`QuestScriptTest.ExistingLogicUnaffectedByEmptyScript` | `test/quest_script_test.cpp:40` 对空 vector 取引用。这是 runtime error 不是断言失败，严重度高于其余各项 |
+| 数据文件列不匹配 | `PackTest.UnPackItem_hellfire` | 报「`txtdata\spells\spelldat.tsv` 列不匹配」。已排除行尾成因（回退 CRLF 后仍失败），真实原因未定 |
+| spelldesc 覆盖缺口 | `SpelldatTest.AllLearnableSpellsHaveDescriptions` | 部分可学法术缺描述 |
+| 未归因 | `VisualStoreTest.SmithSell_Success`、`InventoryUITest.AutoPlaceBelt_Full`、`Timedemo.WarriorLevel1to2` | — |
+
+时间线说明这是如何积累的：抽象金币计数器 2026-06-29 破坏一批，堆叠数网络同步 2026-07-07 引入 `bId` 覆写，测试构建 2026-07-11 才损坏。也就是说 `bId` bug 引入后有 4 天测试可跑但无人运行，之后构建损坏把全部失败一并隐藏。
 
 「未命中反馈」是现代玩家可接受度问题里唯一不与 D1 独特性冲突的一项：隐藏的 to-hit roll 加零反馈属于错误设计（本意是让命中属性有价值，但玩家收不到反馈就无法建立联系）。修它不改变任何数值，属 Base，且符合 B1——「我为什么打不中」是玩家无法通过游戏内行动知道的事。
 
@@ -642,5 +659,5 @@ ManaShield 魔法需求 = 25 — assets/txtdata/spells/spelldat.tsv:minIntellige
 | 18 | 测试构建修复与行尾回退排在本次范围最前 | 已定 |
 | 19 | `better-d1/designs/quest-system.md` 删除（初版裁决表遗漏，执行中发现） | 已定 |
 | 20 | 行尾污染实际为 6 个文件，非 4 个：初版只扫了 `Source/`，遗漏 `assets/txtdata/classes/classdat.tsv` 与 `mods/Hellfire/txtdata/spells/spelldat.tsv` | 已定 |
-| 21 | `pack.cpp` 的 `bId` 覆写为 P0 数据损坏，先于清理其余项修复；堆叠数存 `count-1` 以保持与上游存档逐字节兼容 | 已定 |
+| 21 | `pack.cpp` 的 `bId` 覆写为 P0 数据损坏，先于清理其余项修复；堆叠数存 `count-1` 以保持与上游存档逐字节兼容。执行中发现 `msg.cpp` 的 `TItem` 网络路径有同一 bug 的第二处，一并修复 | 已定 |
 | 22 | 恢复测试构建暴露 17 项既有失败。`bId` 修复治好 7 项，剩余 10 项记为独立立项，本次清理的门禁为「无新增失败」而非「全部通过」 | 已定 |
