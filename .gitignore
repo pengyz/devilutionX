@@ -473,3 +473,12 @@ uwp-project/Assets/ui_art
 /tools/tmp
 
 .omo/
+
+# Output of the asset tools (tools/cel2png, tools/png2clx, tools/assemble_png.py)
+# when run from the repository root. Root-anchored so real assets under
+# assets/ and mods/ are unaffected.
+/*.pal
+/*.cel
+/*.clx
+/*.raw
+/*.png
