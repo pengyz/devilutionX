@@ -101,10 +101,16 @@ TEST(Player, PM_DoGotHit)
 static void AssertPlayer(devilution::Player &player)
 {
 	ASSERT_EQ(CountU8(player._pSplLvl, 64), 0);
-	ASSERT_EQ(Count8(player.InvGrid, InventoryGridCells), 1);
+	// Gold became an abstract counter in 0171b2751, so the starting gold no
+	// longer occupies a grid cell or an InvList entry. It is asserted via
+	// _pGold below instead.
+	ASSERT_EQ(Count8(player.InvGrid, InventoryGridCells), 0);
 	ASSERT_EQ(CountItems(player.InvBody, NUM_INVLOC), 1);
-	ASSERT_EQ(CountItems(player.InvList, InventoryGridCells), 1);
-	ASSERT_EQ(CountItems(player.SpdList, MaxBeltItems), 2);
+	ASSERT_EQ(CountItems(player.InvList, InventoryGridCells), 0);
+	// The rogue starts with two IDI_HEAL potions. Asserting the potion count
+	// rather than the occupied slot count keeps this independent of whether
+	// identical consumables share a slot.
+	ASSERT_EQ(CountItemsWithStacks(player.SpdList, MaxBeltItems), 2);
 	ASSERT_EQ(CountItems(&player.HoldItem, 1), 0);
 
 	ASSERT_EQ(player.position.tile.x, 0);
@@ -133,7 +139,8 @@ static void AssertPlayer(devilution::Player &player)
 	ASSERT_EQ(player._pMaxManaBase, 1440);
 	ASSERT_EQ(player._pManaBase, 1440);
 	ASSERT_EQ(player._pMemSpells, 0);
-	ASSERT_EQ(player._pNumInv, 1);
+	// Zero, not one: the starting gold no longer occupies an inventory slot.
+	ASSERT_EQ(player._pNumInv, 0);
 	ASSERT_EQ(player.wReflections, 0);
 	ASSERT_EQ(player.pTownWarps, 0);
 	ASSERT_EQ(player.pDungMsgs, 0);

@@ -130,46 +130,44 @@ TEST_F(InvTest, UseScroll_from_belt_invalid_conditions)
 	EXPECT_FALSE(CanUseScroll(*MyPlayer, SpellID::Firebolt));
 }
 
-// Test gold calculation
-TEST_F(InvTest, CalculateGold)
-{
-	MyPlayer->_pNumInv = 10;
-	// Set up 4 slots of gold in the inventory
-	MyPlayer->InvList[1]._itype = ItemType::Gold;
-	MyPlayer->InvList[5]._itype = ItemType::Gold;
-	MyPlayer->InvList[2]._itype = ItemType::Gold;
-	MyPlayer->InvList[3]._itype = ItemType::Gold;
-	// Set the gold amount to arbitrary values
-	MyPlayer->InvList[1]._ivalue = 100;
-	MyPlayer->InvList[5]._ivalue = 200;
-	MyPlayer->InvList[2]._ivalue = 3;
-	MyPlayer->InvList[3]._ivalue = 30;
-
-	EXPECT_EQ(CalculateGold(*MyPlayer), 333);
-}
-
-// Test automatic gold placing
+// Gold became an abstract counter in 0171b2751: it no longer occupies inventory
+// slots, so picking it up adds to Player::_pGold and consumes the held stack.
 TEST_F(InvTest, GoldAutoPlace)
 {
 	SNetInitializeProvider(SELCONN_LOOPBACK, nullptr);
 
-	// Empty the inventory
 	clear_inventory();
+	MyPlayer->_pGold = 1000;
 
-	// Put gold into the inventory:
-	// | 1000 | ... | ...
-	MyPlayer->InvList[0]._itype = ItemType::Gold;
-	MyPlayer->InvList[0]._ivalue = 1000;
-	MyPlayer->_pNumInv = 1;
-	// Put (max gold - 100) gold, which is 4900, into the player's hand
+	MyPlayer->HoldItem = {};
 	MyPlayer->HoldItem._itype = ItemType::Gold;
 	MyPlayer->HoldItem._ivalue = GOLD_MAX_LIMIT - 100;
 
-	GoldAutoPlace(*MyPlayer, MyPlayer->HoldItem);
-	// We expect the inventory:
-	// | 5000 | 900 | ...
-	EXPECT_EQ(MyPlayer->InvList[0]._ivalue, GOLD_MAX_LIMIT);
-	EXPECT_EQ(MyPlayer->InvList[1]._ivalue, 900);
+	EXPECT_TRUE(GoldAutoPlace(*MyPlayer, MyPlayer->HoldItem));
+
+	EXPECT_EQ(MyPlayer->_pGold, 1000 + GOLD_MAX_LIMIT - 100);
+	EXPECT_EQ(MyPlayer->HoldItem._ivalue, 0) << "the held stack must be consumed";
+	EXPECT_EQ(MyPlayer->_pNumInv, 0) << "gold must not occupy an inventory slot";
+}
+
+// The counter has no per-stack ceiling, so a pickup that would have needed two
+// inventory stacks under the old scheme is absorbed whole.
+TEST_F(InvTest, GoldAutoPlaceExceedsOldPerStackLimit)
+{
+	SNetInitializeProvider(SELCONN_LOOPBACK, nullptr);
+
+	clear_inventory();
+	MyPlayer->_pGold = GOLD_MAX_LIMIT;
+
+	MyPlayer->HoldItem = {};
+	MyPlayer->HoldItem._itype = ItemType::Gold;
+	MyPlayer->HoldItem._ivalue = GOLD_MAX_LIMIT;
+
+	EXPECT_TRUE(GoldAutoPlace(*MyPlayer, MyPlayer->HoldItem));
+
+	EXPECT_EQ(MyPlayer->_pGold, 2 * GOLD_MAX_LIMIT);
+	EXPECT_EQ(MyPlayer->HoldItem._ivalue, 0);
+	EXPECT_EQ(MyPlayer->_pNumInv, 0);
 }
 
 // Test removing an item from inventory with no other items.

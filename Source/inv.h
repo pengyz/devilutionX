@@ -242,7 +242,6 @@ bool CanUseStaff(Player &player, SpellID spellId);
 Item &GetInventoryItem(Player &player, int location);
 bool UseInvItem(int cii);
 void DoTelekinesis();
-int CalculateGold(Player &player);
 
 /**
  * @brief Gets the size, in inventory cells, of the given item.

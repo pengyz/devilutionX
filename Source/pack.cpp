@@ -588,7 +588,6 @@ bool UnPackNetPlayer(const PlayerNetPack &packed, Player &player)
 	}
 
 	CalcPlrInv(player, false);
-	player._pGold = CalculateGold(player);
 
 	ValidateFields(player._pStrength, SwapSigned32LE(packed.pStrength), player._pStrength == SwapSigned32LE(packed.pStrength));
 	ValidateFields(player._pMagic, SwapSigned32LE(packed.pMagic), player._pMagic == SwapSigned32LE(packed.pMagic));

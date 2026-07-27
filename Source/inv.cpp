@@ -2337,11 +2337,6 @@ void DoTelekinesis()
 	NewCursor(CURSOR_HAND);
 }
 
-int CalculateGold(Player &player)
-{
-	return player._pGold;
-}
-
 Size GetInventorySize(const Item &item)
 {
 	const Size size = GetInvItemSize(item._iCurs + CURSOR_FIRSTITEM);
