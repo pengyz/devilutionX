@@ -53,7 +53,6 @@ set(tests
   char_panel_test
   game_menu_test
   stack_limit_test
-  gold_drop_test
   spell_ux_test
   light_suppression_test
   monster_activation_test

@@ -3174,9 +3174,6 @@ void GetItemAttrs(Item &item, _item_indexes itemData, int lvl)
 	if (leveltype == DTYPE_HELL)
 		rndv += rndv / 8;
 
-	// Better D1: Increase gold drop rate by 25% to compensate for reduced consumable drops
-	rndv = rndv * 5 / 4;
-
 	item._ivalue = std::min(rndv, GOLD_MAX_LIMIT);
 	SetPlrHandGoldCurs(item);
 }
