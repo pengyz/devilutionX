@@ -48,6 +48,7 @@
 #include "options.h"
 #include "player.h"
 #include "qol/autopickup.h"
+#include "qol/floatingnumbers.h"
 #include "qol/stash.h"
 #include "spells.h"
 #include "stores.h"
@@ -554,7 +555,15 @@ bool PlrHitMonst(Player &player, Monster &monster, bool adjacentDamage = false)
 #ifdef _DEBUG
 		if (!DebugGodMode)
 #endif
+		{
+			// The to-hit roll is hidden and its failure was previously silent, so a
+			// player had no way to connect "my attack did nothing" with "my to-hit
+			// is too low". Charter pillar B1: an unknown no in-game action can
+			// resolve is noise, not design.
+			AddFloatingNumber(monster.position.tile, { 0, 0 }, std::string { _("Miss") },
+			    UiFlags::ColorUiSilver);
 			return false;
+		}
 	}
 
 	if (gbIsHellfire && HasAllOf(player._pIFlags, ItemSpecialEffect::FireDamage | ItemSpecialEffect::LightningDamage)) {

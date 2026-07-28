@@ -65,7 +65,9 @@
 #include "levels/trigs.h"
 #include "lighting.h"
 #include "monster.h"
+#include "qol/floatingnumbers.h"
 #include "utils/is_of.hpp"
+#include "utils/language.h"
 #include "utils/str_cat.hpp"
 
 namespace devilution {
@@ -307,7 +309,13 @@ bool MonsterMHit(const Player &player, Monster &monster, int mindam, int maxdam,
 #ifdef _DEBUG
 		if (!DebugGodMode)
 #endif
+		{
+			// Same reasoning as the melee branch in PlrHitMonst: a silent miss
+			// leaves the player unable to connect the outcome with their to-hit.
+			AddFloatingNumber(monster.position.tile, { 0, 0 }, std::string { _("Miss") },
+			    UiFlags::ColorUiSilver);
 			return false;
+		}
 	}
 
 	int dam;

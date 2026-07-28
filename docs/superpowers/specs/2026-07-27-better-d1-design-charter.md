@@ -580,13 +580,14 @@ ManaShield 魔法需求 = 25 — assets/txtdata/spells/spelldat.tsv:minIntellige
 
 | 待立项 | 分类 | 优先级 | 依赖 | 参考文件 |
 |---|---|---|---|---|
-| 未命中反馈：`to-hit` roll 失败时给玩家反馈 | Base | 1 | — | 无 |
-| 深度层旗舰改动（方向待定）——**唯一决定本项目是否有意义的开放问题** | Depth | 2 | 深度层开关 | — |
-| 深度层开关实现 | Infra | 3 | — | 无 |
-| 消耗品经济重构：取消符文及伤害卷轴掉落，重新推导补偿形状，**并一并裁决消耗品堆叠的最终形态**（见决策 26） | Depth | 4 | 深度层开关 | `archive/specs/consumable-system.md`、`archive/specs/2026-07-07-consumable-stacking-design.md` |
-| 法术实用性：Rage / Etherealize / Golem | Depth | 5 | — | `archive/specs/spell-system.md` |
+| 深度层旗舰改动（方向待定）——**唯一决定本项目是否有意义的开放问题** | Depth | 1 | 深度层开关 | — |
+| 深度层开关实现 | Infra | 2 | — | 无 |
+| 消耗品经济重构：取消符文及伤害卷轴掉落，重新推导补偿形状，**并一并裁决消耗品堆叠的最终形态**（见决策 26） | Depth | 3 | 深度层开关 | `archive/specs/consumable-system.md`、`archive/specs/2026-07-07-consumable-stacking-design.md` |
+| 法术实用性：Rage / Etherealize / Golem | Depth | 4 | — | `archive/specs/spell-system.md` |
 
 事实漂移机械校验脚本已于 2026-07-28 实施，见 `2026-07-28-drift-check-design.md`。运行 `python3 tools/check_drift.py`，退出码 0 表示五项检查全部通过。
+
+未命中反馈已于 2026-07-28 实施，见 `2026-07-28-miss-feedback-design.md`。七项验收标准全部通过；并用临时探针在 timedemo 中实证近战分支触发 12 次，同时由 timedemo 的存档比对证明该调用不扰动游戏状态。
 
 Base 层已实施改动的补记已于 2026-07-28 完成，见 `implemented-features.md`。该文档为事后补记而非设计规格，不适用第 4 节的 7 段结构，也不声称通过红线检查——这些改动当初就没有过红线，用今天的标准追认只会产出禁令 5 禁止的那种表。
 
