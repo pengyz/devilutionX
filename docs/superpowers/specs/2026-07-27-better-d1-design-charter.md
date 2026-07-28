@@ -580,7 +580,7 @@ ManaShield 魔法需求 = 25 — assets/txtdata/spells/spelldat.tsv:minIntellige
 
 | 待立项 | 分类 | 优先级 | 依赖 | 参考文件 |
 |---|---|---|---|---|
-| Base 层未文档化改动补文档：抽象金币计数器、物品对比、两个 Lua 模块、stash / trigs / visual_store / autopickup 改动 | Base + Infra | 1 | — | 无 |
+| Base 层未文档化改动补文档：抽象金币计数器、物品对比、两个 Lua 模块、stash / trigs / visual_store / autopickup 改动。**顺带核实 `visual_store` 的分页功能**——`VisualStoreNextPage` / `VisualStorePreviousPage` 无生产调用者，对应的两个 `VisualStoreTest.Pagination_*` 在 ctest 中长期 Skipped，需确认是上游未接入还是我方改动导致 | Base + Infra | 1 | — | 无 |
 | 未命中反馈：`to-hit` roll 失败时给玩家反馈 | Base | 2 | — | 无 |
 | timedemo 关闭阶段的 `heap-use-after-free`（`lua-5.4.7/src/lstring.c:247` 的 `luaS_new`，发生在 `LuaShutdown()` 之后） | Infra | 3 | — | 无 |
 | benchmark 目标无法链接：系统 `libbenchmark_main.a` 为 LTO 11.2，编译器 g++ 13.4 要求 13.1 | Infra | 4 | — | 无 |
@@ -588,7 +588,8 @@ ManaShield 魔法需求 = 25 — assets/txtdata/spells/spelldat.tsv:minIntellige
 | 深度层旗舰改动（方向待定） | Depth | 6 | 深度层开关 | — |
 | 消耗品经济重构：取消符文及伤害卷轴掉落，重新推导补偿形状，**并一并裁决消耗品堆叠的最终形态**（见决策 26） | Depth | 7 | 深度层开关 | `archive/specs/consumable-system.md`、`archive/specs/2026-07-07-consumable-stacking-design.md` |
 | 法术实用性：Rage / Etherealize / Golem | Depth | 8 | — | `archive/specs/spell-system.md` |
-| 事实漂移机械校验脚本 | Infra | 9 | — | 无 |
+
+事实漂移机械校验脚本已于 2026-07-28 实施，见 `2026-07-28-drift-check-design.md`。运行 `python3 tools/check_drift.py`，退出码 0 表示五项检查全部通过。
 
 ### 待修复的 10 项测试失败（已于 2026-07-27 全部修复）
 
@@ -671,3 +672,4 @@ ManaShield 魔法需求 = 25 — assets/txtdata/spells/spelldat.tsv:minIntellige
 | 24 | 10 项既有失败全部修复，629 项测试零失败。执行中发现第三处 P0：`SaveItem` 无条件追加 `_iStackCount` 而 `LoadItem` 条件读取，主存档路径从不设置标志，导致单人存档读写损坏。改为存入已有的对齐填充字节，记录尺寸回到上游 368/372，双向兼容且无需版本判别位 | 已定 |
 | 25 | timedemo 参考存档重新生成，基准从「与上游一致」改为「与本分支一致」。抽象金币计数器改变了英雄状态表示，与上游对照已不可能；在三处数据损坏修复后重新生成，确定性经两次运行验证 | 已定 |
 | 26 | 决策 10 撤销。消耗品堆叠原样保留，不改背包堆叠、不移除。背包堆叠需与消耗品经济重构一并设计——那项工作才会确定「玩家应该能带多少补给」，在此之前单独放宽背包容量是在与它反方向拉。执行中另发现：删除腰带堆叠会使整套 `_iStackCount` 基础设施成为死代码（唯一两个生产者都在腰带侧），连带需删 20 个测试并把三处持久化回退到上游编码，代价与收益不成比例 | 已定 |
+| 27 | 事实漂移机械校验脚本实施（`tools/check_drift.py`，五项检查）。实测确认「靠自觉遵守规范」不成立：脚本首次运行即抓出五个人工核查两遍仍遗漏的文件。检查 C 的判据从「符合 `.editorconfig`」改为「相对基线未改变」——上游自身不完全符合该配置，故禁令 7 的措辞「不改变文件行尾」才是唯一可执行的形式 | 已定 |
