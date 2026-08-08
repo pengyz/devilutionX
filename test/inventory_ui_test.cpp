@@ -69,14 +69,19 @@ protected:
 	 * @brief Fill the entire inventory grid with 1×1 healing potions.
 	 *
 	 * After this call every one of the 40 inventory cells is occupied.
+	 * Items are set directly (not via AutoPlace) so backpack stacking does
+	 * not merge them and the grid is genuinely full.
 	 */
 	void FillInventory()
 	{
+		// Fill every grid cell directly; mark InvGrid so FindSlotForItem
+		// sees the grid as full (backpack stacking must not merge these).
 		for (int i = 0; i < InventoryGridCells; i++) {
-			Item potion = MakePotion();
-			ASSERT_TRUE(AutoPlaceItemInInventory(*MyPlayer, potion))
-			    << "Failed to place potion at cell " << i;
+			Item sword = MakeSword();
+			MyPlayer->InvList[i] = sword;
+			MyPlayer->InvGrid[i] = i + 1;
 		}
+		MyPlayer->_pNumInv = InventoryGridCells;
 	}
 
 	/**
@@ -295,14 +300,15 @@ TEST_F(InventoryUITest, RemoveEquipment_ClearsBodySlot)
 
 TEST_F(InventoryUITest, ReorganizeInventory_DefragmentsGrid)
 {
-	// Place three potions via AutoPlace so the grid is properly populated.
-	Item p1 = MakePotion();
-	Item p2 = MakePotion();
-	Item p3 = MakePotion();
+	// Place three swords via AutoPlace so the grid is properly populated.
+	// Swords don't stack (unlike potions), so each occupies its own cell.
+	Item s1 = MakeSword();
+	Item s2 = MakeSword();
+	Item s3 = MakeSword();
 
-	ASSERT_TRUE(AutoPlaceItemInInventory(*MyPlayer, p1));
-	ASSERT_TRUE(AutoPlaceItemInInventory(*MyPlayer, p2));
-	ASSERT_TRUE(AutoPlaceItemInInventory(*MyPlayer, p3));
+	ASSERT_TRUE(AutoPlaceItemInInventory(*MyPlayer, s1));
+	ASSERT_TRUE(AutoPlaceItemInInventory(*MyPlayer, s2));
+	ASSERT_TRUE(AutoPlaceItemInInventory(*MyPlayer, s3));
 	ASSERT_EQ(MyPlayer->_pNumInv, 3);
 
 	// Remove the middle item to create a gap.
@@ -315,8 +321,8 @@ TEST_F(InventoryUITest, ReorganizeInventory_DefragmentsGrid)
 	EXPECT_EQ(MyPlayer->_pNumInv, 2)
 	    << "Item count should be preserved after reorganization";
 
-	// After reorganization, a potion should still fit (there are 38 free cells).
-	Item extra = MakePotion();
+	// After reorganization, a sword should still fit (38 free cells).
+	Item extra = MakeSword();
 	EXPECT_TRUE(CanFitItemInInventory(*MyPlayer, extra))
 	    << "Should be able to fit another item after reorganization";
 
@@ -370,5 +376,62 @@ TEST_F(InventoryUITest, TransferToStash_InvalidLocation)
 	    << "Inventory should be unchanged after invalid transfer";
 }
 
+
+
+// ===========================================================================
+// Backpack stacking tests (consumable economy: Base, unconditional)
+// ===========================================================================
+
+TEST_F(InventoryUITest, BackpackPotionsStack)
+{
+	// Same-type potions merge into one cell instead of consuming two.
+	Item p1 = MakePotion();
+	Item p2 = MakePotion();
+
+	ASSERT_TRUE(AutoPlaceItemInInventory(*MyPlayer, p1));
+	ASSERT_TRUE(AutoPlaceItemInInventory(*MyPlayer, p2));
+	EXPECT_EQ(MyPlayer->_pNumInv, 1); // merged, not two cells
+	EXPECT_EQ(MyPlayer->InvList[0]._iStackCount, 2);
+}
+
+TEST_F(InventoryUITest, BackpackStackRespectsMaxCount)
+{
+	// Potions cap at 5 per stack; the 6th opens a new cell.
+	Item p = MakePotion();
+
+	for (int i = 0; i < 5; i++)
+		ASSERT_TRUE(AutoPlaceItemInInventory(*MyPlayer, p));
+	EXPECT_EQ(MyPlayer->_pNumInv, 1);
+	EXPECT_EQ(MyPlayer->InvList[0]._iStackCount, 5);
+
+	ASSERT_TRUE(AutoPlaceItemInInventory(*MyPlayer, p));
+	EXPECT_EQ(MyPlayer->_pNumInv, 2); // second cell
+}
+
+TEST_F(InventoryUITest, DifferentPotionTypesDontMerge)
+{
+	Item heal = MakePotion();
+	Item mana = MakePotion();
+	mana._iMiscId = IMISC_MANA;
+	mana.IDidx = IDI_MANA;
+
+	ASSERT_TRUE(AutoPlaceItemInInventory(*MyPlayer, heal));
+	ASSERT_TRUE(AutoPlaceItemInInventory(*MyPlayer, mana));
+	EXPECT_EQ(MyPlayer->_pNumInv, 2); // different types, separate cells
+}
+
+TEST_F(InventoryUITest, BeltDoesNotStack)
+{
+	// Belt holds one item per slot (vanilla 8x1, no stacking).
+	Item p = MakePotion();
+
+	ASSERT_TRUE(AutoPlaceItemInBelt(*MyPlayer, p, true, false));
+	ASSERT_TRUE(AutoPlaceItemInBelt(*MyPlayer, p, true, false));
+	int occupied = 0;
+	for (const Item &slot : MyPlayer->SpdList)
+		if (!slot.isEmpty())
+			occupied++;
+	EXPECT_EQ(occupied, 2); // two separate belt slots, not stacked
+}
 } // namespace
 } // namespace devilution

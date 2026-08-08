@@ -495,13 +495,6 @@ void ChangeBeltItem(Player &player, int slot)
 	const int ii = slot - SLOTXY_BELT_FIRST;
 	if (player.SpdList[ii].isEmpty()) {
 		player.SpdList[ii] = player.HoldItem.pop();
-	} else if (CanStackItem(player.HoldItem)
-	    && !player.SpdList[ii].isEmpty()
-	    && player.SpdList[ii].IDidx == player.HoldItem.IDidx
-	    && player.SpdList[ii]._iStackCount < GetMaxStackCount(player.SpdList[ii], player)) {
-		// Stack into existing belt item
-		player.SpdList[ii]._iStackCount++;
-		player.HoldItem.pop(); // Remove held item
 	} else {
 		std::swap(player.SpdList[ii], player.HoldItem);
 	}
@@ -1342,28 +1335,7 @@ bool AutoPlaceItemInBelt(Player &player, const Item &item, bool persistItem, boo
 		return false;
 	}
 
-	// Try to stack into an existing belt item
-	if (CanStackItem(item)) {
-		for (Item &beltItem : player.SpdList) {
-			if (!beltItem.isEmpty() && beltItem.IDidx == item.IDidx) {
-				int maxStack = GetMaxStackCount(beltItem, player);
-				if (beltItem._iStackCount < maxStack) {
-					if (persistItem) {
-						beltItem._iStackCount++;
-						player.CalcScrolls();
-						RedrawComponent(PanelDrawComponent::Belt);
-						if (sendNetworkMessage) {
-							const auto beltIndex = static_cast<int>(std::distance<const Item *>(&player.SpdList[0], &beltItem));
-							NetSendCmdChBeltItem(false, beltIndex);
-						}
-					}
-					return true;
-				}
-			}
-		}
-	}
-
-	// Place in an empty slot
+	// Place in an empty slot (belt holds one item per slot, no stacking)
 	for (Item &beltItem : player.SpdList) {
 		if (beltItem.isEmpty()) {
 			if (persistItem) {
@@ -1431,8 +1403,32 @@ bool CanFitItemInInventory(const Player &player, const Item &item)
 	return static_cast<bool>(FindSlotForItem(player, GetInventorySize(item)));
 }
 
+// Try to stack an incoming item onto an existing same-type inventory item.
+// Returns true if stacked (item merged, no new grid cell consumed).
+bool TryStackInInventory(Player &player, const Item &item, bool sendNetworkMessage)
+{
+	for (Item &invItem : player.InvList) {
+		if (invItem.isEmpty() || invItem.IDidx != item.IDidx)
+			continue;
+		if (invItem._iStackCount >= GetMaxStackCount(invItem, player))
+			continue;
+		invItem._iStackCount++;
+		player.CalcScrolls();
+		if (sendNetworkMessage) {
+			const auto invIndex = static_cast<int>(std::distance<const Item *>(&player.InvList[0], &invItem));
+			NetSendCmdChInvItem(false, invIndex);
+		}
+		return true;
+	}
+	return false;
+}
+
 bool AutoPlaceItemInInventory(Player &player, const Item &item, bool sendNetworkMessage)
 {
+	// Try to stack into an existing inventory item (backpack stacking).
+	if (CanStackItem(item) && TryStackInInventory(player, item, sendNetworkMessage))
+		return true;
+
 	const Size itemSize = GetInventorySize(item);
 	std::optional<int> targetSlot = FindSlotForItem(player, itemSize);
 

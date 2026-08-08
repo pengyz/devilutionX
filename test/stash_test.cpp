@@ -491,7 +491,10 @@ TEST_F(StashTest, TransferToInventory_InventoryFull)
 	}
 	MyPlayer->_pNumInv = InventoryGridCells;
 
-	Item item = MakeSmallItem();
+	// Transfer a DIFFERENT item type (mana potion) so backpack stacking
+	// cannot merge it into the full inventory (all healing potions).
+	Item item {};
+	InitializeItem(item, IDI_MANA);
 	Stash.SetPage(0);
 	ASSERT_TRUE(AutoPlaceItemInStash(item, true));
 	ASSERT_EQ(Stash.stashList.size(), 1u);
