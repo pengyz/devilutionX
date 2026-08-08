@@ -384,6 +384,18 @@ inline bool RemoveInventoryOrBeltItemById(Player &player, _item_indexes id)
 	return RemoveInventoryItemById(player, id) || RemoveBeltItemById(player, id);
 }
 
+// Consume one item from a stack, removing the whole item only when the stack
+// is exhausted. Fixes the pre-existing bug where using 1 of N stacked scrolls
+// removed all N.
+template <typename RemoveWholeFn>
+void ConsumeOneOrRemove(Item &item, RemoveWholeFn &&removeWhole)
+{
+	if (item._iStackCount > 1) {
+		item._iStackCount--;
+	} else {
+		removeWhole();
+	}
+}
 /**
  * @brief Removes the first inventory or belt scroll with the player's current spell.
  */

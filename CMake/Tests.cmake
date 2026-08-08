@@ -58,6 +58,7 @@ set(tests
   char_panel_test
   game_menu_test
   spell_ux_test
+  consume_scroll_test
   consumable_stack_test
 )
 set(standalone_tests

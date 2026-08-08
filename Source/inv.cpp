@@ -2079,16 +2079,16 @@ void ConsumeScroll(Player &player)
 	const int8_t itemSlot = player.executedSpell.spellFrom;
 	if (itemSlot >= INVITEM_INV_FIRST && itemSlot <= INVITEM_INV_LAST) {
 		const int itemIndex = itemSlot - INVITEM_INV_FIRST;
-		const Item *item = &player.InvList[itemIndex];
+		Item *item = &player.InvList[itemIndex];
 		if (!item->isEmpty() && isCurrentSpell(*item)) {
-			player.RemoveInvItem(itemIndex);
+			ConsumeOneOrRemove(*item, [&]() { player.RemoveInvItem(itemIndex); });
 			return;
 		}
 	} else if (itemSlot >= INVITEM_BELT_FIRST && itemSlot <= INVITEM_BELT_LAST) {
 		const int itemIndex = itemSlot - INVITEM_BELT_FIRST;
-		const Item *item = &player.SpdList[itemIndex];
+		Item *item = &player.SpdList[itemIndex];
 		if (!item->isEmpty() && isCurrentSpell(*item)) {
-			player.RemoveSpdBarItem(itemIndex);
+			ConsumeOneOrRemove(*item, [&]() { player.RemoveSpdBarItem(itemIndex); });
 			return;
 		}
 	} else if (itemSlot != 0) {
