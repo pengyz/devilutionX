@@ -1,0 +1,25 @@
+id: "save-pack-roundtrip"
+name: "存档格式：物品 pack/unpack 往返"
+category: "save-load"
+difficulty: "basic"
+tags: ["save", "compat"]
+
+setup:
+  mpq_required: false
+  timeout: 60
+
+run:
+  backend: "gtest"
+  binary: "pack_test"
+  filter: "PackTest.*:NetPackTest.*"
+
+expected:
+  exit_code: 0
+  failed: 0
+  passed_min: 30
+  skipped_max: 10
+  output_contains: ["[  PASSED  ]"]
+
+description: >
+  物品打包/解包往返一致性，含堆叠数、鉴定标志、网络包路径。
+  部分用例需 MPQ fixtures，缺失时 skip（skipped_max 容忍）。

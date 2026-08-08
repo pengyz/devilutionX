@@ -1,0 +1,25 @@
+id: "rng-dungeon-seeded"
+name: "RNG 确定性：种子化地牢生成"
+category: "rng"
+difficulty: "medium"
+tags: ["rng", "dungeon"]
+
+setup:
+  mpq_required: false
+  timeout: 120
+
+run:
+  backend: "gtest"
+  binary: "drlg_l1_test"
+  filter: "Drlg_l1.*"
+
+expected:
+  exit_code: 0
+  failed: 0
+  passed_min: 1
+  skipped_max: 0
+  output_contains: ["[  PASSED  ]"]
+
+description: >
+  大教堂地牢生成对固定种子确定性（同种子同输出），
+  保证随机数消耗顺序稳定。

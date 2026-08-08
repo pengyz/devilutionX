@@ -73,3 +73,24 @@ cd build && ./spelldat_test --gtest_filter="SpelldatTest.*"
 - timedemo 测试（`Timedemo.WarriorLevel1to2`）验证存档格式与 RNG 确定性，改动存档/玩家状态后必跑
 - 新增测试：在 `CMake/Tests.cmake` 的 `tests` 列表注册 + `test/<name>_test.cpp`，漂移校验检查 A 强制
 - benchmark 目标（`clx_render_benchmark` 等）是性能基准，非正确性测试，`run_tests.py` 默认不跑
+
+## Eval 集成测试（AI 随时可跑）
+
+```bash
+python3 -m tools.eval.backend --smoke   # 提交前门禁（快速，exit 0=全过）
+python3 -m tools.eval.backend --run <id>  # 单用例
+python3 -m tools.eval.backend --set nightly  # 全量回归
+```
+
+YAML case 在 `eval/cases/<category>/<id>.yaml`，详见 `.claude/skills/d1-eval/SKILL.md`。
+断言权威永远是 gtest 二进制，LLM 不当判官。新 case 提交前跑 `python3 -m tools.eval.sync_case_sets --check`。
+
+## Hooks（Claude Code 交互会话）
+
+- `.claude/hooks/check-line-endings.sh`：PostToolUse 行尾检查（`shell: "bash"`）
+- **Windows 兼容**：hooks 仅在 Claude Code 本地会话触发；CI 不跑 hooks（行尾由 `check_drift.py` 覆盖）。
+  Windows 上 `.sh` hook 需要 Git Bash；若装 WSL 可能误解析到 WSL bash（已知 bug），
+  显式配 `CLAUDE_CODE_GIT_BASH_PATH` 指向 Git Bash 的 `bash.exe`。
+- CI 模式：`CI_MODE=1 CI_FILE=<path>` 供 GitHub Actions 等复用（当前 workflow 未接入）。
+
+- benchmark 目标（`clx_render_benchmark` 等）是性能基准，非正确性测试，`run_tests.py` 默认不跑

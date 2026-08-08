@@ -5,5 +5,20 @@
       "Bash(git fetch *)",
       "Bash(git push *)"
     ]
+  },
+  "hooks": {
+    "PostToolUse": [
+      {
+        "matcher": "Edit|Write",
+        "hooks": [
+          {
+            "type": "command",
+            "shell": "bash",
+            "command": "\"$CLAUDE_PROJECT_DIR\"/.claude/hooks/check-line-endings.sh",
+            "statusMessage": "检查行尾合规..."
+          }
+        ]
+      }
+    ]
   }
 }

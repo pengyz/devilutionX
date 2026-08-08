@@ -1,0 +1,8 @@
+# Smoke suite: fast, MPQ-independent cases for the pre-commit / AI-checkpoint gate.
+# Every id here must exist in eval/cases/ (sync_case_sets enforces).
+cases:
+  - dark-expedition-light-radius
+  - dark-expedition-can-target
+  - dark-expedition-e2e-learnability
+  - save-pack-roundtrip
+  - save-hero-write

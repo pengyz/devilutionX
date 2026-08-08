@@ -1,0 +1,24 @@
+id: "save-hero-write"
+name: "存档格式：英雄写入 SHA-256 稳定"
+category: "save-load"
+difficulty: "basic"
+tags: ["save", "format"]
+
+setup:
+  mpq_required: false
+  timeout: 60
+
+run:
+  backend: "gtest"
+  binary: "writehero_test"
+  filter: "Writehero.*"
+
+expected:
+  exit_code: 0
+  failed: 0
+  passed_min: 1
+  skipped_max: 5
+  output_contains: ["[  PASSED  ]"]
+
+description: >
+  英雄存档写入后 SHA-256 与基准一致（存档格式稳定的强断言）。

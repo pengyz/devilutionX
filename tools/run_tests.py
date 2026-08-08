@@ -142,6 +142,11 @@ def run_single(build_dir: Path, test: str, gtest_filter: str | None) -> dict:
         m = re.search(r"\[\s*FAILED\s*\]\s+(\d+) tests?", line)
         if m:
             parsed["failed"] = int(m.group(1))
+        m = re.search(r"\[\s*SKIPPED\s*\]\s+(\d+) tests?", line)
+        if m:
+            parsed["skipped"] = int(m.group(1))
+    if "skipped" not in parsed:
+        parsed["skipped"] = 0
     if result.returncode != 0:
         print(result.stdout[-3000:], file=sys.stderr)
     return parsed

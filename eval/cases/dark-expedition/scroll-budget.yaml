@@ -1,0 +1,25 @@
+id: "dark-expedition-scroll-budget"
+name: "暗夜远征：Infravision 卷轴稀缺预算"
+category: "dark-expedition"
+difficulty: "medium"
+tags: ["depth-layer", "economy"]
+
+setup:
+  mpq_required: false
+  timeout: 60
+
+run:
+  backend: "gtest"
+  binary: "dark_expedition_scroll_test"
+  filter: "DarkExpeditionScrollBudgetTest.*"
+
+expected:
+  exit_code: 0
+  failed: 0
+  passed_min: 3
+  skipped_max: 0
+  output_contains: ["[  PASSED  ] 3 tests."]
+
+description: >
+  开关开启时女巫库存无 Infravision 卷轴（确定性 40 轮采样），关闭时有；
+  Town Portal 卷轴保持可售（M2 已砍）。

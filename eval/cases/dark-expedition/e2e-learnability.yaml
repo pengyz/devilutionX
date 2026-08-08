@@ -1,0 +1,26 @@
+id: "dark-expedition-e2e-learnability"
+name: "暗夜远征 E2E：学习门控 + 记忆持久化"
+category: "dark-expedition"
+difficulty: "advanced"
+tags: ["depth-layer", "learnability", "red-line-13"]
+
+setup:
+  mpq_required: false
+  timeout: 30
+
+run:
+  backend: "gtest"
+  binary: "dark_expedition_e2e_test"
+  filter: "DarkExpeditionE2ETest.*"
+
+expected:
+  exit_code: 0
+  failed: 0
+  passed_min: 4
+  skipped_max: 0
+  output_contains: ["[  PASSED  ] 4 tests."]
+
+description: >
+  跨机制端到端：开关关→不可学；开关开→可记忆且 ValidatePlayer 不清除；
+  开关关→清除已记忆；staffLevel 恒 -1（无门控的泄漏通道）。
+  覆盖宪章红线 13（开关关=原版）的记忆持久化维度。

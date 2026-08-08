@@ -486,3 +486,6 @@ uwp-project/Assets/ui_art
 /*.clx
 /*.raw
 /*.png
+
+# D1-eval runtime results (timestamped, rolling GC)
+eval/results/

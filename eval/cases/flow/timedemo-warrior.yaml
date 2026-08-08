@@ -1,0 +1,26 @@
+id: "flow-timedemo-warrior"
+name: "全流程：Warrior 1→2 层回放存档一致（红线 13）"
+category: "flow"
+difficulty: "advanced"
+tags: ["timedemo", "rng", "red-line-13"]
+
+setup:
+  mpq_required: true
+  timeout: 300
+
+run:
+  backend: "gtest"
+  binary: "timedemo_test"
+  filter: "Timedemo.*"
+
+expected:
+  exit_code: 0
+  failed: 0
+  passed_min: 1
+  skipped_max: 1
+  output_contains: ["[  PASSED  ] 1 test"]
+
+description: >
+  完整游戏循环（地牢生成→战斗→掉落→升级）录制回放，
+  终态存档与参考 .sv 逐字段比对一致。同时验证深度层开关关闭
+  （默认）时行为等同原版（宪章红线 13）。需 MPQ 资源。

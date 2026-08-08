@@ -1,0 +1,25 @@
+id: "dark-expedition-can-target"
+name: "暗夜远征：CanTarget 目标选择"
+category: "dark-expedition"
+difficulty: "basic"
+tags: ["depth-layer", "targeting"]
+
+setup:
+  mpq_required: false
+  timeout: 30
+
+run:
+  backend: "gtest"
+  binary: "can_target_test"
+  filter: "CanTargetTest.*"
+
+expected:
+  exit_code: 0
+  failed: 0
+  passed_min: 4
+  skipped_max: 0
+  output_contains: ["[  PASSED  ] 4 tests."]
+
+description: >
+  Infravision 激活时暗处可见 tile 可选可攻（选择/攻击专用，渲染保持暗）；
+  Lit 恒可选；开关+Infra 双条件门控；空 MyPlayer 安全。
