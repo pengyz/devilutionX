@@ -2016,6 +2016,8 @@ bool WitchItemOk(const Player & /*player*/, const ItemData &item)
 		return false;
 	if (item.iSpell == SpellID::TownPortal)
 		return false;
+	if (item.iSpell == SpellID::Infravision && IsDarkExpedition())
+		return false;
 	if (item.iMiscId == IMISC_FULLHEAL)
 		return false;
 	if (item.iMiscId == IMISC_HEAL)
@@ -3275,6 +3277,8 @@ _item_indexes RndItemForMonsterLevel(int8_t monsterLevel)
 		return IDI_GOLD;
 
 	return GetItemIndexForDroppableItem(true, [&monsterLevel](const ItemData &item) {
+		if (item.iSpell == SpellID::Infravision && IsDarkExpedition())
+			return false;
 		return item.iMinMLvl <= monsterLevel;
 	});
 }
