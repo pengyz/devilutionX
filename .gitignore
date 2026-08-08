@@ -489,3 +489,6 @@ uwp-project/Assets/ui_art
 
 # D1-eval runtime results (timestamped, rolling GC)
 eval/results/
+
+# Claude Code personal settings (not shared)
+.claude/settings.local.json

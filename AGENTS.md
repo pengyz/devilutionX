@@ -1,96 +1,61 @@
-# Agent 测试工作流（AI 全自动集成测试）
+# Multi-Agent Project Guide
 
-本文件为在 DevilutionX 仓库工作的 AI agent 定义**测试运行约定**。任何代码变更后都必须按此流程验证。
+## Canonical Project Instructions
 
-## 测试基础设施速览
+@CLAUDE.md
 
-| 组件 | 说明 |
-|---|---|
-| 框架 | GoogleTest + GoogleMock（`test/main.cpp` 自定义 Skip 聚合） |
-| 构建 | CMake/Ninja，构建目录 `build/` |
-| 测试二进制 | 共享库 `libdevilutionx_so.so` + 每测试独立可执行（`build/*_test`） |
-| 数据资源 | MPQ 文件位于 `~/.local/share/diasurgical/devilution/`（经 `SDL_GetPrefPath` 解析，测试自动发现） |
-| 全量基线 | 666 项测试，0 失败（2 个上游既有 Skip：`VisualStoreTest.Pagination_*`，白名单内） |
+- Treat `CLAUDE.md` as the shared project guidance source of truth.
+- Treat `.claude/skills/*` and `.claude/commands/*` as the canonical workflow documents.
+- When a referenced workflow says `Claude`, `Claude Code`, `Skill tool`, `Bash`, `Read`, `Write`, `Glob`, or `Grep`, map it to the equivalent behavior in the current session.
+- Hooks are declared in `.claude/settings.local.json` and reuse `.claude/hooks/*.sh` scripts.
 
-## 命令约定（AI 必须使用）
+## 测试命令速查（AI 必须使用）
+
+本仓库是 C++ 引擎（Diablo 反编译），测试 = GoogleTest 二进制 + eval YAML case。
 
 ### 1. 全量门禁（代码变更后必跑）
 
 ```bash
-python3 tools/run_tests.py                # 构建所有测试 + 全量 ctest + 漂移校验
-python3 tools/run_tests.py --json /tmp/ci.json   # 输出 JSON 报告（AI 解析）
+python3 tools/run_tests.py --json /tmp/ci.json   # 构建所有测试 + 全量 ctest + 漂移校验
 ```
 
-等价 shell 封装：`tools/ci_test.sh [--no-build] [--json PATH]`
+通过标准：JSON `ctest.passed_pct == 100` && `failed == 0` && `drift.drift_ok == true`。退出码 0。
 
-**通过标准**：JSON 中 `ctest.passed_pct == 100` 且 `failed == 0`，`drift.drift_ok == true`。退出码 0。
-
-### 2. 定向测试（AI 改代码后快速验证）
+### 2. 定向测试（改代码后快速验证）
 
 ```bash
-# 单测试二进制
-python3 tools/run_tests.py --test inv_test
-
-# gtest filter 跨整个套件（所有二进制跑该 filter）
-python3 tools/run_tests.py --filter "InvTest.*"
-
-# 只跑受影响测试（推荐：根据改动文件自动推荐）
-python3 tools/test_impact.py Source/items.cpp Source/spells.cpp
+python3 tools/test_impact.py --diff | xargs -n1 python3 tools/run_tests.py --test  # 受影响测试
+python3 tools/run_tests.py --test inv_test --filter "InvTest.*"                      # 单二进制+filter
 ```
 
-`test_impact.py` 输出受影响测试二进制列表（stdout 每行一个）。用法：
-```bash
-# 从 git diff 推荐
-python3 tools/test_impact.py --diff
-# 组合：改动文件 → 受影响测试
-python3 tools/test_impact.py --diff | xargs -n1 python3 tools/run_tests.py --test
-```
-
-### 3. 手动运行单个测试
+### 3. Eval 集成测试（行为变更）
 
 ```bash
-cd build && ./inv_test                          # 全量
-cd build && ./spelldat_test --gtest_filter="SpelldatTest.*"
+python3 -m tools.eval.backend --smoke          # 提交前门禁（exit 0=全过）
+python3 -m tools.eval.backend --run <case-id>  # 单用例
+python3 -m tools.eval.backend --set nightly    # 全量回归
 ```
 
-## AI 自动化循环（RECOMMENDED）
+YAML case 在 `eval/cases/<category>/<id>.yaml`，规则见 `.claude/skills/d1-eval/SKILL.md`。断言权威永远是 gtest 二进制，LLM 不当判官。
 
-1. **改动前**：`git status` + `git diff` 确认范围
-2. **改动后**：`python3 tools/test_impact.py --diff` 得到受影响测试
-3. **快速验证**：跑受影响测试（`--filter` 或逐个 `--test`）
-4. **全量门禁**：`python3 tools/run_tests.py --json /tmp/ci.json`
-5. **失败处理**：
-   - 读 JSON `failures` 列表 + `build/Testing/Temporary/LastTest.log`
-   - 单测失败：`cd build && ./<test> --gtest_filter=<case>` 复现
-   - 修复 → 重跑该测试 → 重跑全量
-6. **提交前**：确认漂移校验 PASS（`run_tests.py` 自动包含）
+### 4. 失败处理
+
+- 读 JSON `failures` + `build/Testing/Temporary/LastTest.log`
+- 单测失败：`cd build && ./<test> --gtest_filter=<case>` 复现
+- 修复 → 重跑该测试 → 重跑全量
+- 排查经验 → 沉淀到 `docs/knowledge/`
 
 ## 注意事项
 
-- **不要**用 `cmake --build --target test` 全量构建（会触发 benchmark 目标；已用 `DEVILUTIONX_SYSTEM_BENCHMARK=OFF` 规避 LTO 链接问题，但逐个构建更稳）
+- **不要**用 `cmake --build --target test` 全量构建（触发 benchmark 目标导致 LTO 链接失败；`DEVILUTIONX_SYSTEM_BENCHMARK=OFF` 已规避，但逐个构建更稳）
 - **不要**修改 `tools/check_drift.py` 白名单除非确知上游行为
-- 行尾约束：所有改动文件必须 CRLF（漂移校验 C 检查）；新文件写完后需转换（`sed -i 's/$/\r/'`）
-- timedemo 测试（`Timedemo.WarriorLevel1to2`）验证存档格式与 RNG 确定性，改动存档/玩家状态后必跑
-- 新增测试：在 `CMake/Tests.cmake` 的 `tests` 列表注册 + `test/<name>_test.cpp`，漂移校验检查 A 强制
-- benchmark 目标（`clx_render_benchmark` 等）是性能基准，非正确性测试，`run_tests.py` 默认不跑
+- 行尾：改动文件保持既有类型（C++ CRLF；`.md/.py/.yml/.yaml/.sh/.json` LF）；新文件匹配 `.editorconfig`
+- timedemo（`Timedemo.WarriorLevel1to2`）验证存档格式与 RNG 确定性，改动存档/玩家状态后必跑
+- 新增测试：注册到 `CMake/Tests.cmake` + `test/<name>_test.cpp`（漂移检查 A 强制）
+- benchmark 目标（`clx_render_benchmark` 等）是性能基准，非正确性测试，默认不跑
 
-## Eval 集成测试（AI 随时可跑）
+## Windows 兼容
 
-```bash
-python3 -m tools.eval.backend --smoke   # 提交前门禁（快速，exit 0=全过）
-python3 -m tools.eval.backend --run <id>  # 单用例
-python3 -m tools.eval.backend --set nightly  # 全量回归
-```
-
-YAML case 在 `eval/cases/<category>/<id>.yaml`，详见 `.claude/skills/d1-eval/SKILL.md`。
-断言权威永远是 gtest 二进制，LLM 不当判官。新 case 提交前跑 `python3 -m tools.eval.sync_case_sets --check`。
-
-## Hooks（Claude Code 交互会话）
-
-- `.claude/hooks/check-line-endings.sh`：PostToolUse 行尾检查（`shell: "bash"`）
-- **Windows 兼容**：hooks 仅在 Claude Code 本地会话触发；CI 不跑 hooks（行尾由 `check_drift.py` 覆盖）。
-  Windows 上 `.sh` hook 需要 Git Bash；若装 WSL 可能误解析到 WSL bash（已知 bug），
-  显式配 `CLAUDE_CODE_GIT_BASH_PATH` 指向 Git Bash 的 `bash.exe`。
-- CI 模式：`CI_MODE=1 CI_FILE=<path>` 供 GitHub Actions 等复用（当前 workflow 未接入）。
-
-- benchmark 目标（`clx_render_benchmark` 等）是性能基准，非正确性测试，`run_tests.py` 默认不跑
+- hooks 仅在 Claude Code 交互会话触发；CI 不跑 hooks（行尾由 `check_drift.py` 覆盖）
+- Windows 上 `.sh` hook 需 Git Bash；装 WSL 可能误解析到 WSL bash（已知 bug）——显式配 `CLAUDE_CODE_GIT_BASH_PATH` 指向 Git Bash 的 `bash.exe`
+- CI 模式：`CI_MODE=1 CI_FILE=<path>` 供复用
