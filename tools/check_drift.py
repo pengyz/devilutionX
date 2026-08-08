@@ -28,7 +28,7 @@ BINARY_SUFFIXES = {
 
 # Suffixes that .editorconfig declares as LF. Everything else text falls under
 # [*] and must be CRLF.
-LF_SUFFIXES = {'.md', '.py', '.java', '.pot', '.po', '.rb', '.yml', '.sh',
+LF_SUFFIXES = {'.md', '.py', '.java', '.pot', '.po', '.rb', '.yml', '.yaml', '.sh',
                '.xml', '.plist', '.desktop', '.json', '.lua'}
 
 # Check E allowlist. Every entry was verified present in Source/ at the
