@@ -18,10 +18,17 @@ on:
     types: [ opened, synchronize ]
     paths-ignore:
       - 'docs/**'
+  schedule:
+    # Nightly regression: run the full eval suite (65 cases) on the default branch.
+    - cron: '0 2 * * *'  # 02:00 UTC daily
   workflow_dispatch:
     inputs:
       run_eval_smoke:
         description: 'Run the D1-eval smoke gate (fast curated cases)'
+        type: boolean
+        default: false
+      run_eval_nightly:
+        description: 'Run the full D1-eval nightly suite (65 cases)'
         type: boolean
         default: false
 
@@ -118,4 +125,44 @@ jobs:
       with:
         name: eval-smoke-report
         path: eval-smoke.json
+        if-no-files-found: ignore
+
+  # Nightly D1-eval regression: full 65-case suite.
+  # Triggered by schedule (02:00 UTC daily) or manually (run_eval_nightly).
+  eval-nightly:
+    if: github.event_name == 'schedule' || (github.event_name == 'workflow_dispatch' && inputs.run_eval_nightly)
+    runs-on: ubuntu-24.04
+
+    steps:
+    - uses: actions/checkout@v7
+      with:
+        fetch-depth: 0
+
+    - name: Install dependencies
+      run: |
+        sudo apt-get update -y
+        sudo apt-get install -y cmake ninja-build curl g++ git libgtest-dev libgmock-dev libsdl2-dev libsodium-dev libpng-dev libbz2-dev wget
+
+    - name: Cache CMake build folder
+      uses: actions/cache@v6
+      with:
+        path: build
+        key: ${{ github.workflow }}-v4-${{ github.sha }}
+        restore-keys: ${{ github.workflow }}-v4-
+
+    - name: Build test binaries
+      run: |
+        cmake -S. -Bbuild -G Ninja -DDEVILUTIONX_SYSTEM_BENCHMARK=OFF
+        wget -qnc https://github.com/diasurgical/devilutionx-assets/releases/download/v2/spawn.mpq -P build
+        cmake --build build -j $(nproc)
+
+    - name: Run eval nightly suite
+      run: python3 -m tools.eval.backend --set nightly --json eval-nightly.json
+
+    - name: Upload eval nightly report
+      if: always()
+      uses: actions/upload-artifact@v4
+      with:
+        name: eval-nightly-report
+        path: eval-nightly.json
         if-no-files-found: ignore
