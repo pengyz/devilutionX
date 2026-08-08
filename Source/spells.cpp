@@ -18,6 +18,7 @@
 #include "gamemenu.h"
 #include "inv.h"
 #include "missiles.h"
+#include "options.h"
 
 namespace devilution {
 
@@ -330,6 +331,10 @@ int GetSpellBookLevel(SpellID s)
 	}
 
 	if (static_cast<uint8_t>(s) >= SpellsData.size()) {
+		return -1;
+	}
+
+	if (s == SpellID::Infravision && !IsDarkExpedition()) {
 		return -1;
 	}
 

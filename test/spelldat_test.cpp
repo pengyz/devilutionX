@@ -8,6 +8,7 @@
 
 #include "ui_test.hpp"
 
+#include "options.h"
 #include "tables/spelldat.h"
 
 namespace devilution {
@@ -78,6 +79,15 @@ TEST_F(SpelldatTest, CutContentSpellsHaveEmptyDescriptions)
 		EXPECT_TRUE(sd.sDescription.empty())
 		    << "Cut content spell " << static_cast<int>(spellId) << " (" << sd.sNameText << ") should have empty description";
 	}
+}
+
+TEST_F(SpelldatTest, InfravisionLearnableGatedByDarkExpedition)
+{
+	GetOptions().Gameplay.darkExpedition.SetValue(false);
+	EXPECT_EQ(GetSpellBookLevel(SpellID::Infravision), -1);
+
+	GetOptions().Gameplay.darkExpedition.SetValue(true);
+	EXPECT_EQ(GetSpellBookLevel(SpellID::Infravision), 5);
 }
 
 } // namespace devilution
