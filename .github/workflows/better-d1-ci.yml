@@ -1,0 +1,75 @@
+name: Better D1 CI
+
+# Full integration gate for the Better D1 fork:
+#  - builds all test targets (benchmark excluded: system libbenchmark LTO mismatch)
+#  - runs the complete ctest suite against downloaded spawn.mpq
+#  - runs the mechanical drift check (line endings, placeholder tests, registration)
+#  - uploads the structured JSON report as an artifact
+
+on:
+  push:
+    branches:
+      - feature/qol-upgrades
+      - 'feature/**'
+      - 'engine-mod-infra'
+    paths-ignore:
+      - '*.md'
+      - 'docs/**'
+  pull_request:
+    types: [ opened, synchronize ]
+    paths-ignore:
+      - '*.md'
+      - 'docs/**'
+  workflow_dispatch:
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  build-and-test:
+    runs-on: ubuntu-24.04
+
+    steps:
+    - uses: actions/checkout@v7
+      with:
+        fetch-depth: 0
+
+    - name: Install dependencies
+      run: |
+        sudo apt-get update -y
+        sudo apt-get install -y cmake ninja-build curl g++ git lcov libgtest-dev libgmock-dev libsdl2-dev libsodium-dev libpng-dev libbz2-dev wget
+
+    - name: Cache CMake build folder
+      uses: actions/cache@v6
+      with:
+        path: build
+        key: ${{ github.workflow }}-v4-${{ github.sha }}
+        restore-keys: ${{ github.workflow }}-v4-
+
+    # We specify `-DDEVILUTIONX_SYSTEM_BENCHMARK=OFF` to work around:
+    # lto1: fatal error: bytecode stream in file ‘/usr/lib/x86_64-linux-gnu/libbenchmark_main.a’
+    # generated with LTO version 11.2 instead of the expected 13.1
+    - name: Build
+      run: |
+        cmake -S. -Bbuild -G Ninja -DDEVILUTIONX_SYSTEM_BENCHMARK=OFF
+        wget -qnc https://github.com/diasurgical/devilutionx-assets/releases/download/v2/spawn.mpq -P build
+        cmake --build build -j $(nproc)
+
+    - name: Run full test suite
+      run: cd build && ctest --output-on-failure
+
+    - name: Drift check
+      run: |
+        # check_drift.py's C/C2 checks compare against the merge-base with
+        # origin/master; ensure that ref is present.
+        git fetch origin master --depth=1 || true
+        python3 tools/check_drift.py
+
+    - name: Upload test report
+      if: always()
+      uses: actions/upload-artifact@v4
+      with:
+        name: ctest-report
+        path: build/Testing/Temporary/LastTest.log
+        if-no-files-found: ignore
