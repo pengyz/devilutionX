@@ -332,7 +332,14 @@ GetSpellBookLevel(SpellID s)  // 已存在，Source/spells.cpp:322
 
 ## 7. 状态
 
-**草案**。待独立复核通过后转「已批准」，再由实施计划落地。
+**已实施**。2026-08-08，独立复核（Oracle）通过。666/666 测试全过，漂移校验 5 项 PASS，timedemo 存档比对与本分支基线一致。
+
+**实施偏离记录**（相对本规格 §4.5 与 §6，经独立复核确认安全）：
+
+1. **§4.5 步骤 3 代码引用清理未执行**：`missiles.cpp:924-926`、`spell_tooltip.cpp:300-303`、`lua/modules/items.cpp:245-248`、`spelldat.cpp ParseSpellId` 仍保留 stub SpellID 引用。依据「枚举值不重排」（§4.5 步骤 4），这些引用不悬空（枚举保留），删除无行为收益且增加回归风险——**保留为防御性死引用**。`spell_icons.cpp:46-49` 槽位按规格保留。
+2. **容器掉落路径一并排除**（独立复核发现怪物路径遗漏）：除 `RndItemForMonsterLevel`，`RndAllItems`（箱子 `objects.cpp:2034`、石棺 `:2199`、主题房 `themes.cpp:529`）也添加 Infravision 排除，确保深度层开启时全掉落路径无卷轴。
+3. **测试缺口**（独立复核标注，未阻塞实施）：§6.9 `RecreateWitchItem` MP 重摇路径、§6.10 `ValidatePlayer` 不清除已记忆法术、§6.11 Nova 数据字节回归——无专项测试，靠全量套件与手动验证覆盖。后续补测。
+4. **`bookCost10=500`**（规格 §4.4 建议定义非零值，实际取 500 → 书价 5000 金）。倍率初值 60/85/50、bookLevel 5 均按规格 §4.4 初值实施，试玩调节只动数据。
 
 **已知边界**（本规格不解决，后续规格或实施计划处理）：
 

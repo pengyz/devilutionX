@@ -1395,6 +1395,8 @@ _item_indexes RndAllItems()
 
 	int itemMaxLevel = ItemsGetCurrlevel() * 2;
 	return GetItemIndexForDroppableItem(false, [&itemMaxLevel](const ItemData &item) {
+		if (item.iSpell == SpellID::Infravision && IsDarkExpedition())
+			return false;
 		return itemMaxLevel >= item.iMinMLvl;
 	});
 }
