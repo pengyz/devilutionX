@@ -59,9 +59,11 @@ jobs:
 
     - name: Drift check
       run: |
-        # check_drift.py's C/C2 checks compare against the merge-base with
-        # origin/master; ensure that ref is present.
-        git fetch origin master --depth=1 || true
+        # check_drift.py's C/C2 compare against `git merge-base origin/master HEAD`.
+        # In CI, origin is this fork (pengyz/devilutionX); its master may not share
+        # history with the feature branch. Point origin/master at the upstream
+        # baseline (diasurgical) so the merge-base is the true fork point.
+        git fetch --no-tags https://github.com/diasurgical/DevilutionX.git master:refs/remotes/origin/master || true
         python3 tools/check_drift.py
 
     - name: Upload test report
