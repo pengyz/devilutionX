@@ -500,6 +500,7 @@ void InitItemGFX();
 void InitItems();
 void CalcPlrItemVals(Player &player, bool Loadgfx);
 void CalcPlrInv(Player &player, bool Loadgfx);
+DVL_API_FOR_TEST void CalcPlrLightRadius(Player &player, int lrad);
 void InitializeItem(Item &item, _item_indexes itemData);
 void GenerateNewSeed(Item &item);
 int GetGoldCursor(int value);

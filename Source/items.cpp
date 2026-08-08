@@ -2532,10 +2532,30 @@ void CalcPlrPrimaryStats(Player &player, int strength, int &magic, int dexterity
 	player._pVitality = std::clamp(vitality + player._pBaseVit, 0, 750);
 }
 
+namespace {
+
+int GetDarkExpeditionLightPercent()
+{
+	switch (GetLevelType(currlevel)) {
+	case DTYPE_HELL:
+		return 60;
+	case DTYPE_NEST:
+		return 85;
+	case DTYPE_CRYPT:
+		return 50;
+	default:
+		return 100;
+	}
+}
+
+} // namespace
+
 void CalcPlrLightRadius(Player &player, int lrad)
 {
+	if (IsDarkExpedition()) {
+		lrad = lrad * GetDarkExpeditionLightPercent() / 100;
+	}
 	lrad = std::clamp(lrad, 2, 15);
-
 	if (player._pLightRad != lrad) {
 		if (player.isOnActiveLevel()) {
 			ChangeLightRadius(player.lightId, lrad);
