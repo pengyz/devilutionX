@@ -13,12 +13,10 @@ on:
       - 'feature/**'
       - 'engine-mod-infra'
     paths-ignore:
-      - '*.md'
       - 'docs/**'
   pull_request:
     types: [ opened, synchronize ]
     paths-ignore:
-      - '*.md'
       - 'docs/**'
   workflow_dispatch:
 
