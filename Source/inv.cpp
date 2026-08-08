@@ -493,6 +493,10 @@ bool ChangeInvItem(Player &player, int slot, Size itemSize)
 void ChangeBeltItem(Player &player, int slot)
 {
 	const int ii = slot - SLOTXY_BELT_FIRST;
+	// Belt holds one item per slot (charter: belt not stacking).
+	// Reject any held stack of more than one from entering the belt.
+	if (player.HoldItem._iStackCount > 1)
+		return;
 	if (player.SpdList[ii].isEmpty()) {
 		player.SpdList[ii] = player.HoldItem.pop();
 	} else {
@@ -1410,13 +1414,19 @@ bool TryStackInInventory(Player &player, const Item &item, bool sendNetworkMessa
 	for (Item &invItem : player.InvList) {
 		if (invItem.isEmpty() || invItem.IDidx != item.IDidx)
 			continue;
-		if (invItem._iStackCount >= GetMaxStackCount(invItem, player))
+		const int maxStack = GetMaxStackCount(invItem, player);
+		if (invItem._iStackCount >= maxStack)
 			continue;
+		// Merge only single items (count 1). A multi-count stack entering
+		// here would silently lose items on partial merge; the caller's
+		// normal placement path handles stacks by opening a new cell.
+		if (item._iStackCount > 1)
+			return false;
 		invItem._iStackCount++;
 		player.CalcScrolls();
 		if (sendNetworkMessage) {
 			const auto invIndex = static_cast<int>(std::distance<const Item *>(&player.InvList[0], &invItem));
-			NetSendCmdChInvItem(false, invIndex);
+			NetSyncInvItem(player, invIndex);
 		}
 		return true;
 	}
@@ -2092,8 +2102,28 @@ void ConsumeScroll(Player &player)
 	}
 
 	// Didn't find it at the selected slot, take the first one we find
-	// This path is always used when the scroll is consumed via spell selection
-	RemoveInventoryOrBeltItem(player, isCurrentSpell);
+	// This path is always used when the scroll is consumed via spell selection.
+	// Consume one from a stack (not the whole stack); used only when the
+	// selected-slot paths above missed (spell-slot / hotkey casts).
+	// Search the inventory first, then the belt, for the matching scroll.
+	const auto consumeOne = [&](Item &item, int index, bool inInventory) {
+		if (item._iStackCount > 1) {
+			item._iStackCount--;
+			if (inInventory)
+				player.CalcScrolls();
+			RedrawComponent(PanelDrawComponent::Belt);
+		} else if (inInventory) {
+			player.RemoveInvItem(index);
+		} else {
+			player.RemoveSpdBarItem(index);
+		}
+	};
+	{ const InventoryPlayerItemsRange items { player };
+		auto it = c_find_if(items, isCurrentSpell);
+		if (it != items.end()) { consumeOne(*it, static_cast<int>(it.index()), true); return; } }
+	{ const BeltPlayerItemsRange items { player };
+		auto it = c_find_if(items, isCurrentSpell);
+		if (it != items.end()) { consumeOne(*it, static_cast<int>(it.index()), false); return; } }
 }
 
 bool CanUseScroll(Player &player, SpellID spell)

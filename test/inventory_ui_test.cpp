@@ -433,5 +433,36 @@ TEST_F(InventoryUITest, BeltDoesNotStack)
 			occupied++;
 	EXPECT_EQ(occupied, 2); // two separate belt slots, not stacked
 }
+
+
+TEST_F(InventoryUITest, BackpackMultiCountStackOpensNewCell)
+{
+	// A multi-count stack does not merge (would silently lose on partial
+	// merge); it opens a new cell with its full count intact.
+	Item p1 = MakePotion(); // count 1
+	Item p3 = MakePotion();
+	p3._iStackCount = 3;
+
+	ASSERT_TRUE(AutoPlaceItemInInventory(*MyPlayer, p1));
+	ASSERT_TRUE(AutoPlaceItemInInventory(*MyPlayer, p3));
+	EXPECT_EQ(MyPlayer->_pNumInv, 2); // separate cells, nothing lost
+	EXPECT_EQ(MyPlayer->InvList[1]._iStackCount, 3);
+}
+
+TEST_F(InventoryUITest, BackpackStackDoesNotMergeMultiCountIntoFullCell)
+{
+	// A multi-count stack never partially merges into a near-full cell.
+	Item p = MakePotion();
+
+	for (int i = 0; i < 4; i++)
+		ASSERT_TRUE(AutoPlaceItemInInventory(*MyPlayer, p)); // stack of 4
+	Item p3 = MakePotion();
+	p3._iStackCount = 3;
+	ASSERT_TRUE(AutoPlaceItemInInventory(*MyPlayer, p3));
+	// 4 stays in cell 0, the 3-stack goes to a new cell whole.
+	EXPECT_EQ(MyPlayer->InvList[0]._iStackCount, 4);
+	EXPECT_EQ(MyPlayer->_pNumInv, 2);
+	EXPECT_EQ(MyPlayer->InvList[1]._iStackCount, 3);
+}
 } // namespace
 } // namespace devilution

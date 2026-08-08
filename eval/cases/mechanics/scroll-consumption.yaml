@@ -16,9 +16,9 @@ run:
 expected:
   exit_code: 0
   failed: 0
-  passed_min: 3
+  passed_min: 5
   skipped_max: 0
-  output_contains: ["[  PASSED  ] 3 tests."]
+  output_contains: ["[  PASSED  ] 5 tests."]
 
 description: >
   使用叠 N 的卷轴只消耗 1 张（非整叠移除），耗尽才移除物品。
