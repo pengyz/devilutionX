@@ -176,7 +176,26 @@ SfxID ItemInvSnds[] = {
 	SfxID::ItemLeather,
 };
 
+// Shared Dark Expedition drop filter: items excluded from the drop pool while
+// the switch is on. Off = vanilla drops (red line 13). Covers runes (nearly
+// unused), damage scrolls (nearly unused, Resurrect kept for multiplayer), and
+// Infravision scrolls (expedition light budget).
+DVL_API_FOR_TEST bool DarkExpeditionDropOk(const ItemData &item)
+{
+	if (!IsDarkExpedition())
+		return true;
+	if (item.iMiscId > IMISC_RUNEFIRST && item.iMiscId < IMISC_RUNELAST)
+		return false; // Runes
+	if (item.iMiscId == IMISC_SCROLLT && item.iSpell != SpellID::Resurrect)
+		return false; // Damage scrolls (Resurrect is a multiplayer essential)
+	if (item.iSpell == SpellID::Infravision)
+		return false; // Infravision scrolls (expedition light budget)
+	return true;
+}
+
 namespace {
+
+
 
 OptionalOwnedClxSpriteList itemanims[ITEMTYPES];
 
@@ -1395,7 +1414,7 @@ _item_indexes RndAllItems()
 
 	int itemMaxLevel = ItemsGetCurrlevel() * 2;
 	return GetItemIndexForDroppableItem(false, [&itemMaxLevel](const ItemData &item) {
-		if (item.iSpell == SpellID::Infravision && IsDarkExpedition())
+		if (!DarkExpeditionDropOk(item))
 			return false;
 		return itemMaxLevel >= item.iMinMLvl;
 	});
@@ -3279,7 +3298,7 @@ _item_indexes RndItemForMonsterLevel(int8_t monsterLevel)
 		return IDI_GOLD;
 
 	return GetItemIndexForDroppableItem(true, [&monsterLevel](const ItemData &item) {
-		if (item.iSpell == SpellID::Infravision && IsDarkExpedition())
+		if (!DarkExpeditionDropOk(item))
 			return false;
 		return item.iMinMLvl <= monsterLevel;
 	});

@@ -23,6 +23,7 @@ set(tests
   dark_expedition_light_test
   dark_expedition_scroll_test
   dark_expedition_e2e_test
+  dark_expedition_drop_test
   drlg_common_test
   drlg_l1_test
   drlg_l2_test
