@@ -77,8 +77,8 @@ def expected_ending(name: str) -> str:
     return 'LF' if pathlib.PurePath(name).suffix.lower() in LF_SUFFIXES else 'CRLF'
 
 
-def merge_base() -> str | None:
-    base = run('git', 'merge-base', 'origin/master', 'HEAD').strip()
+def merge_base(base_ref: str = 'origin/master') -> str | None:
+    base = run('git', 'merge-base', base_ref, 'HEAD').strip()
     return base or None
 
 
@@ -231,14 +231,19 @@ def check_test_only_functions() -> list[str]:
 # ------------------------------------------------------------------------ main
 
 def main() -> int:
-    base = merge_base()
+    import argparse
+    parser = argparse.ArgumentParser(description='Mechanical drift checks for the Better D1 fork.')
+    parser.add_argument('--base', default='origin/master',
+                        help='baseline ref to compare against (default: origin/master)')
+    args = parser.parse_args()
+    base = merge_base(args.base)
     checks: list[tuple[str, list[str]]] = [
         ('A  Tests.cmake entries have source files', check_tests_cmake()),
         ('B  no placeholder assertions in tests', check_placeholder_tests()),
     ]
     if base is None:
-        checks.append(('C  modified files keep line endings', ['no merge-base with origin/master; skipped']))
-        checks.append(('C2 added files match .editorconfig', ['no merge-base with origin/master; skipped']))
+        checks.append((f'C  modified files keep line endings (base {args.base})', ['no merge-base; skipped']))
+        checks.append((f'C2 added files match .editorconfig (base {args.base})', ['no merge-base; skipped']))
     else:
         checks.append(('C  modified files keep line endings', check_modified_line_endings(base)))
         checks.append(('C2 added files match .editorconfig', check_added_line_endings(base)))
