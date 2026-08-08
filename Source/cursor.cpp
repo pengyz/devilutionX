@@ -24,6 +24,7 @@
 #include "controls/plrctrls.h"
 #include "doom.h"
 #include "engine/backbuffer_state.hpp"
+#include "levels/gendung.h"
 #include "engine/demomode.h"
 #include "engine/point.hpp"
 #include "engine/points_in_rectangle_range.hpp"
@@ -86,7 +87,7 @@ bool TrySelectMonster(bool flipflag, Point tile, tl::function_ref<bool(const Mon
 			return;
 		const uint16_t monsterId = std::abs(dMonster[posToCheck.x][posToCheck.y]) - 1;
 		const Monster &monster = Monsters[monsterId];
-		if (IsTileLit(posToCheck) && HasAnyOf(monster.data().selectionRegion, selectionRegion) && isValidMonster(monster)) {
+		if (CanTarget(posToCheck) && HasAnyOf(monster.data().selectionRegion, selectionRegion) && isValidMonster(monster)) {
 			cursPosition = posToCheck;
 			pcursmonst = monsterId;
 		}
@@ -312,7 +313,7 @@ bool TrySelectPixelBased(Point tile)
 				}
 			} else {
 				const Monster &monster = Monsters[monsterId];
-				if (IsTileLit(adjacentTile) && IsValidMonsterForSelection(monster)) {
+				if (CanTarget(adjacentTile) && IsValidMonsterForSelection(monster)) {
 					const ClxSprite sprite = monster.animInfo.currentSprite();
 					const Displacement renderingOffset = monster.getRenderingOffset(sprite);
 					if (checkSprite(adjacentTile, sprite, renderingOffset)) {

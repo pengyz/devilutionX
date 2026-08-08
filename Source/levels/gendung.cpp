@@ -21,6 +21,7 @@
 #include "levels/drlg_l1.h"
 #include "levels/drlg_l2.h"
 #include "levels/drlg_l3.h"
+#include "options.h"
 #include "levels/drlg_l4.h"
 #include "levels/reencode_dun_cels.hpp"
 #include "levels/town.h"
@@ -389,6 +390,16 @@ std::optional<WorldTileSize> GetSizeForThemeRoom()
 	return GetSizeForThemeRoom(0, { 0, 0 }, 5, 10);
 }
 #endif
+
+bool CanTarget(Point position)
+{
+	if (IsTileLit(position))
+		return true;
+	return IsDarkExpedition()
+	    && MyPlayer != nullptr
+	    && MyPlayer->_pInfraFlag
+	    && IsTileVisible(position);
+}
 
 dungeon_type GetLevelType(int level)
 {

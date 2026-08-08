@@ -10,6 +10,7 @@
 #include "controls/plrctrls.h"
 #include "cursor.h"
 #include "engine/point.hpp"
+#include "levels/gendung.h"
 #include "player.h"
 #include "stores.h"
 
@@ -40,7 +41,7 @@ void InvalidateTargets()
 		const Monster &monster = Monsters[pcursmonst];
 		if (monster.isInvalid || monster.hasNoLife()
 		    || (monster.flags & MFLAG_HIDDEN) != 0
-		    || !IsTileLit(monster.position.tile)) {
+		    || !CanTarget(monster.position.tile)) {
 			pcursmonst = -1;
 		}
 	}
@@ -52,7 +53,7 @@ void InvalidateTargets()
 		const Player &targetPlayer = *PlayerUnderCursor;
 		if (targetPlayer._pmode == PM_DEATH || targetPlayer._pmode == PM_QUIT || !targetPlayer.plractive
 		    || !targetPlayer.isOnActiveLevel() || targetPlayer.hasNoLife()
-		    || !IsTileLit(targetPlayer.position.tile))
+		    || !CanTarget(targetPlayer.position.tile))
 			PlayerUnderCursor = nullptr;
 	}
 }

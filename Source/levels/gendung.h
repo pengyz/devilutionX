@@ -331,4 +331,12 @@ bool IsNearThemeRoom(WorldTilePosition position);
 void InitLevels();
 void FloodTransparencyValues(uint8_t floorID);
 
+/**
+ * @brief Checks if a tile can be targeted for selection/attacks.
+ *
+ * Like IsTileLit, but additionally allows tiles that are visible-but-unlit while
+ * Dark Expedition's Infravision is active (selection/attack only; rendering stays dark).
+ */
+bool CanTarget(Point position);
+
 } // namespace devilution

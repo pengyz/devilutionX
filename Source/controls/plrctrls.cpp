@@ -27,6 +27,7 @@
 #include "controls/game_controls.h"
 #include "controls/touch/gamepad.h"
 #include "cursor.h"
+#include "levels/gendung.h"
 #include "doom.h"
 #include "engine/point.hpp"
 #include "engine/points_in_rectangle_range.hpp"
@@ -260,7 +261,7 @@ bool CanTargetMonster(const Monster &monster)
 	if (monster.hasNoLife()) // dead
 		return false;
 
-	if (!IsTileLit(monster.position.tile)) // not visible
+	if (!CanTarget(monster.position.tile)) // not visible
 		return false;
 
 	const int mx = monster.position.tile.x;
@@ -400,7 +401,7 @@ void CheckPlayerNearby()
 		const int mx = player.position.future.x;
 		const int my = player.position.future.y;
 		if (dPlayer[mx][my] == 0
-		    || !IsTileLit(player.position.future)
+		    || !CanTarget(player.position.future)
 		    || (player.hasNoLife() && spl != SpellID::Resurrect))
 			continue;
 

@@ -16,6 +16,7 @@ set(tests
   appfat_test
   assets_test
   automap_test
+  can_target_test
   cursor_test
   dead_test
   diablo_test
