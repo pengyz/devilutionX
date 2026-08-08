@@ -26,7 +26,7 @@ fi
 case "$FILE_PATH" in
   *.png|*.clx|*.pal|*.cel|*.dun|*.raw|*.sv|*.mpq|*.jpg|*.jpeg|*.wav|*.ttf|*.ico|*.bin|*.gif|*.zip|*.gz|*.so|*.a|*.dll|*.exe|*.pdf|*.trn|*.smk)
     exit 0 ;;
-  *.md|*.py|*.yml|*.yaml|*.sh|*.json|*.lua|*.java|*.rb|*.xml|*.plist|*.desktop|*.pot|*.po|*.txt)
+  *.md|*.py|*.yml|*.yaml|*.sh|*.json|*.lua|*.java|*.rb|*.xml|*.plist|*.desktop|*.pot|*.po)
     exit 0 ;;  # .editorconfig 或项目约定为 LF
 esac
 

@@ -10,4 +10,4 @@ sources: [docs/superpowers/specs/2026-07-27-better-d1-design-charter.md, Source/
 
 **为什么：** 倍率只作用于基础 10 而非总量；`_pLightRad` 已含装备加成，再减 10 是重复计数。
 
-**何时使用：** 计算光照半径/任何「基础值 × 倍率 + 修正」公式时。正确写法：`effective = round(_pLightRad * mult)`（倍率作用于含装备的总量），再 clamp。
+**何时使用：** 计算光照半径/任何「基础值 × 倍率 + 修正」公式时。正确写法：`effective = trunc(_pLightRad * mult)`（倍率作用于含装备的总量，**截断而非四舍五入**——规格 §4.2 显式拒绝 round，因 `round(8.5)=9` 与验收不符），再 clamp。

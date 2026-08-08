@@ -2,7 +2,7 @@
 """Map changed source files to the test binaries that exercise them.
 
 AI agents can call this after editing Source/ files to find the minimal set
-of tests to run, instead of always running the full 666-test suite.
+of tests to run, instead of always running the full 670-test suite.
 
 Usage:
   python3 tools/test_impact.py Source/items.cpp          # direct
@@ -29,7 +29,7 @@ IMPACT_MAP = {
     "Source/items.cpp": ["items_test", "inv_test", "pack_test", "stores_test", "vendor_test", "store_transaction_test", "visual_store_test", "consumable_stack_test"],
     "Source/items.h": ["items_test", "inv_test", "pack_test", "stores_test", "vendor_test"],
     "Source/inv.cpp": ["inv_test", "inventory_ui_test"],
-    "Source/player.cpp": ["player_test", "char_panel_test"],
+    "Source/player.cpp": ["player_test", "char_panel_test", "timedemo_test"],
     "Source/player.h": ["player_test", "char_panel_test", "inv_test"],
     "Source/spells.cpp": ["spell_ui_test", "spell_ux_test", "spelldat_test", "spell_tooltip_test"],
     "Source/tables/spelldat": ["spelldat_test", "spell_tooltip_test", "spell_ux_test"],
@@ -48,8 +48,8 @@ IMPACT_MAP = {
     "Source/automap.cpp": ["automap_test"],
     "Source/lighting.cpp": ["vision_test", "scrollrt_test", "dark_expedition_light_test"],
     "Source/stores.cpp": ["stores_test", "vendor_test", "store_transaction_test"],
-    "Source/pack.cpp": ["pack_test", "writehero_test"],
-    "Source/loadsave.cpp": ["pack_test", "writehero_test"],
+    "Source/pack.cpp": ["pack_test", "writehero_test", "timedemo_test"],
+    "Source/loadsave.cpp": ["pack_test", "writehero_test", "timedemo_test"],
     "Source/quests.cpp": ["quests_test", "quest_script_test"],
     "Source/object.cpp": ["tile_properties_test", "dark_expedition_scroll_test"],
     "Source/townerdat.cpp": ["townerdat_test"],

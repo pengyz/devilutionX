@@ -18,8 +18,8 @@ Usage:
   python3 tools/eval/backend.py --include-side-effects
   python3 tools/eval/backend.py --json <path>        # write eval-summary.json
 
-Exit codes: 0=all evaluated passed; 1=any failed; 2=no cases matched;
-3=invalid YAML/case not found; 4=infra error.
+Exit codes: 0=all evaluated passed; 1=any failed (incl. missing binary);
+2=no cases matched; 3=invalid YAML/case not found.
 """
 
 from __future__ import annotations
@@ -102,8 +102,9 @@ def run_case(case: models.EvalCase, build_dir: Path, include_side_effects: bool)
 
 def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument('--check', nargs='?', const=None, help='validate YAML schema (path or all)')
-    parser.add_argument('--list', nargs='?', const=None, help='list cases (path or all)')
+    parser.add_argument('--check', action='store_true', help='validate YAML schema (use with --path or all)')
+    parser.add_argument('--list', action='store_true', help='list cases (use with --path or all)')
+    parser.add_argument('--path', type=Path, help='path to a case file or directory (for --check/--list)')
     parser.add_argument('--run', help='run case(s) by id glob')
     parser.add_argument('--run-file', type=Path)
     parser.add_argument('--dir', type=Path, help='run all cases under directory')
@@ -119,11 +120,16 @@ def main() -> int:
 
     try:
         # ---- validation / listing modes ------------------------------------
-        if args.check is not None:
-            path = Path(args.check) if args.check else None
-            files = [path] if path and path.is_file() else models.load_cases_dir(path or CASES_DIR)
+        if args.check:
+            path = args.path
+            if path and path.is_file():
+                files = [path]
+            elif path and path.is_dir():
+                files = [p for p in sorted(path.rglob('*.yaml')) if not p.name.startswith('_')]
+            else:
+                files = [c.path for c in models.load_cases_dir(CASES_DIR)]
             errors = []
-            for f in (files if path else [c.path for c in files]):
+            for f in files:
                 try:
                     models.load_case(f)
                 except models.EvalError as e:
@@ -135,9 +141,9 @@ def main() -> int:
             print(f"OK: {len(files)} case(s) valid")
             return 0
 
-        if args.list is not None:
-            path = Path(args.list) if args.list else None
-            cases = [models.load_case(p) for p in sorted((path or CASES_DIR).rglob('*.yaml'))] if path else models.load_cases_dir(CASES_DIR)
+        if args.list:
+            path = args.path
+            cases = models.load_cases_dir(path) if path and path.is_dir() else models.load_cases_dir(CASES_DIR)
             print(f"{'id':40s} {'category':20s} {'difficulty':10s} {'binary':30s} filter")
             for c in cases:
                 print(f"{c.id:40s} {c.category:20s} {c.difficulty:10s} {c.binary or '':30s} {c.gtest_filter or ''}")

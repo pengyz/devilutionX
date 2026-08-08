@@ -7,7 +7,7 @@
 - Treat `CLAUDE.md` as the shared project guidance source of truth.
 - Treat `.claude/skills/*` and `.claude/commands/*` as the canonical workflow documents.
 - When a referenced workflow says `Claude`, `Claude Code`, `Skill tool`, `Bash`, `Read`, `Write`, `Glob`, or `Grep`, map it to the equivalent behavior in the current session.
-- Hooks are declared in `.claude/settings.local.json` and reuse `.claude/hooks/*.sh` scripts.
+- Hooks are declared in `.claude/settings.json` (shared) and reuse `.claude/hooks/*.sh` scripts.
 
 ## 测试命令速查（AI 必须使用）
 

@@ -37,6 +37,7 @@ TEST_TARGETS = [
     "ai_registry_test", "animationinfo_test", "appfat_test", "assets_test",
     "automap_test", "can_target_test", "cursor_test", "dead_test",
     "diablo_test", "dark_expedition_light_test", "dark_expedition_scroll_test",
+    "dark_expedition_e2e_test",
     "drlg_common_test", "drlg_l1_test", "drlg_l2_test", "drlg_l3_test",
     "drlg_l4_test", "effects_test", "inv_test", "items_test",
     "lua_integration_test", "math_test", "missiles_test", "multi_logging_test",
@@ -80,7 +81,18 @@ def build_tests(build_dir: Path, n: int) -> tuple[bool, str]:
 
     targets = " ".join(TEST_TARGETS)
     if gen == "ninja":
-        cmd = ["cmake", "--build", str(build_dir), "--target"] + TEST_TARGETS + ["-j", str(n)]
+        # Only build targets that exist in this configuration. text_render_integration_test
+        # is conditional (needs PNG + not SDL1); building a missing target fails the whole
+        # command. Resolve via the generated build.ninja target list.
+        ninja = build_dir / "build.ninja"
+        known = set()
+        if ninja.exists():
+            import re as _re
+            for m in _re.finditer(r'^build ([^:]+):', ninja.read_text(errors='ignore'), _re.M):
+                for t in m.group(1).split():
+                    known.add(t)
+        targets_to_build = [t for t in TEST_TARGETS if t in known]
+        cmd = ["cmake", "--build", str(build_dir), "--target"] + targets_to_build + ["-j", str(n)]
     else:
         cmd = ["cmake", "--build", str(build_dir), "--target", "test", "-j", str(n)]
     result = run(cmd, build_dir)
@@ -217,8 +229,15 @@ def main() -> int:
         if report["steps"]["ctest"].get("failed", 0) > 0:
             ok = False
     if "single" in report["steps"]:
-        if report["steps"]["single"].get("failed", 0) > 0:
+        single = report["steps"]["single"]
+        if single.get("failed", 0) > 0:
             ok = False
+        # Binary missing or run failure (returncode < 0) must fail the gate,
+        # not silently pass.
+        if single.get("returncode", 0) < 0:
+            ok = False
+            print(f"ERROR: {single.get('error', 'test binary failed to run')}",
+                  file=sys.stderr)
     if "filtered" in report["steps"]:
         if report["steps"]["filtered"]["failed_count"] > 0:
             ok = False

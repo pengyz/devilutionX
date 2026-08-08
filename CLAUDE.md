@@ -57,7 +57,7 @@ python3 tools/test_impact.py --diff | xargs -n1 python3 tools/run_tests.py --tes
 python3 -m tools.eval.backend --smoke
 
 # 3. 全量门禁（必跑）
-python3 tools/run_tests.py --json /tmp/ci.json   # 666+ 测试 + 漂移校验
+python3 tools/run_tests.py --json /tmp/ci.json   # 670+ 测试 + 漂移校验
 ```
 
 通过标准：JSON `ctest.passed_pct == 100`、`failed == 0`、`drift.drift_ok == true`。

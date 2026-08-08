@@ -76,7 +76,7 @@ python3 -m tools.eval.backend --smoke           # = --set smoke
 python3 -m tools.eval.backend --json /tmp/r.json  # JSON 报告
 ```
 
-**exit code**：0=全过，1=有失败，2=无匹配，3=无效 YAML，4=基础设施错误。
+**exit code**：0=全过，1=有失败（含缺二进制），2=无匹配，3=无效 YAML。
 
 ### 3. 冒烟自检（提交前门禁）
 

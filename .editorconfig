@@ -41,6 +41,9 @@ end_of_line = lf
 indent_style = space
 end_of_line = lf
 
+[*.json]
+end_of_line = lf
+
 [*.sh]
 end_of_line = lf
 

@@ -18,7 +18,7 @@
 python3 -m tools.eval.backend --smoke --json /tmp/eval.json
 ```
 
-通过标准：`evaluated > 0` 且全部 PASS（exit 0）。全 skip = 失败（防空跑）。
+通过标准：`evaluated > 0` 且全部 PASS（exit 0）。全 skip = 失败（防空跑）——此语义仅对 `--smoke`/`--set` 门禁生效；裸 `--run` 单用例全 skip 时警告但 exit 0。
 
 ### 2. 单用例调试
 

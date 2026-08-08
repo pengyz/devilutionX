@@ -14,7 +14,7 @@
 - 1 条知识 1 文件：`<type>_<slug>.md`
 - frontmatter 强制 `name` / `description` / `type` / `created` / `sources`
 - 正文：事实陈述 + `**为什么：**` + `**何时使用：**`（`reference` 类可省 Why/When）
-- `MEMORY.md` 是机器维护的索引（≤200 行 / 25KB），按 type 分组
+- `MEMORY.md` 是**手工维护**的索引（≤200 行 / 25KB），按 type 分组——新增知识时同步追加索引条目
 
 ## 类型
 
