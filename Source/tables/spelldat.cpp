@@ -5,10 +5,13 @@
  */
 #include "tables/spelldat.h"
 
+#include <algorithm>
 #include <expected>
 #include <format>
 #include <optional>
 #include <string_view>
+#include <utility>
+#include <vector>
 
 #include "data/file.hpp"
 #include "data/iterators.hpp"
@@ -33,6 +36,21 @@ void AddNullSpell()
 	for (uint32_t &param : null.sParam) {
 		param = 0;
 	}
+}
+
+// Default row for enum values absent from the TSV. Unlearnable, costless, no missiles.
+// Must NOT reuse AddNullSpell's profile (sBookLvl = 0) or these become learnable.
+SpellData MakeUnloadedSpellData()
+{
+	SpellData data;
+	data.sSFX = SfxID::None;
+	data.flags = SpellDataFlags::Fire;
+	data.sBookLvl = -1;
+	data.sStaffLvl = -1;
+	data.sMissiles[0] = data.sMissiles[1] = MissileID::Null;
+	data.sStaffMin = 40;
+	data.sStaffMax = 80;
+	return data;
 }
 
 // A temporary solution for parsing soundID until we have a more general one.
@@ -235,13 +253,23 @@ void LoadSpellData()
 	SpellsData.clear();
 	const std::string_view filename = "txtdata\\spells\\spelldat.tsv";
 	DataFile dataFile = DataFile::loadOrDie(filename);
-	SpellsData.reserve(dataFile.numRecords() + 1);
-	AddNullSpell();
+
+	// Phase 1: parse every row and resolve its SpellID from the `id` column.
+	// Storing rows decoupled from SpellsData lets row order differ from enum order
+	// (deleted stub rows must not shift the remaining spells).
+	struct LoadedSpellRow {
+		SpellID id;
+		SpellData data;
+	};
+	std::vector<LoadedSpellRow> rows;
+	rows.reserve(dataFile.numRecords());
+	size_t maxSpellIndex = 0;
 	dataFile.skipHeaderOrDie(filename);
 	for (DataFileRecord record : dataFile) {
 		RecordReader reader { record, filename };
-		SpellData &item = SpellsData.emplace_back();
-		reader.advance(); // skip id
+		LoadedSpellRow row;
+		reader.read("id", row.id, ParseSpellId);
+		SpellData &item = row.data;
 		reader.readString("name", item.sNameText);
 		reader.read("soundId", item.sSFX, ParseSpellSoundId);
 		reader.readInt("bookCost10", item.bookCost10);
@@ -263,6 +291,18 @@ void LoadSpellData()
 		for (int i = 0; i < 8; i++) {
 			reader.readOptionalInt(std::format("param{}", i + 1), item.sParam[i]);
 		}
+		maxSpellIndex = std::max(maxSpellIndex, static_cast<size_t>(row.id));
+		rows.push_back(std::move(row));
+	}
+
+	// Phase 2: materialize enum-indexed storage. Size stays `max enum present + 1`
+	// (37 for Diablo, 52 for Hellfire), so every `SpellsData.size()`-based RNG and
+	// iteration bound is unchanged. Absent IDs get unlearnable default rows.
+	SpellsData.reserve(maxSpellIndex + 1);
+	AddNullSpell();
+	SpellsData.resize(maxSpellIndex + 1, MakeUnloadedSpellData());
+	for (LoadedSpellRow &row : rows) {
+		SpellsData[static_cast<size_t>(row.id)] = std::move(row.data);
 	}
 	SpellsData.shrink_to_fit();
 }
