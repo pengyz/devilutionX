@@ -22,3 +22,24 @@ cases:
   - render-palette
   # combat
   - combat-missiles
+  - mechanics-inventory_ui
+  - mechanics-panel_state
+  - mechanics-game_menu
+  - mechanics-char_panel
+  - data-townerdat
+  - data-mod_identity
+  - data-ini
+  - data-appfat
+  - combat-dead
+  - combat-effects
+  - combat-cursor
+  - combat-ai_registry
+  - utility-random
+  - utility-vision
+  - utility-utf8
+  - utility-static_vector
+  - utility-rectangle
+  - utility-str_cat
+  - utility-parse_int
+  - utility-format_int
+  - utility-math

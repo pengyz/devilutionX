@@ -1,0 +1,24 @@
+id: "dungeon-drlg_common"
+name: "地牢生成公共逻辑"
+category: "dungeon"
+difficulty: "medium"
+tags: ["dungeon"]
+
+setup:
+  mpq_required: false
+  timeout: 60
+
+run:
+  backend: "gtest"
+  binary: "drlg_common_test"
+  filter: "DrlgTest.*"
+
+expected:
+  exit_code: 0
+  failed: 0
+  passed_min: 1
+  skipped_max: 5
+  output_contains: ["[  PASSED  ]"]
+
+description: >
+  地牢生成公共逻辑。

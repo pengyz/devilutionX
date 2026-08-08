@@ -1,0 +1,24 @@
+id: "mechanics-spell_ui"
+name: "法术书 UI 列表"
+category: "mechanics"
+difficulty: "basic"
+tags: ["spells"]
+
+setup:
+  mpq_required: false
+  timeout: 60
+
+run:
+  backend: "gtest"
+  binary: "spell_ui_test"
+  filter: "SpellUITest.*"
+
+expected:
+  exit_code: 0
+  failed: 0
+  passed_min: 1
+  skipped_max: 5
+  output_contains: ["[  PASSED  ]"]
+
+description: >
+  法术书 UI 列表。

@@ -1,0 +1,24 @@
+id: "data-quests"
+name: "任务数据与逻辑"
+category: "data"
+difficulty: "medium"
+tags: ["quests"]
+
+setup:
+  mpq_required: false
+  timeout: 60
+
+run:
+  backend: "gtest"
+  binary: "quests_test"
+  filter: "QuestTest.*"
+
+expected:
+  exit_code: 0
+  failed: 0
+  passed_min: 1
+  skipped_max: 5
+  output_contains: ["[  PASSED  ]"]
+
+description: >
+  任务数据与逻辑。

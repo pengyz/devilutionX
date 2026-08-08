@@ -1,0 +1,24 @@
+id: "utility-path"
+name: "路径工具"
+category: "utility"
+difficulty: "basic"
+tags: ["utility"]
+
+setup:
+  mpq_required: false
+  timeout: 60
+
+run:
+  backend: "gtest"
+  binary: "path_test"
+  filter: "PathTest.*"
+
+expected:
+  exit_code: 0
+  failed: 0
+  passed_min: 1
+  skipped_max: 5
+  output_contains: ["[  PASSED  ]"]
+
+description: >
+  路径工具。

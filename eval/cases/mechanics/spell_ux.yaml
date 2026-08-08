@@ -1,0 +1,24 @@
+id: "mechanics-spell_ux"
+name: "法术 UX 需求显示"
+category: "mechanics"
+difficulty: "basic"
+tags: ["spells"]
+
+setup:
+  mpq_required: false
+  timeout: 60
+
+run:
+  backend: "gtest"
+  binary: "spell_ux_test"
+  filter: "SpellUXTest.*"
+
+expected:
+  exit_code: 0
+  failed: 0
+  passed_min: 1
+  skipped_max: 5
+  output_contains: ["[  PASSED  ]"]
+
+description: >
+  法术 UX 需求显示。

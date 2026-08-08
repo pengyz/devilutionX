@@ -1,0 +1,24 @@
+id: "data-mod_identity"
+name: "Mod 身份与清单解析"
+category: "data"
+difficulty: "basic"
+tags: ["mods"]
+
+setup:
+  mpq_required: false
+  timeout: 60
+
+run:
+  backend: "gtest"
+  binary: "mod_identity_test"
+  filter: "ModIdentity.*"
+
+expected:
+  exit_code: 0
+  failed: 0
+  passed_min: 1
+  skipped_max: 5
+  output_contains: ["[  PASSED  ]"]
+
+description: >
+  Mod 身份与清单解析。

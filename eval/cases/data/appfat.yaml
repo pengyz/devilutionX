@@ -1,0 +1,24 @@
+id: "data-appfat"
+name: "资源加载失败处理"
+category: "data"
+difficulty: "basic"
+tags: ["assets"]
+
+setup:
+  mpq_required: false
+  timeout: 60
+
+run:
+  backend: "gtest"
+  binary: "appfat_test"
+  filter: "AppfatTest.*"
+
+expected:
+  exit_code: 0
+  failed: 0
+  passed_min: 1
+  skipped_max: 5
+  output_contains: ["[  PASSED  ]"]
+
+description: >
+  资源加载失败处理。

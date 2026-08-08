@@ -1,0 +1,24 @@
+id: "data-quest_script"
+name: "任务 Lua 脚本"
+category: "data"
+difficulty: "medium"
+tags: ["quests"]
+
+setup:
+  mpq_required: false
+  timeout: 60
+
+run:
+  backend: "gtest"
+  binary: "quest_script_test"
+  filter: "QuestScriptTest.*"
+
+expected:
+  exit_code: 0
+  failed: 0
+  passed_min: 1
+  skipped_max: 5
+  output_contains: ["[  PASSED  ]"]
+
+description: >
+  任务 Lua 脚本。

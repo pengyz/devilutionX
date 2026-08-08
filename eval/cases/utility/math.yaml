@@ -1,0 +1,24 @@
+id: "utility-math"
+name: "数学工具"
+category: "utility"
+difficulty: "basic"
+tags: ["utility"]
+
+setup:
+  mpq_required: false
+  timeout: 60
+
+run:
+  backend: "gtest"
+  binary: "math_test"
+  filter: "MathTest.*"
+
+expected:
+  exit_code: 0
+  failed: 0
+  passed_min: 1
+  skipped_max: 5
+  output_contains: ["[  PASSED  ]"]
+
+description: >
+  数学工具。

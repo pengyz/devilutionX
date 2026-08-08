@@ -1,0 +1,24 @@
+id: "data-spell_tooltip"
+name: "法术 tooltip 数据与渲染"
+category: "data"
+difficulty: "medium"
+tags: ["spells"]
+
+setup:
+  mpq_required: false
+  timeout: 60
+
+run:
+  backend: "gtest"
+  binary: "spell_tooltip_test"
+  filter: "SpellTooltipTest.*"
+
+expected:
+  exit_code: 0
+  failed: 0
+  passed_min: 1
+  skipped_max: 5
+  output_contains: ["[  PASSED  ]"]
+
+description: >
+  法术 tooltip 数据与渲染。

@@ -1,0 +1,24 @@
+id: "mechanics-stash"
+name: "仓库物品管理"
+category: "mechanics"
+difficulty: "medium"
+tags: ["stash"]
+
+setup:
+  mpq_required: false
+  timeout: 60
+
+run:
+  backend: "gtest"
+  binary: "stash_test"
+  filter: "StashTest.*"
+
+expected:
+  exit_code: 0
+  failed: 0
+  passed_min: 1
+  skipped_max: 5
+  output_contains: ["[  PASSED  ]"]
+
+description: >
+  仓库物品管理。

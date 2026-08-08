@@ -1,0 +1,24 @@
+id: "mechanics-panel_state"
+name: "面板状态机（背包/法术书/任务日志互斥）"
+category: "mechanics"
+difficulty: "basic"
+tags: ["ui"]
+
+setup:
+  mpq_required: false
+  timeout: 60
+
+run:
+  backend: "gtest"
+  binary: "panel_state_test"
+  filter: "PanelStateTest.*"
+
+expected:
+  exit_code: 0
+  failed: 0
+  passed_min: 1
+  skipped_max: 5
+  output_contains: ["[  PASSED  ]"]
+
+description: >
+  面板状态机（背包/法术书/任务日志互斥）。

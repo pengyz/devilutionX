@@ -1,0 +1,24 @@
+id: "render-text_render_integration"
+name: "文本渲染 golden 对比"
+category: "render"
+difficulty: "medium"
+tags: ["golden"]
+
+setup:
+  mpq_required: false
+  timeout: 60
+
+run:
+  backend: "gtest"
+  binary: "text_render_integration_test"
+  filter: "*"
+
+expected:
+  exit_code: 0
+  failed: 0
+  passed_min: 1
+  skipped_max: 5
+  output_contains: ["[  PASSED  ]"]
+
+description: >
+  文本渲染 golden 对比。

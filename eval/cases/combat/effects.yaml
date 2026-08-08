@@ -1,0 +1,24 @@
+id: "combat-effects"
+name: "状态效果逻辑"
+category: "combat"
+difficulty: "basic"
+tags: ["effects"]
+
+setup:
+  mpq_required: false
+  timeout: 60
+
+run:
+  backend: "gtest"
+  binary: "effects_test"
+  filter: "Effects.*"
+
+expected:
+  exit_code: 0
+  failed: 0
+  passed_min: 1
+  skipped_max: 5
+  output_contains: ["[  PASSED  ]"]
+
+description: >
+  状态效果逻辑。

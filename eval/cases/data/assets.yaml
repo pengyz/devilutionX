@@ -1,0 +1,24 @@
+id: "data-assets"
+name: "松散资产存在性"
+category: "data"
+difficulty: "basic"
+tags: ["assets"]
+
+setup:
+  mpq_required: false
+  timeout: 60
+
+run:
+  backend: "gtest"
+  binary: "assets_test"
+  filter: "HasLooseLogicAssetsTest.*"
+
+expected:
+  exit_code: 0
+  failed: 0
+  passed_min: 1
+  skipped_max: 5
+  output_contains: ["[  PASSED  ]"]
+
+description: >
+  松散资产存在性。

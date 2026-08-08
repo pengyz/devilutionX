@@ -1,0 +1,24 @@
+id: "utility-format_int"
+name: "整数格式化"
+category: "utility"
+difficulty: "basic"
+tags: ["utility"]
+
+setup:
+  mpq_required: false
+  timeout: 60
+
+run:
+  backend: "gtest"
+  binary: "format_int_test"
+  filter: "FormatIntegerTest.*"
+
+expected:
+  exit_code: 0
+  failed: 0
+  passed_min: 1
+  skipped_max: 5
+  output_contains: ["[  PASSED  ]"]
+
+description: >
+  整数格式化。

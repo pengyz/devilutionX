@@ -1,0 +1,24 @@
+id: "flow-diablo"
+name: "主循环启动"
+category: "flow"
+difficulty: "basic"
+tags: ["main"]
+
+setup:
+  mpq_required: false
+  timeout: 60
+
+run:
+  backend: "gtest"
+  binary: "diablo_test"
+  filter: "Diablo.*"
+
+expected:
+  exit_code: 0
+  failed: 0
+  passed_min: 1
+  skipped_max: 5
+  output_contains: ["[  PASSED  ]"]
+
+description: >
+  主循环启动。
