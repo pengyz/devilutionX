@@ -1,0 +1,24 @@
+id: "render-palette"
+name: "渲染：调色板混合"
+category: "render"
+difficulty: "basic"
+tags: ["render", "palette"]
+
+setup:
+  mpq_required: false
+  timeout: 30
+
+run:
+  backend: "gtest"
+  binary: "palette_blending_test"
+  filter: "GenerateBlendedLookupTableTest.*"
+
+expected:
+  exit_code: 0
+  failed: 0
+  passed_min: 1
+  skipped_max: 0
+  output_contains: ["[  PASSED  ]"]
+
+description: >
+  调色板混合算法正确性。

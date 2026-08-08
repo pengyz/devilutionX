@@ -1,0 +1,24 @@
+id: "data-spell-data"
+name: "数据：法术表加载与描述完整性"
+category: "data"
+difficulty: "basic"
+tags: ["data", "spells"]
+
+setup:
+  mpq_required: false
+  timeout: 30
+
+run:
+  backend: "gtest"
+  binary: "spelldat_test"
+  filter: "SpelldatTest.*"
+
+expected:
+  exit_code: 0
+  failed: 0
+  passed_min: 5
+  skipped_max: 0
+  output_contains: ["[  PASSED  ]"]
+
+description: >
+  法术数据加载、可学法术描述完整、Infravision 学习门控。

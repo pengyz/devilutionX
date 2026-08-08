@@ -1,0 +1,24 @@
+id: "combat-player-states"
+name: "战斗：玩家状态机与受伤"
+category: "combat"
+difficulty: "medium"
+tags: ["combat", "player"]
+
+setup:
+  mpq_required: false
+  timeout: 60
+
+run:
+  backend: "gtest"
+  binary: "player_test"
+  filter: "Player.*"
+
+expected:
+  exit_code: 0
+  failed: 0
+  passed_min: 1
+  skipped_max: 0
+  output_contains: ["[  PASSED  ]"]
+
+description: >
+  玩家创建、受伤状态机、属性计算。

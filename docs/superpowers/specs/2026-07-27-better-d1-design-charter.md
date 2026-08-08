@@ -580,8 +580,8 @@ ManaShield 魔法需求 = 25 — assets/txtdata/spells/spelldat.tsv:minIntellige
 
 | 待立项 | 分类 | 优先级 | 依赖 | 参考文件 |
 |---|---|---|---|---|
-| 深度层旗舰改动（方向待定）——**唯一决定本项目是否有意义的开放问题** | Depth | 1 | 深度层开关 | — |
-| 深度层开关实现 | Infra | 2 | — | 无 |
+| ~~深度层旗舰改动（方向待定）~~ | Depth | 1 | ~~深度层开关~~ | — |
+| ~~深度层开关实现~~ | Infra | 2 | — | 无 |
 | 消耗品经济重构：取消符文及伤害卷轴掉落，重新推导补偿形状，**并一并裁决消耗品堆叠的最终形态**（见决策 26） | Depth | 3 | 深度层开关 | `archive/specs/consumable-system.md`、`archive/specs/2026-07-07-consumable-stacking-design.md` |
 | 法术实用性：Rage / Etherealize / Golem | Depth | 4 | — | `archive/specs/spell-system.md` |
 
@@ -589,7 +589,11 @@ ManaShield 魔法需求 = 25 — assets/txtdata/spells/spelldat.tsv:minIntellige
 
 未命中反馈已于 2026-07-28 实施，见 `2026-07-28-miss-feedback-design.md`。七项验收标准全部通过；并用临时探针在 timedemo 中实证近战分支触发 12 次，同时由 timedemo 的存档比对证明该调用不扰动游戏状态。
 
+**深度层旗舰「黑暗远征」（Dark Expedition）已于 2026-08-08 实施**，见 `2026-08-08-dark-expedition-design.md` 与 `plans/2026-08-08-dark-expedition.md`。完整落地：深度层开关（`darkExpedition`，flags `CantChangeInGame|CantChangeInMultiPlayer`，默认 false）、视野限制（Hell 60%/Nest 85%/Crypt 50%）、Infravision 目标选择修复（`CanTarget`）、Infravision 卷轴稀缺预算、三个 stub 法术删除。经两轮 Oracle 对抗评审 + 一轮独立复核；670 项测试全过，漂移校验 5 项 PASS，CI 全绿。深度层从「空」变为有身份——宪章决策 28 的核心焦虑已解决。
+
 Base 层已实施改动的补记已于 2026-07-28 完成，见 `implemented-features.md`。该文档为事后补记而非设计规格，不适用第 4 节的 7 段结构，也不声称通过红线检查——这些改动当初就没有过红线，用今天的标准追认只会产出禁令 5 禁止的那种表。
+
+**AI 协作基础设施已于 2026-08-08 落地**（参考 osbot 模式）：共享记忆 `docs/knowledge/`（6 类型 + 4 触发时刻）、eval 集成测试（`tools/eval/` + `eval/cases/`，YAML case + smoke 门禁）、提示词分层（`CLAUDE.md` 强约束 + `AGENTS.md` 适配层）、防护 hooks（行尾检查 / 核心文件保护 / push 护栏）、CI 全自动（`better-d1-ci.yml`）。后续开发以此基础设施为基准：行为变更必产 eval case，提交前 smoke 门禁，全量 CI 兜底。
 
 ### 已知并接受，不再列为待立项
 
@@ -682,3 +686,5 @@ Base 层已实施改动的补记已于 2026-07-28 完成，见 `implemented-feat
 | 26 | 决策 10 撤销。消耗品堆叠原样保留，不改背包堆叠、不移除。背包堆叠需与消耗品经济重构一并设计——那项工作才会确定「玩家应该能带多少补给」，在此之前单独放宽背包容量是在与它反方向拉。执行中另发现：删除腰带堆叠会使整套 `_iStackCount` 基础设施成为死代码（唯一两个生产者都在腰带侧），连带需删 20 个测试并把三处持久化回退到上游编码，代价与收益不成比例 | 已定 |
 | 27 | 事实漂移机械校验脚本实施（`tools/check_drift.py`，五项检查）。实测确认「靠自觉遵守规范」不成立：脚本首次运行即抓出五个人工核查两遍仍遗漏的文件。检查 C 的判据从「符合 `.editorconfig`」改为「相对基线未改变」——上游自身不完全符合该配置，故禁令 7 的措辞「不改变文件行尾」才是唯一可执行的形式 | 已定 |
 | 28 | 待立项清单原按「整洁度」排序，现按价值重排。第一性分析的结论：两天 45 个 commit 只产出一个新玩家能力（18 条法术描述），其余全是修复、移除与防护。底座层基本做完，深度层是空的——而宪章第 9 节自己写着，停在底座层则本项目的独特价值只是「tooltip 比上游好」，撑不起 mod 的身份。因此：「Base 层补文档」降级为轻量清单而非规格循环（其「深度层前提」的理由经不起推敲，读五分钟源码即可替代）；Lua 关闭阶段 UAF 与 benchmark 链接失败记为「已知并接受」；深度层方向升为唯一决定项目意义的开放问题 | 已定 |
+| 29 | 深度层旗舰定为「黑暗远征」（Dark Expedition）：以限制信息（视野/目标选择/卷轴稀缺）而非数值膨胀重塑压力曲线。两轮 Oracle 对抗评审 + 一轮独立复核确认方向；完整实施含深度层开关、光照倍率、CanTarget、Infravision 卷轴预算、stub 删除。670 测试全过 + 漂移 5 PASS + CI 全绿。决策 28 的核心焦虑（深度层为空）已解决 | 已定 |
+| 30 | AI 协作基础设施落地（参考 osbot）：共享记忆 `docs/knowledge/`、eval 集成测试（YAML case + smoke 门禁）、提示词分层（CLAUDE.md/AGENTS.md）、防护 hooks、CI 全自动。独立复核抓到并修复 5 个阻塞缺陷（push 护栏绕过、缺二进制静默通过等）。后续开发以此为基准：行为变更必产 eval case | 已定 |

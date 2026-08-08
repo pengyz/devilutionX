@@ -1,0 +1,24 @@
+id: "data-items-data"
+name: "数据：物品表独特物品可掉落"
+category: "data"
+difficulty: "basic"
+tags: ["data", "items"]
+
+setup:
+  mpq_required: false
+  timeout: 60
+
+run:
+  backend: "gtest"
+  binary: "items_test"
+  filter: "ItemsTest.*"
+
+expected:
+  exit_code: 0
+  failed: 0
+  passed_min: 1
+  skipped_max: 0
+  output_contains: ["[  PASSED  ]"]
+
+description: >
+  物品表加载、独特物品掉落校验。

@@ -1,0 +1,25 @@
+id: "mechanics-inventory"
+name: "背包：卷轴使用与金币自动放置"
+category: "mechanics"
+difficulty: "basic"
+tags: ["inventory"]
+
+setup:
+  mpq_required: false
+  timeout: 60
+
+run:
+  backend: "gtest"
+  binary: "inv_test"
+  filter: "InvTest.*"
+
+expected:
+  exit_code: 0
+  failed: 0
+  passed_min: 10
+  skipped_max: 0
+  output_contains: ["[  PASSED  ]"]
+
+description: >
+  背包/腰带卷轴使用、金币自动放置、抽象金币计数器契约
+  （金币不占背包格、_pGold 直接增减）。

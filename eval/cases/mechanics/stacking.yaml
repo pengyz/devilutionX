@@ -1,0 +1,25 @@
+id: "mechanics-stacking"
+name: "消耗品堆叠：腰带堆叠与容量"
+category: "mechanics"
+difficulty: "medium"
+tags: ["stacking", "belt"]
+
+setup:
+  mpq_required: false
+  timeout: 60
+
+run:
+  backend: "gtest"
+  binary: "consumable_stack_test"
+  filter: "ConsumableStackTest.*"
+
+expected:
+  exit_code: 0
+  failed: 0
+  passed_min: 15
+  skipped_max: 0
+  output_contains: ["[  PASSED  ]"]
+
+description: >
+  药水/卷轴堆叠上限（药水5/卷轴3，不因职业而异）、腰带容量
+  （8格×每格5件——宪章已知例外）。

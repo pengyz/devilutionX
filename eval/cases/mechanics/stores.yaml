@@ -1,0 +1,24 @@
+id: "mechanics-stores"
+name: "商店：铁匠/女巫/商人库存生成"
+category: "mechanics"
+difficulty: "medium"
+tags: ["stores", "economy"]
+
+setup:
+  mpq_required: false
+  timeout: 60
+
+run:
+  backend: "gtest"
+  binary: "vendor_test"
+  filter: "VendorTest.*"
+
+expected:
+  exit_code: 0
+  failed: 0
+  passed_min: 10
+  skipped_max: 0
+  output_contains: ["[  PASSED  ]"]
+
+description: >
+  铁匠/女巫库存生成、Premium 物品品质分层、价值上限。

@@ -1,0 +1,24 @@
+id: "combat-missiles"
+name: "战斗：弹道方向与旋转"
+category: "combat"
+difficulty: "medium"
+tags: ["combat", "missiles"]
+
+setup:
+  mpq_required: false
+  timeout: 30
+
+run:
+  backend: "gtest"
+  binary: "missiles_test"
+  filter: "Missiles.*"
+
+expected:
+  exit_code: 0
+  failed: 0
+  passed_min: 1
+  skipped_max: 0
+  output_contains: ["[  PASSED  ]"]
+
+description: >
+  弹道方向计算、旋转阻挡逻辑。

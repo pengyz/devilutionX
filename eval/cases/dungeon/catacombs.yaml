@@ -1,0 +1,24 @@
+id: "dungeon-catacombs"
+name: "地牢：地下室种子化生成确定性"
+category: "dungeon"
+difficulty: "medium"
+tags: ["dungeon", "rng"]
+
+setup:
+  mpq_required: false
+  timeout: 60
+
+run:
+  backend: "gtest"
+  binary: "drlg_l2_test"
+  filter: "Drlg_l2.*"
+
+expected:
+  exit_code: 0
+  failed: 0
+  passed_min: 1
+  skipped_max: 0
+  output_contains: ["[  PASSED  ]"]
+
+description: >
+  地下室地牢生成对固定种子确定性。

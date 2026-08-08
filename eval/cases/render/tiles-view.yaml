@@ -1,0 +1,24 @@
+id: "render-tiles-view"
+name: "渲染：视野 tile 计算"
+category: "render"
+difficulty: "basic"
+tags: ["render", "math"]
+
+setup:
+  mpq_required: false
+  timeout: 30
+
+run:
+  backend: "gtest"
+  binary: "scrollrt_test"
+  filter: "Scroll_rt.*"
+
+expected:
+  exit_code: 0
+  failed: 0
+  passed_min: 10
+  skipped_max: 0
+  output_contains: ["[  PASSED  ]"]
+
+description: >
+  不同分辨率/缩放下可视 tile 行列数计算、tile offset 数学。
