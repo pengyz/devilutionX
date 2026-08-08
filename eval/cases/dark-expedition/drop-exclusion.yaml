@@ -1,0 +1,25 @@
+id: "dark-expedition-drop-exclusion"
+name: "暗夜远征：符文/伤害卷轴掉落排除"
+category: "dark-expedition"
+difficulty: "medium"
+tags: ["economy", "drops"]
+
+setup:
+  mpq_required: false
+  timeout: 30
+
+run:
+  backend: "gtest"
+  binary: "dark_expedition_drop_test"
+  filter: "DarkExpeditionDropTest.*"
+
+expected:
+  exit_code: 0
+  failed: 0
+  passed_min: 6
+  skipped_max: 0
+  output_contains: ["[  PASSED  ] 6 tests."]
+
+description: >
+  深度层开启时掉落池排除符文 + 伤害卷轴（保留 Resurrect 与工具卷轴）；
+  IsItemAvailable 不受影响（存档/网络无 collateral）。

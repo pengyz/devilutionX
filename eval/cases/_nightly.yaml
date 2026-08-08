@@ -4,6 +4,7 @@ cases:
   - combat-missiles
   - combat-player-states
   - dark-expedition-can-target
+  - dark-expedition-drop-exclusion
   - dark-expedition-e2e-learnability
   - dark-expedition-light-radius
   - dark-expedition-scroll-budget
@@ -13,6 +14,7 @@ cases:
   - dungeon-caves
   - flow-timedemo-warrior
   - mechanics-inventory
+  - mechanics-scroll-consumption
   - mechanics-stacking
   - mechanics-stores
   - render-palette

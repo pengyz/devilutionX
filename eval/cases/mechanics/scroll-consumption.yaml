@@ -1,0 +1,24 @@
+id: "mechanics-scroll-consumption"
+name: "消耗品：卷轴单张消耗"
+category: "mechanics"
+difficulty: "basic"
+tags: ["scrolls", "stacking"]
+
+setup:
+  mpq_required: false
+  timeout: 30
+
+run:
+  backend: "gtest"
+  binary: "consume_scroll_test"
+  filter: "ConsumeScrollTest.*"
+
+expected:
+  exit_code: 0
+  failed: 0
+  passed_min: 3
+  skipped_max: 0
+  output_contains: ["[  PASSED  ] 3 tests."]
+
+description: >
+  使用叠 N 的卷轴只消耗 1 张（非整叠移除），耗尽才移除物品。

@@ -5,12 +5,14 @@ cases:
   - dark-expedition-light-radius
   - dark-expedition-can-target
   - dark-expedition-e2e-learnability
+  - dark-expedition-drop-exclusion
   # save/load
   - save-pack-roundtrip
   - save-hero-write
   # mechanics
   - mechanics-inventory
   - mechanics-stacking
+  - mechanics-scroll-consumption
   - mechanics-stores
   # data
   - data-spell-data
