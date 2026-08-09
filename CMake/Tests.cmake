@@ -1,22 +1,31 @@
 include(GoogleTest)
 include(functions/copy_files)
 
-add_library(libdevilutionx_so SHARED)
+add_library(libdevilutionx_so SHARED $<TARGET_OBJECTS:libdevilutionx>)
 set_target_properties(libdevilutionx_so PROPERTIES RUNTIME_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR})
 
 target_link_dependencies(libdevilutionx_so PUBLIC libdevilutionx)
 set_target_properties(libdevilutionx_so PROPERTIES WINDOWS_EXPORT_ALL_SYMBOLS ON)
 
+# Windows: gettext's libintl is a separate import lib (intl.lib) that the
+# shared wrapper must link explicitly; the static lib does not carry it.
+if(WIN32)
+  find_library(INTL_LIBRARY NAMES intl)
+  if(INTL_LIBRARY)
+    target_link_libraries(libdevilutionx_so PRIVATE ${INTL_LIBRARY})
+  endif()
+endif()
+
 add_library(test_main OBJECT test/main.cpp)
-target_link_dependencies(test_main PUBLIC libdevilutionx_so GTest::gtest GTest::gmock)
+target_include_directories(test_main PRIVATE "${PROJECT_SOURCE_DIR}/Source")
+target_link_dependencies(test_main PUBLIC libdevilutionx GTest::gtest GTest::gmock)
+target_link_dependencies(test_main PRIVATE DevilutionX::SDL)
 
 set(tests
-  ai_registry_test
   animationinfo_test
   appfat_test
   assets_test
   automap_test
-  can_target_test
   cursor_test
   dead_test
   diablo_test
@@ -62,6 +71,8 @@ set(tests
   consumable_stack_test
 )
 set(standalone_tests
+  ai_registry_test
+  can_target_test
   codec_test
   crawl_test
   data_file_test
@@ -106,8 +117,28 @@ foreach(test_target ${tests} ${standalone_tests})
   gtest_discover_tests(${test_target})
 endforeach()
 
+# Tests link the engine object libraries directly (not the Windows DLL), so
+# their TUs must reference engine globals as direct symbols instead of
+# dllimport. DVL_API_FOR_TEST (attributes.h) keys off _DVL_EXPORTING.
+if(MSVC)
+  target_compile_definitions(test_main PRIVATE _DVL_EXPORTING)
+  foreach(test_target ${tests} ${standalone_tests})
+    target_compile_definitions(${test_target} PRIVATE _DVL_EXPORTING)
+  endforeach()
+endif()
+
+# All test executables may pull in assets.cpp/diablo.cpp (via the object
+# library chain) which reference gettext's libintl_* symbols. The object
+# library PUBLIC link propagation does not reliably reach the final exe on
+# Windows, so link intl explicitly for every test binary.
+if(WIN32 AND INTL_LIBRARY)
+  foreach(test_target ${tests} ${standalone_tests})
+    target_link_libraries(${test_target} PRIVATE ${INTL_LIBRARY})
+  endforeach()
+endif()
+
 foreach(test_target ${tests})
-  target_link_libraries(${test_target} PRIVATE test_main)
+  target_link_dependencies(${test_target} PRIVATE test_main)
 endforeach()
 
 foreach(test_target ${standalone_tests})
@@ -126,6 +157,8 @@ target_sources(app_fatal_for_testing INTERFACE $<TARGET_OBJECTS:app_fatal_for_te
 add_library(language_for_testing OBJECT test/language_for_testing.cpp)
 target_sources(language_for_testing INTERFACE $<TARGET_OBJECTS:language_for_testing>)
 
+target_link_dependencies(ai_registry_test PRIVATE libdevilutionx)
+target_link_dependencies(can_target_test PRIVATE libdevilutionx)
 target_link_dependencies(codec_test PRIVATE libdevilutionx_codec app_fatal_for_testing)
 
 add_custom_target(clx_render_benchmark_resources
@@ -156,6 +189,9 @@ target_link_dependencies(mod_identity_test PRIVATE libdevilutionx_mod_identity a
 target_include_directories(mod_identity_test PRIVATE "${PROJECT_SOURCE_DIR}/3rdParty/PicoSHA2")
 target_link_dependencies(light_render_benchmark PRIVATE libdevilutionx_light_render DevilutionX::SDL libdevilutionx_surface libdevilutionx_paths app_fatal_for_testing)
 target_link_dependencies(palette_blending_test PRIVATE libdevilutionx_palette_blending DevilutionX::SDL libdevilutionx_strings GTest::gmock app_fatal_for_testing)
+# Windows: SDL2main's main-wrapper interferes with gtest_main.dll's imported
+# main, suppressing gtest registration. Disable SDL's main replacement.
+target_compile_definitions(palette_blending_test PRIVATE SDL_MAIN_HANDLED)
 target_link_dependencies(palette_blending_benchmark
   PRIVATE
   DevilutionX::SDL
@@ -185,6 +221,9 @@ if(DEVILUTIONX_SCREENSHOT_FORMAT STREQUAL DEVILUTIONX_SCREENSHOT_FORMAT_PNG AND 
     libdevilutionx_surface_to_png
     libdevilutionx_text_render
   )
+  # Windows: SDL2main's main-wrapper interferes with gtest_main.dll's imported
+  # main, suppressing gtest registration. Disable SDL's main replacement.
+  target_compile_definitions(text_render_integration_test PRIVATE SDL_MAIN_HANDLED)
   copy_files(
     FILES
       basic-colors.png

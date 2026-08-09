@@ -1023,6 +1023,15 @@ if(DEVILUTIONX_SCREENSHOT_FORMAT STREQUAL DEVILUTIONX_SCREENSHOT_FORMAT_PNG)
   target_link_dependencies(libdevilutionx PUBLIC libdevilutionx_surface_to_png)
 endif()
 
+# Windows: gettext's libintl is a separate import lib (intl.lib); the static
+# object lib does not carry it, so consumers must link it explicitly.
+if(WIN32)
+  find_library(INTL_LIBRARY NAMES intl)
+  if(INTL_LIBRARY)
+    target_link_libraries(libdevilutionx PUBLIC ${INTL_LIBRARY})
+  endif()
+endif()
+
 # Use file GENERATE instead of configure_file because configure_file
 # does not support generator expressions.
 get_property(is_multi_config GLOBAL PROPERTY GENERATOR_IS_MULTI_CONFIG)

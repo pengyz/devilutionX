@@ -409,6 +409,15 @@ if(NOT UWP_LIB)
   target_link_dependencies(${BIN_TARGET} PRIVATE libdevilutionx)
 endif()
 
+# Windows: gettext's libintl is a separate import lib (intl.lib) that the
+# executable must link explicitly; the static lib does not carry it.
+if(WIN32)
+  find_library(INTL_LIBRARY NAMES intl)
+  if(INTL_LIBRARY)
+    target_link_libraries(${BIN_TARGET} PRIVATE ${INTL_LIBRARY})
+  endif()
+endif()
+
 if(GPERF)
   target_link_libraries(${BIN_TARGET} PUBLIC ${GPERFTOOLS_LIBRARIES})
 endif()
