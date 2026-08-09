@@ -17,6 +17,12 @@ from .models import EvalCase
 REPO_ROOT = Path(__file__).resolve().parent.parent.parent
 
 
+def _binary_path(build_dir: Path, name: str) -> Path:
+    """Windows: test binaries carry .exe; exists() does not resolve it."""
+    p = build_dir / name
+    return p if p.exists() else build_dir / (name + ".exe")
+
+
 class RunResult:
     __slots__ = ('exit_code', 'stdout', 'json', 'timed_out')
 
@@ -33,7 +39,7 @@ def run_case(case: EvalCase, build_dir: Path, no_build: bool = True, verbose: bo
     Runs the gtest binary directly so we capture its real stdout for
     output_contains assertions, then parses passed/failed/skipped from it.
     """
-    binary = build_dir / case.binary
+    binary = _binary_path(build_dir, case.binary)
     cmd = [str(binary)]
     if case.gtest_filter:
         cmd += ["--gtest_filter=" + case.gtest_filter]
@@ -43,6 +49,7 @@ def run_case(case: EvalCase, build_dir: Path, no_build: bool = True, verbose: bo
     try:
         proc = subprocess.run(
             cmd, cwd=build_dir, capture_output=True, text=True,
+            encoding='utf-8', errors='replace',
             timeout=case.timeout, env=env,
         )
     except subprocess.TimeoutExpired:
@@ -78,4 +85,4 @@ def run_case(case: EvalCase, build_dir: Path, no_build: bool = True, verbose: bo
 def binary_exists(build_dir: Path, case: EvalCase) -> bool:
     if not case.binary:
         return False
-    return (build_dir / case.binary).exists()
+    return _binary_path(build_dir, case.binary).exists()

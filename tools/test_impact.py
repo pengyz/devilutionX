@@ -23,6 +23,12 @@ from pathlib import Path
 
 REPO_ROOT = Path(__file__).resolve().parent.parent
 
+
+def _binary_path(build_dir: Path, name: str) -> Path:
+    """Windows: test binaries carry .exe; exists() does not resolve it."""
+    p = build_dir / name
+    return p if p.exists() else build_dir / (name + ".exe")
+
 # source file (or directory prefix) -> test binaries that exercise it.
 # Curated from the test suite structure; keep in sync with CMake/Tests.cmake.
 IMPACT_MAP = {
@@ -123,7 +129,7 @@ def main() -> int:
     build_dir = REPO_ROOT / "build"
     existing = []
     for t in sorted(tests):
-        if (build_dir / t).exists():
+        if _binary_path(build_dir, t).exists():
             existing.append(t)
     if not existing:
         print("No matching test binaries built; run tools/run_tests.py first.", file=sys.stderr)

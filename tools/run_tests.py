@@ -31,13 +31,19 @@ from pathlib import Path
 REPO_ROOT = Path(__file__).resolve().parent.parent
 DEFAULT_BUILD_DIR = REPO_ROOT / "build"
 
+
+def _binary_path(build_dir: Path, name: str) -> Path:
+    """Windows: test binaries carry .exe; exists() does not resolve it."""
+    p = build_dir / name
+    return p if p.exists() else build_dir / (name + ".exe")
+
 # Test binaries registered in CMake/Tests.cmake (tests + standalone_tests,
 # benchmarks excluded from the default run).
 TEST_TARGETS = [
     "ai_registry_test", "animationinfo_test", "appfat_test", "assets_test",
     "automap_test", "can_target_test", "cursor_test", "dead_test",
     "diablo_test", "dark_expedition_light_test", "dark_expedition_scroll_test",
-    "dark_expedition_e2e_test",
+    "dark_expedition_e2e_test", "dark_expedition_drop_test",
     "drlg_common_test", "drlg_l1_test", "drlg_l2_test", "drlg_l3_test",
     "drlg_l4_test", "effects_test", "inv_test", "items_test",
     "lua_integration_test", "math_test", "missiles_test", "multi_logging_test",
@@ -47,6 +53,7 @@ TEST_TARGETS = [
     "store_transaction_test", "visual_store_test", "stash_test",
     "inventory_ui_test", "spell_ui_test", "spelldat_test", "spell_tooltip_test",
     "char_panel_test", "game_menu_test", "spell_ux_test", "consumable_stack_test",
+    "consume_scroll_test",
     "codec_test", "crawl_test", "data_file_test", "file_util_test",
     "format_int_test", "ini_test", "mod_identity_test", "palette_blending_test",
     "parse_int_test", "path_test", "vision_test", "random_test",
@@ -59,7 +66,10 @@ def run(cmd, build_dir: Path, capture: bool = False):
     """Run a command; on failure, print context and raise."""
     print("+", " ".join(shlex.quote(str(c)) for c in cmd), file=sys.stderr)
     if capture:
-        result = subprocess.run(cmd, cwd=build_dir, capture_output=True, text=True)
+        result = subprocess.run(
+            cmd, cwd=build_dir, capture_output=True, text=True,
+            encoding='utf-8', errors='replace',
+        )
     else:
         result = subprocess.run(cmd, cwd=build_dir)
     return result
@@ -134,7 +144,7 @@ def run_ctest(build_dir: Path) -> dict:
 
 def run_single(build_dir: Path, test: str, gtest_filter: str | None) -> dict:
     """Run one test binary directly with an optional gtest filter."""
-    binary = build_dir / test
+    binary = _binary_path(build_dir, test)
     if not binary.exists():
         return {"error": f"{test} not built; run --build first", "returncode": -1}
     cmd = [str(binary)]
