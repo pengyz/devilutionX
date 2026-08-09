@@ -24,13 +24,14 @@ void PrintTo(const SDL_Color &color, std::ostream *os)
 }
 
 namespace devilution {
-namespace {
 
 MATCHER_P3(ColorIs, r, g, b,
     StrCat(negation ? "isn't" : "is", " (", r, ", ", g, ", ", b, ")"))
 {
 	return arg.r == r && arg.g == g && arg.b == b;
 }
+
+namespace {
 
 void GeneratePalette(SDL_Color palette[256])
 {
@@ -45,6 +46,8 @@ void GeneratePalette(SDL_Color palette[256])
 		}
 	}
 }
+
+} // namespace
 
 TEST(GenerateBlendedLookupTableTest, BasicTest)
 {
@@ -85,5 +88,4 @@ TEST(GenerateBlendedLookupTableTest, BasicTest)
 #endif
 }
 
-} // namespace
 } // namespace devilution
