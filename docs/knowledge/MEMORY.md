@@ -15,6 +15,7 @@
 - [WitchItemOk 在匿名命名空间](gotcha_witchitemok_anon_ns.md) — `items.cpp:2009` 位于匿名 ns，测试不可直接调；测行为结果而非函数本身
 - [网络物品更新要网格索引非 InvList 索引](gotcha_inv_grid_vs_list_index.md) — `NetSendCmdChInvItem` 期望网格索引；传 InvList 索引会 OOB 读 + 多人损坏。用 `NetSyncInvItem` 反查
 - [多计数堆叠合并会静默丢物品](gotcha_multi_count_stack_merge.md) — `TryStackInInventory` 曾 +1 合并，叠 3 放到叠 1 变 2；多计数应开新格整放
+- [怪物等级对战斗压力无贡献（GetMinHit 钳制）](gotcha_monster_level_no_combat_pressure.md) — `hit = 2×(怪级−玩家级) + 30 − AC` 被 `GetMinHit()` 钳制，地狱层 AC≥16 角色悬崖项完全无效；降怪级是错误杠杆（只影响掉落/XP/被钳制命中）
 
 ## Patterns
 <!-- 代码约定、本项目开发模式 -->
@@ -31,3 +32,15 @@
 <!-- 已验证的取舍（含正反馈） -->
 
 - [深度层旗舰 = 黑暗远征（视野限制）](decision_dark_expedition_direction.md) — 两轮 Oracle 对抗评审确认：光照是唯一引擎原生信息限制杠杆，但必须配反制（CanTarget + Infravision 卷轴预算）
+- [密度塌缩修复框架 = B1 采样约束 + A1/A3 克隆区分 + E1 地狱重组](decision_density_fix_package.md) — Oracle 对抗评审收敛的「最小连贯包」；关键洞察「池≠体验」（GetLevelMTypes 随机采样，B1 是唯一逐层体验杠杆）；排除 B2/C3/E2。**后续演进（2026-08-10 定稿）**：E1→悬崖评估（REJECT 重构）、A2→激励者（REJECT 重构）、全部 6 规格经多 agent 独立复核后 v4/v5 修订完成（A1/A3/B1/A2 v4、C2/E1 v5）——以框架总览为准
+- [密度修复框架独立复核结果（4 agent 发现系统性引擎事实错误）](decision_density_fix_review_findings.md) — 冲锋伤害路径断裂（special 列=0→1 伤害）、B1 27.8% 夸大 7×（Golem 预算遗漏，真实 4.13%）、E1 GetMinHit 证明错误（漏 base toHit 90-130，GetMinHit 是下限非钳制）、狂乱者 no-op 造假（goal=Attack 是纯 AI 攻击性）、C2 死亡钩子 MP 缺陷、A2 rate 引用错误（AnimStruct 静态字段）。教训：跨文档自洽 ≠ 正确，只有忠实引擎模拟能抓到。**修订状态（2026-08-10）**：全部规格已按复核结果修订（v4/v5），框架 §8.2 验证表自身 2 处错误已修正
+
+## References
+<!-- 外部资源指针、关键文件位置 -->
+
+- [怪物配置图谱：各层段怪物池与密度诊断](analysis_monster_config_landscape.md) — 系统扫描 monstdat：教堂12类/墓穴13类/洞穴10类(远程垄断38%)/地狱6类(多样性骤降)；密度修复框架（A1/A2/A3/B1/C2/E1）各规格落地依据
+
+## Gotchas
+<!-- 平台坑、反直觉行为、踩雷记录 -->
+
+- [timedemo_test 本机断言失败（isOnActiveLevel）](gotcha_timedemo_isOnActiveLevel_failure.md) — `Timedemo.WarriorLevel1to2` 在本机 `interfac.cpp:363` 断言崩溃（`plrlevel != currlevel`）；已确认与 B1 cap 无关（stash 回退后仍在 HEAD 基线失败），CI 不受影响。待单独排查（git bisect + 回放路径时序）
