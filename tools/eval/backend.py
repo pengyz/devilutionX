@@ -49,11 +49,17 @@ def git_head() -> str:
         return 'unknown'
 
 
-def mpq_present() -> bool:
-    """Detect whether game data (spawn.mpq/DIABDAT.MPQ) is reachable."""
+def mpq_present(build_dir: Path | None = None) -> bool:
+    """Detect whether game data (spawn.mpq/DIABDAT.MPQ) is reachable.
+    Checks both the standard home pref path and the build directory (where CI
+    downloads spawn.mpq next to the test binaries)."""
     import os
     pref = os.path.expanduser('~/.local/share/diasurgical/devilution')
-    return any((Path(pref) / name).exists() for name in ('spawn.mpq', 'DIABDAT.MPQ', 'diabdat.mpq'))
+    candidates = [Path(pref)]
+    if build_dir is not None:
+        candidates.append(build_dir)
+    names = ('spawn.mpq', 'DIABDAT.MPQ', 'diabdat.mpq')
+    return any((p / name).exists() for p in candidates for name in names)
 
 
 def find_cases(selector: str | None, cases_dir: Path) -> list[models.EvalCase]:
@@ -67,7 +73,7 @@ def find_cases(selector: str | None, cases_dir: Path) -> list[models.EvalCase]:
 def run_case(case: models.EvalCase, build_dir: Path, include_side_effects: bool) -> dict:
     """Run one case and produce the result dict for the report."""
     start = time.monotonic()
-    skip_reason = assertions.classify_skip(case, mpq_present(), include_side_effects)
+    skip_reason = assertions.classify_skip(case, mpq_present(build_dir), include_side_effects)
     if skip_reason:
         return {
             'case_id': case.id, 'category': case.category, 'difficulty': case.difficulty,
