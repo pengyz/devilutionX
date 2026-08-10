@@ -480,4 +480,38 @@ size_t GetNumMonsterSprites()
 	return MonsterSpritePaths.size();
 }
 
+BehaviorClass GetBehaviorClass(MonsterAIID ai)
+{
+	switch (ai) {
+	case MonsterAIID::SkeletonMelee:
+	case MonsterAIID::Zombie:
+	case MonsterAIID::Fat:
+	case MonsterAIID::Rhino:
+	case MonsterAIID::Mega:
+	case MonsterAIID::Snake:
+	case MonsterAIID::GoatMelee:
+		return BehaviorClass::Melee;
+	case MonsterAIID::SkeletonRanged:
+	case MonsterAIID::GoatRanged:
+	case MonsterAIID::Succubus:
+	case MonsterAIID::Counselor:
+		return BehaviorClass::RangedTurret;
+	case MonsterAIID::Magma:
+	case MonsterAIID::Storm:
+	case MonsterAIID::Acid:
+	case MonsterAIID::BoneDemon:
+		return BehaviorClass::RangedKite;
+	case MonsterAIID::Fallen:
+		return BehaviorClass::Rally;
+	case MonsterAIID::Bat:
+		return BehaviorClass::Charge;
+	case MonsterAIID::Sneak:
+		return BehaviorClass::Sneak;
+	case MonsterAIID::SkeletonKing:
+		return BehaviorClass::Summon;
+	default:
+		return BehaviorClass::Boss;
+	}
+}
+
 } // namespace devilution

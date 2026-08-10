@@ -1,0 +1,31 @@
+id: "sampling-anti-monopoly-cap"
+name: "采样反垄断：B1 cap 后契约（真实引擎 GetLevelMTypes）"
+category: "rng"
+difficulty: "medium"
+tags: ["sampling", "monster-generation", "baseline"]
+
+setup:
+  mpq_required: true
+  timeout: 120
+
+run:
+  backend: "gtest"
+  binary: "sampling_behavior_test"
+  filter: "SamplingBaselineTest.*"
+
+expected:
+  exit_code: 0
+  failed: 0
+  passed_min: 12
+  skipped_max: 1
+  output_contains: ["[  PASSED  ] 12 tests."]
+
+description: >
+  B1 采样反垄断 harness（纯测试 + cap 实施后）：直接驱动真实 GetLevelMTypes
+  采样循环，断言 cap 后契约——地狱 L15/L14 全同类尾 4.13%/0.70% -> 0、
+  L13 0%、洞穴风筝尾 L10 2.4% / L12 2.6% -> 0（风筝类 <=2）、洞穴任意类尾
+  记录值（L9 1.7% / L10 1.02% / L11 1.32% / L12 0%——非 cap 目标）、
+  L16 硬编码保留、采样终止（AC3）、教堂/墓穴无约束（AC4）、
+  MP 同种子同构成（AC8）、Counselor 映射 + AIID 穷尽性。
+  任务状态条件：Quests 零初始化（全 NOTAVAIL），L13/L14 基线为"无任务"条件值。
+  Pre-cap 基线（v5 引擎实测）：L15 4.13%（证伪 v3 的 27.8%）/ L14 0.70% / L13 0.00%。

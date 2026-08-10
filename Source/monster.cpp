@@ -3498,6 +3498,20 @@ std::expected<void, std::string> GetLevelMTypes()
 			typelist[nt++] = (_monster_id)i;
 		}
 
+		// B1 sampling-anti-monopoly: cap the per-level behavior mix so random
+		// sampling cannot produce an all-kite Caves level or an all-same-class
+		// Hell level. Caves 9-12: at most 2 RangedKite types. Hell 13-16: at
+		// most 2 of any single class. Other level ranges are unconstrained.
+		// Counts start from the pre-added types (Golem + quest monsters), so
+		// the cap reflects the full LevelMonsterTypes composition a player
+		// faces, not just the random-sampled portion.
+		uint8_t classCounts[static_cast<size_t>(BehaviorClass::Count)] = {};
+		for (size_t i = 0; i < LevelMonsterTypeCount; i++) {
+			classCounts[static_cast<size_t>(GetBehaviorClass(MonstersData[LevelMonsterTypes[i].type].ai))]++;
+		}
+		const bool capKite = currlevel >= 9 && currlevel <= 12;
+		const bool capSameClass = currlevel >= 13 && currlevel <= 16;
+
 		while (nt > 0 && LevelMonsterTypeCount < MaxLvlMTypes && monstimgtot < 4000) {
 			for (int i = 0; i < nt;) {
 				if (MonstersData[typelist[i]].image > 4000 - monstimgtot) {
@@ -3509,9 +3523,32 @@ std::expected<void, std::string> GetLevelMTypes()
 			}
 
 			if (nt != 0) {
-				const int i = GenerateRnd(nt);
-				RETURN_IF_ERROR(AddMonsterType(typelist[i], PLACE_SCATTER));
-				typelist[i] = typelist[--nt];
+				if (capKite || capSameClass) {
+					for (int i = 0; i < nt;) {
+						const BehaviorClass cls = GetBehaviorClass(MonstersData[typelist[i]].ai);
+						const uint8_t count = classCounts[static_cast<size_t>(cls)];
+						const bool overCap = capSameClass ? count >= 2 : (cls == BehaviorClass::RangedKite && count >= 2);
+						if (overCap) {
+							typelist[i] = typelist[--nt];
+							continue;
+						}
+
+						i++;
+					}
+				}
+
+				if (nt != 0) {
+					const int i = GenerateRnd(nt);
+					const size_t countBefore = LevelMonsterTypeCount;
+					RETURN_IF_ERROR(AddMonsterType(typelist[i], PLACE_SCATTER));
+					// Only count newly added slots. A type that was already
+					// pre-added (e.g. a quest-unique whose base type is also a
+					// regular pool member) must not double-count its class.
+					if (LevelMonsterTypeCount != countBefore) {
+						classCounts[static_cast<size_t>(GetBehaviorClass(MonstersData[typelist[i]].ai))]++;
+					}
+					typelist[i] = typelist[--nt];
+				}
 			}
 		}
 	} else {

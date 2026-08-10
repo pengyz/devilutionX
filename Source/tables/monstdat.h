@@ -370,6 +370,23 @@ struct Monster;
 using AiFunction = void (*)(Monster &monster);
 extern std::array<AiFunction, 128> AiProc;
 
+// B1 sampling-anti-monopoly: behavior-class taxonomy used to cap the per-level
+// behavior mix (Caves kite <=2, Hell same-class <=2). Same table drives the
+// `sampling_behavior_test` harness so spec and engine cannot drift apart.
+enum class BehaviorClass : uint8_t {
+	Melee,        // SkeletonMelee / Zombie / Fat / Rhino / Mega / Snake / GoatMelee
+	RangedTurret, // SkeletonRanged / GoatRanged / Succubus / Counselor
+	RangedKite,   // Magma / Storm / Acid / BoneDemon (the Caves 38% kite monopoly)
+	Rally,        // Fallen
+	Charge,       // Bat (Rhino missile)
+	Sneak,        // Sneak
+	Summon,       // SkeletonKing
+	Boss,         // Butcher / Diablo / Gargoyle / FireMan / Golem / Scavenger / others
+	Count,
+};
+
+BehaviorClass GetBehaviorClass(MonsterAIID ai);
+
 } // namespace devilution
 
 template <>

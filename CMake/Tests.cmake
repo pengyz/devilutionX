@@ -57,6 +57,7 @@ set(tests
   writehero_test
   vendor_test
   panel_state_test
+  sampling_behavior_test
   store_transaction_test
   visual_store_test
   stash_test
