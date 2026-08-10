@@ -16,10 +16,10 @@ run:
 expected:
   exit_code: 0
   failed: 0
-  passed_min: 7
+  passed_min: 6
   skipped_max: 0
-  output_contains: ["[  PASSED  ] 7 tests."]
+  output_contains: ["[  PASSED  ] 6 tests."]
 
 description: >
   Hell 60% / Nest 85% / Crypt 50% 倍率，整数百分比数学截断确定性，
-  clamp [2,15]，装备加成随倍率缩放，曲线单调。
+  clamp [2,15]，装备加成随倍率缩放，曲线单调。无开关，恒生效。

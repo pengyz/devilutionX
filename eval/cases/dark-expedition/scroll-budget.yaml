@@ -21,5 +21,5 @@ expected:
   output_contains: ["[  PASSED  ] 3 tests."]
 
 description: >
-  开关开启时女巫库存无 Infravision 卷轴（确定性 40 轮采样），关闭时有；
-  Town Portal 卷轴保持可售（M2 已砍）。
+  女巫库存无 Infravision 卷轴（确定性 40 轮采样）；
+  Town Portal 卷轴保持可售（M2 已砍）。无开关，恒生效。

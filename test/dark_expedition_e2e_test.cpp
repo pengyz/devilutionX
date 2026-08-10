@@ -25,28 +25,18 @@ public:
 		Players.resize(1);
 		MyPlayer = &Players[0];
 		*MyPlayer = {};
-		GetOptions().Gameplay.darkExpedition.SetValue(false);
 	}
 };
 
-TEST_F(DarkExpeditionE2ETest, SwitchOffCannotMemorizeInfravision)
+TEST_F(DarkExpeditionE2ETest, CanMemorizeAndValidatePlayerKeepsIt)
 {
-	// Off: GetSpellBookLevel returns -1, so the spell is not learnable
-	// (a player with maxMag 50 could theoretically cast it, but no book can teach it).
-	EXPECT_EQ(GetSpellBookLevel(SpellID::Infravision), -1);
-}
-
-TEST_F(DarkExpeditionE2ETest, SwitchOnCanMemorizeAndValidatePlayerKeepsIt)
-{
-	GetOptions().Gameplay.darkExpedition.SetValue(true);
 	EXPECT_EQ(GetSpellBookLevel(SpellID::Infravision), 5);
 
 	// Memorize Infravision.
 	MyPlayer->_pMemSpells = GetSpellBitmask(SpellID::Infravision);
 	MyPlayer->_pSplLvl[static_cast<size_t>(SpellID::Infravision)] = 1;
 
-	// ValidatePlayer must NOT purge it while the switch is on.
-	// (It purges spells whose GetSpellBookLevel() == -1.)
+	// ValidatePlayer must NOT purge it (it purges spells whose GetSpellBookLevel() == -1).
 	const uint64_t before = MyPlayer->_pMemSpells;
 	// Simulate the purge logic: mask keeps only learnable bits.
 	uint64_t msk = 0;
@@ -60,30 +50,10 @@ TEST_F(DarkExpeditionE2ETest, SwitchOnCanMemorizeAndValidatePlayerKeepsIt)
 	EXPECT_EQ(MyPlayer->_pMemSpells, before);
 }
 
-TEST_F(DarkExpeditionE2ETest, SwitchOffPurgesMemorizedInfravision)
-{
-	// Memorize while ON, then flip OFF: the purge must clear it.
-	GetOptions().Gameplay.darkExpedition.SetValue(true);
-	MyPlayer->_pMemSpells = GetSpellBitmask(SpellID::Infravision);
-	MyPlayer->_pSplLvl[static_cast<size_t>(SpellID::Infravision)] = 1;
-
-	GetOptions().Gameplay.darkExpedition.SetValue(false);
-	EXPECT_EQ(GetSpellBookLevel(SpellID::Infravision), -1);
-	uint64_t msk = 0;
-	for (auto b = static_cast<size_t>(SpellID::Firebolt); b < SpellsData.size(); b++) {
-		if (GetSpellBookLevel(static_cast<SpellID>(b)) != -1) {
-			msk |= GetSpellBitmask(static_cast<SpellID>(b));
-		}
-	}
-	MyPlayer->_pMemSpells &= msk;
-	EXPECT_EQ(MyPlayer->_pMemSpells & GetSpellBitmask(SpellID::Infravision), 0);
-}
-
 TEST_F(DarkExpeditionE2ETest, StaffLevelStaysUnavailable)
 {
-	// staffLevel must remain -1 regardless of the switch: GetSpellStaffLevel
-	// has no gate, so making staffs available would leak the spell un-gated.
-	GetOptions().Gameplay.darkExpedition.SetValue(true);
+	// staffLevel must remain -1: GetSpellStaffLevel has no gate, so making staffs
+	// available would leak the spell un-gated.
 	EXPECT_EQ(GetSpellStaffLevel(SpellID::Infravision), -1);
 }
 

@@ -17,24 +17,10 @@ public:
 		MyPlayer->_pLightRad = 10;
 		currlevel = 13;
 	}
-
-	static void SetUpTestSuite()
-	{
-		// Ensure the option is at its default (false) so each test controls it explicitly.
-		GetOptions().Gameplay.darkExpedition.SetValue(false);
-	}
 };
-
-TEST_F(DarkExpeditionLightRadiusTest, SwitchOffIsVanilla)
-{
-	currlevel = 15;
-	CalcPlrLightRadius(*MyPlayer, 10);
-	EXPECT_EQ(MyPlayer->_pLightRad, 10);
-}
 
 TEST_F(DarkExpeditionLightRadiusTest, HellLevelsScaleTo60Percent)
 {
-	GetOptions().Gameplay.darkExpedition.SetValue(true);
 	for (int level : { 13, 14, 15, 16 }) {
 		currlevel = level;
 		MyPlayer->_pLightRad = 0; // reset; CalcPlrLightRadius writes via ChangeLightRadius only on active level
@@ -45,7 +31,6 @@ TEST_F(DarkExpeditionLightRadiusTest, HellLevelsScaleTo60Percent)
 
 TEST_F(DarkExpeditionLightRadiusTest, NestScalesTo85PercentTruncated)
 {
-	GetOptions().Gameplay.darkExpedition.SetValue(true);
 	for (int level : { 17, 18, 19, 20 }) {
 		currlevel = level;
 		MyPlayer->_pLightRad = 0;
@@ -56,7 +41,6 @@ TEST_F(DarkExpeditionLightRadiusTest, NestScalesTo85PercentTruncated)
 
 TEST_F(DarkExpeditionLightRadiusTest, CryptScalesTo50Percent)
 {
-	GetOptions().Gameplay.darkExpedition.SetValue(true);
 	for (int level : { 21, 22, 23, 24 }) {
 		currlevel = level;
 		MyPlayer->_pLightRad = 0;
@@ -67,7 +51,6 @@ TEST_F(DarkExpeditionLightRadiusTest, CryptScalesTo50Percent)
 
 TEST_F(DarkExpeditionLightRadiusTest, GearBonusScalesWithMultiplier)
 {
-	GetOptions().Gameplay.darkExpedition.SetValue(true);
 	currlevel = 21; // Crypt, 50%
 	MyPlayer->_pLightRad = 0;
 	CalcPlrLightRadius(*MyPlayer, 14); // base 10 + Lightforge(+4)
@@ -76,7 +59,6 @@ TEST_F(DarkExpeditionLightRadiusTest, GearBonusScalesWithMultiplier)
 
 TEST_F(DarkExpeditionLightRadiusTest, CursedGearClampsToVanillaMinimum)
 {
-	GetOptions().Gameplay.darkExpedition.SetValue(true);
 	currlevel = 21; // Crypt, 50%
 	MyPlayer->_pLightRad = 0;
 	CalcPlrLightRadius(*MyPlayer, 2); // cursed, below vanilla min
@@ -85,7 +67,6 @@ TEST_F(DarkExpeditionLightRadiusTest, CursedGearClampsToVanillaMinimum)
 
 TEST_F(DarkExpeditionLightRadiusTest, CurveIsMonotonic)
 {
-	GetOptions().Gameplay.darkExpedition.SetValue(true);
 	const auto scale = [this](int level) {
 		currlevel = level;
 		MyPlayer->_pLightRad = 0;

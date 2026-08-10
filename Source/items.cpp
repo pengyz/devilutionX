@@ -182,8 +182,6 @@ SfxID ItemInvSnds[] = {
 // Infravision scrolls (expedition light budget).
 DVL_API_FOR_TEST bool DarkExpeditionDropOk(const ItemData &item)
 {
-	if (!IsDarkExpedition())
-		return true;
 	if (item.iMiscId > IMISC_RUNEFIRST && item.iMiscId < IMISC_RUNELAST)
 		return false; // Runes
 	if (item.iMiscId == IMISC_SCROLLT && item.iSpell != SpellID::Resurrect)
@@ -2037,7 +2035,7 @@ bool WitchItemOk(const Player & /*player*/, const ItemData &item)
 		return false;
 	if (item.iSpell == SpellID::TownPortal)
 		return false;
-	if (item.iSpell == SpellID::Infravision && IsDarkExpedition())
+	if (item.iSpell == SpellID::Infravision)
 		return false;
 	if (item.iMiscId == IMISC_FULLHEAL)
 		return false;
@@ -2575,9 +2573,7 @@ int GetDarkExpeditionLightPercent()
 
 void CalcPlrLightRadius(Player &player, int lrad)
 {
-	if (IsDarkExpedition()) {
-		lrad = lrad * GetDarkExpeditionLightPercent() / 100;
-	}
+	lrad = lrad * GetDarkExpeditionLightPercent() / 100;
 	lrad = std::clamp(lrad, 2, 15);
 	if (player._pLightRad != lrad) {
 		if (player.isOnActiveLevel()) {

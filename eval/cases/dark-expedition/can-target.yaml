@@ -22,4 +22,4 @@ expected:
 
 description: >
   Infravision 激活时暗处可见 tile 可选可攻（选择/攻击专用，渲染保持暗）；
-  Lit 恒可选；开关+Infra 双条件门控；空 MyPlayer 安全。
+  Lit 恒可选；Infra 门控；空 MyPlayer 安全。

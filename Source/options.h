@@ -585,8 +585,6 @@ struct GameplayOptions : OptionCategoryBase {
 	OptionEntryBoolean friendlyFire;
 	/** @brief Enables the full/uncut singleplayer version of quests. */
 	OptionEntryBoolean multiplayerFullQuests;
-	/** @brief Restricts vision in deeper levels, limiting information rather than stats. */
-	OptionEntryBoolean darkExpedition;
 	/** @brief Enable the bard hero class. */
 	OptionEntryBoolean testBard;
 	/** @brief Enable the babarian hero class. */
@@ -917,14 +915,6 @@ struct Options {
  * @brief Get the Options singleton object
  */
 [[nodiscard]] Options &GetOptions();
-
-/**
- * @brief Whether the Dark Expedition depth-layer switch is enabled.
- */
-[[nodiscard]] inline bool IsDarkExpedition()
-{
-	return *GetOptions().Gameplay.darkExpedition;
-}
 
 bool HardwareCursorSupported();
 

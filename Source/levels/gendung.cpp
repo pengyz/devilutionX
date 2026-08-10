@@ -395,8 +395,7 @@ bool CanTarget(Point position)
 {
 	if (IsTileLit(position))
 		return true;
-	return IsDarkExpedition()
-	    && MyPlayer != nullptr
+	return MyPlayer != nullptr
 	    && MyPlayer->_pInfraFlag
 	    && IsTileVisible(position);
 }

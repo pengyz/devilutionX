@@ -18,7 +18,6 @@ public:
 		MyPlayer->_pInfraFlag = false;
 		// Default test state: neither Lit nor Visible.
 		std::fill(&dFlags[0][0], &dFlags[0][0] + MAXDUNX * MAXDUNY, DungeonFlag::None);
-		GetOptions().Gameplay.darkExpedition.SetValue(false);
 	}
 
 	Point p { 10, 10 };
@@ -38,19 +37,14 @@ TEST_F(CanTargetTest, UnlitInvisibleTileNeverTargetable)
 	EXPECT_FALSE(CanTarget(p));
 }
 
-TEST_F(CanTargetTest, VisibleButUnlitRequiresSwitchAndInfra)
+TEST_F(CanTargetTest, VisibleButUnlitRequiresInfra)
 {
 	SetVisible();
-	// Switch off, infra on: not targetable (switch gates the whole feature).
-	MyPlayer->_pInfraFlag = true;
-	EXPECT_FALSE(CanTarget(p));
-
-	// Switch on, infra off: not targetable.
-	GetOptions().Gameplay.darkExpedition.SetValue(true);
+	// Infra off: not targetable (CanTarget requires the Infravision flag).
 	MyPlayer->_pInfraFlag = false;
 	EXPECT_FALSE(CanTarget(p));
 
-	// Switch on, infra on: targetable.
+	// Infra on: targetable.
 	MyPlayer->_pInfraFlag = true;
 	EXPECT_TRUE(CanTarget(p));
 }
@@ -59,7 +53,6 @@ TEST_F(CanTargetTest, NoMyPlayerIsSafe)
 {
 	SetVisible();
 	MyPlayer = nullptr;
-	GetOptions().Gameplay.darkExpedition.SetValue(true);
 	EXPECT_FALSE(CanTarget(p));
 }
 

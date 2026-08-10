@@ -20,7 +20,6 @@ public:
 	{
 		Players.resize(1);
 		MyPlayer = &Players[0];
-		GetOptions().Gameplay.darkExpedition.SetValue(false);
 	}
 };
 
@@ -33,21 +32,8 @@ bool WitchStockHasScroll(SpellID spell)
 	return false;
 }
 
-TEST_F(DarkExpeditionScrollBudgetTest, WitchStockHasInfravisionScrollWhenSwitchOff)
+TEST_F(DarkExpeditionScrollBudgetTest, WitchStockLacksInfravisionScroll)
 {
-	// Stock selection is random (17 candidates, ~10 picked); sample enough rounds
-	// that a present candidate is overwhelmingly likely to appear at least once.
-	bool found = false;
-	for (int round = 0; round < 40 && !found; round++) {
-		SpawnWitch(10); // level 10 so the iMinMLvl-8 Infravision scroll can appear
-		found = WitchStockHasScroll(SpellID::Infravision);
-	}
-	EXPECT_TRUE(found);
-}
-
-TEST_F(DarkExpeditionScrollBudgetTest, WitchStockLacksInfravisionScrollWhenSwitchOn)
-{
-	GetOptions().Gameplay.darkExpedition.SetValue(true);
 	// Exclusion in WitchItemOk is deterministic: never present, any round.
 	for (int round = 0; round < 40; round++) {
 		SpawnWitch(10);
@@ -55,10 +41,9 @@ TEST_F(DarkExpeditionScrollBudgetTest, WitchStockLacksInfravisionScrollWhenSwitc
 	}
 }
 
-TEST_F(DarkExpeditionScrollBudgetTest, WitchStockStillSellsTownPortalWhenSwitchOn)
+TEST_F(DarkExpeditionScrollBudgetTest, WitchStockStillSellsTownPortal)
 {
 	// The pinned TP scroll must remain available (M2 was cut).
-	GetOptions().Gameplay.darkExpedition.SetValue(true);
 	SpawnWitch(10);
 	EXPECT_TRUE(WitchStockHasScroll(SpellID::TownPortal));
 }

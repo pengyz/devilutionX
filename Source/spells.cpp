@@ -334,10 +334,6 @@ int GetSpellBookLevel(SpellID s)
 		return -1;
 	}
 
-	if (s == SpellID::Infravision && !IsDarkExpedition()) {
-		return -1;
-	}
-
 	return GetSpellData(s).sBookLvl;
 }
 

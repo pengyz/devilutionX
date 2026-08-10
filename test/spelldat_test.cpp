@@ -81,12 +81,8 @@ TEST_F(SpelldatTest, CutContentSpellsHaveEmptyDescriptions)
 	}
 }
 
-TEST_F(SpelldatTest, InfravisionLearnableGatedByDarkExpedition)
+TEST_F(SpelldatTest, InfravisionLearnable)
 {
-	GetOptions().Gameplay.darkExpedition.SetValue(false);
-	EXPECT_EQ(GetSpellBookLevel(SpellID::Infravision), -1);
-
-	GetOptions().Gameplay.darkExpedition.SetValue(true);
 	EXPECT_EQ(GetSpellBookLevel(SpellID::Infravision), 5);
 }
 

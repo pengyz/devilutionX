@@ -16,10 +16,10 @@ run:
 expected:
   exit_code: 0
   failed: 0
-  passed_min: 6
+  passed_min: 5
   skipped_max: 0
-  output_contains: ["[  PASSED  ] 6 tests."]
+  output_contains: ["[  PASSED  ] 5 tests."]
 
 description: >
-  深度层开启时掉落池排除符文 + 伤害卷轴（保留 Resurrect 与工具卷轴）；
-  IsItemAvailable 不受影响（存档/网络无 collateral）。
+  掉落池排除符文 + 伤害卷轴（保留 Resurrect 与工具卷轴）；
+  IsItemAvailable 不受影响（存档/网络无 collateral）。无开关，恒生效。
