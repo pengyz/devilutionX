@@ -383,10 +383,6 @@ bool Plr2PlrMHit(const Player &player, Player &target, int mindam, int maxdam, i
 
 	const MissileData &missileData = GetMissileData(mtype);
 
-	if (HasAnyOf(target._pSpellFlags, SpellFlag::Etherealize) && missileData.isArrow()) {
-		return false;
-	}
-
 	int8_t resper;
 	switch (damageType) {
 	case DamageType::Fire:
@@ -926,7 +922,6 @@ DamageRange GetDamageAmt(SpellID spell, int spellLevel)
 	case SpellID::Invisibility:
 	case SpellID::Rage:
 	case SpellID::Teleport:
-	case SpellID::Etherealize:
 	case SpellID::ItemRepair:
 	case SpellID::StaffRecharge:
 	case SpellID::TrapDisarm:
@@ -1090,10 +1085,6 @@ bool PlayerMHit(Player &player, Monster *monster, int dist, int mind, int maxd, 
 
 	const MissileData &missileData = GetMissileData(mtype);
 
-	if (HasAnyOf(player._pSpellFlags, SpellFlag::Etherealize) && missileData.isArrow()) {
-		return false;
-	}
-
 	int hit = GenerateRnd(100);
 #ifdef _DEBUG
 	if (DebugGodMode)
@@ -1223,7 +1214,6 @@ void InitMissiles()
 	Player &myPlayer = *MyPlayer;
 
 	AutoMapShowItems = false;
-	myPlayer._pSpellFlags &= ~SpellFlag::Etherealize;
 	if (myPlayer._pInfraFlag) {
 		for (auto &missile : Missiles) {
 			if (missile._mitype == MissileID::Infravision) {

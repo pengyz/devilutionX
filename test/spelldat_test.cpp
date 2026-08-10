@@ -52,7 +52,7 @@ TEST_F(SpelldatTest, AllLearnableSpellsHaveDescriptions)
 		SpellID::Guardian, SpellID::ChainLightning, SpellID::FlameWave,
 		SpellID::Nova, SpellID::Inferno, SpellID::Golem,
 		SpellID::Rage, SpellID::Teleport, SpellID::Apocalypse,
-		SpellID::Etherealize, SpellID::ItemRepair, SpellID::StaffRecharge,
+		SpellID::ItemRepair, SpellID::StaffRecharge,
 		SpellID::TrapDisarm, SpellID::Elemental, SpellID::ChargedBolt,
 		SpellID::HolyBolt, SpellID::Resurrect, SpellID::Telekinesis,
 		SpellID::HealOther, SpellID::BloodStar, SpellID::BoneSpirit,

@@ -146,10 +146,9 @@ enum action_id : int8_t {
 enum class SpellFlag : uint8_t {
 	// clang-format off
 	None         = 0,
-	Etherealize  = 1 << 0,
 	RageActive   = 1 << 1,
 	RageCooldown = 1 << 2,
-	// bits 3-7 are unused
+	// bits 0, 3-7 are unused
 	// clang-format on
 };
 use_enum_as_flags(SpellFlag);

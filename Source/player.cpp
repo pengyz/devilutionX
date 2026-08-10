@@ -714,10 +714,6 @@ bool PlrHitPlr(Player &attacker, Player &target)
 		return false;
 	}
 
-	if (HasAnyOf(target._pSpellFlags, SpellFlag::Etherealize)) {
-		return false;
-	}
-
 	const int hit = GenerateRnd(100);
 
 	int hper = attacker.GetMeleeToHit() - target.GetArmor();
