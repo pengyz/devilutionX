@@ -55,16 +55,6 @@ namespace {
 // ---------------------------------------------------------------------------
 
 /**
- * @brief Open a vendor's top-level menu.
- *
- * Equivalent to the player clicking on a towner NPC.
- */
-void OpenVendor(TalkID vendor)
-{
-	StartStore(vendor);
-}
-
-/**
  * @brief In a top-level vendor menu, select a menu option by its text line.
  *
  * The line numbers are fixed by the Start*() functions:
@@ -78,6 +68,26 @@ void SelectMenuLine(int line)
 {
 	CurrentTextLine = line;
 	StoreEnter();
+}
+
+/**
+ * @brief Open a vendor's top-level menu.
+ *
+ * Equivalent to the player clicking on a towner NPC.
+ */
+void OpenVendor(TalkID vendor)
+{
+	if (vendor == TalkID::WitchBuy) {
+		// StartStore(WitchBuy) is a no-op unless CurrentItemIndex > 0, which
+		// is only set by opening the witch's top-level menu first (the real
+		// game always does Talk -> Buy). Opening the buy list directly skips
+		// StartWitchBuy, leaving PreviousScrollPos at 0 and shifting the
+		// item index computed by WitchBuyEnter.
+		StartStore(TalkID::Witch);
+		SelectMenuLine(14);
+		return;
+	}
+	StartStore(vendor);
 }
 
 /**

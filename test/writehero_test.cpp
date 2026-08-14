@@ -416,9 +416,12 @@ TEST(Writehero, pfile_write_hero)
 	// which creates fresh archives (no in-place block management) and may
 	// produce a different on-disk layout.  The file content is identical;
 	// only the binary representation differs.
+	// It also changes when seeded item regeneration shifts (see
+	// docs/knowledge/gotcha_vendor_predicate_seed_drift.md) — the witch-staff
+	// fixture slot (CF_WITCH) now regenerates as a different item.
 	// To regenerate: run this test, let it fail, and update the hash below.
 	EXPECT_EQ(picosha2::bytes_to_hex_string(s.begin(), s.end()),
-	    "b52885393aedc22c856c7c315975c9be89a034b64a2067e22d5387a51998a51b");
+	    "59bc39683f4fcf120b637b8b07a3b28277bc6985ca84db4d0b147d652e7acf25");
 }
 
 } // namespace
