@@ -1,7 +1,7 @@
 # 采样反垄断（Sampling Anti-Monopoly）设计
 
 **日期**：2026-08-10
-**状态**：草案（v6——cap 已实施：GetLevelMTypes 行为构成约束（洞穴风筝≤2 / 地狱同类≤2）落地，`sampling_behavior_test` 翻转 post-cap 契约 12/12 PASS；多 agent 独立复核 + 双计数修复完成）
+**状态**：**已定稿（final，2026-08-13）**——Oracle 对抗评审 PASS（8/8 AC，无阻塞项）；4 条非阻塞建议已全部落地：BoneDemon 注记修正、quest 重抽双计数单测、非 Boss 类映射断言补全、L16 cap 注释澄清。`sampling_behavior_test` 13/13 PASS。按宪章流程：Oracle 对抗评审 ✅ → 实施完成 ✅ → 全量门禁 ✅
 **分类**：Expansion（宪章决策 31 定位变更后；影响逐层怪物构成 → 判定树规则 2「掉落表/生成构成」→ Expansion）
 **取代**：无（新规格；密度修复框架 B1——逐层体验层面的唯一杠杆）
 
@@ -185,7 +185,7 @@ while (nt > 0 && LevelMonsterTypeCount < MaxLvlMTypes && monstimgtot < 4000) {
 |---|---|---|
 | 近战 | SkeletonMelee / Zombie / Fat / Rhino / Mega / Snake / GoatMelee | 骷髅/僵尸/蛇 |
 | 远程站桩 | SkeletonRanged / GoatRanged / Succubus / **Counselor** | 弓骷髅/魅魔/**法师** |
-| 远程拉扯 | Magma / Storm / Acid（Bone Demon 用 ai=Storm 归此类；`BoneDemon` 是枚举值但 tsv 无此 ai 字符串） | 岩浆/风暴/酸/骨魔 |
+| 远程拉扯 | Magma / Storm / Acid / BoneDemon（HF tsv 有 `ai=BoneDemon` 行，实现同时映射 Storm 与 BoneDemon，均归此类） | 岩浆/风暴/酸/骨魔 |
 | 鼓舞组织 | Fallen | 小魔 |
 | 冲锋 | Bat（Rhino 弹道） | 蝙蝠 |
 | 隐身 | Sneak | 隐形怪 |
@@ -254,7 +254,7 @@ while (nt > 0 && LevelMonsterTypeCount < MaxLvlMTypes && monstimgtot < 4000) {
 
 ## 8. 状态
 
-草案（v6——cap 已实施：GetLevelMTypes 行为构成约束落地，`sampling_behavior_test` 12/12 PASS；多 agent 独立复核完成 + 双计数修复）。**任务状态注记（v5，据多 agent 独立复核）**：harness 零初始化 `Quests`（全 NOTAVAIL），真实单机游戏随机分配任务（Q_VEIL/Q_WARLORD 二选一激活，L13 预加 Warlord of Blood / L14 预加 Lachdanan，各消耗 image 预算）——故 L13/L14 基线是「无任务」条件值，非任务分配平均值；L15 与洞穴 9-12 无任务怪预加，不受影响。**实现注记（v6）**：cap 计数从预加类型（Golem+任务怪）播种（§3.3 v5 模型），且仅在 `AddMonsterType` 真正新增槽位时自增（防 quest-unique 重抽双计数，据独立复核修复）。按宪章流程：Oracle 对抗评审 → 实施完成 → 全量门禁。
+草案（v6——cap 已实施：GetLevelMTypes 行为构成约束落地，`sampling_behavior_test` 12/12 PASS；多 agent 独立复核完成 + 双计数修复）。**任务状态注记（v5，据多 agent 独立复核）**：harness 零初始化 `Quests`（全 NOTAVAIL），真实单机游戏随机分配任务（Q_VEIL/Q_WARLORD 二选一激活，L13 预加 Warlord of Blood / L14 预加 Lachdanan，各消耗 image 预算）——故 L13/L14 基线是「无任务」条件值，非任务分配平均值；L15 与洞穴 9-12 无任务怪预加，不受影响。**实现注记（v6）**：cap 计数从预加类型（Golem+任务怪）播种（§3.3 v5 模型），且仅在 `AddMonsterType` 真正新增槽位时自增（防 quest-unique 重抽双计数，据独立复核修复）。按宪章流程：Oracle 对抗评审 → 实施完成 → 全量门禁。**定稿注记（v7/final，2026-08-13）**：Oracle 对抗评审 PASS——8 个 AC 全部满足（洞穴全风筝尾=0、地狱同类尾=0、终止性、教堂/墓穴 1-8 无约束（cap 分支整体跳过，vanilla 字节级一致）、L16 硬编码早退、image 预算不变、timedemo 不触达、MP 确定性（cap 零 RNG 消费））；4 条非阻塞建议全部落地（§4.2 BoneDemon 注记修正、`QuestPreAddRePickDoesNotDoubleCount` 锁定双计数修复路径、`ClassifyCoversAllAiIds` 补全非 Boss 映射断言、L16 cap 注释澄清）。cap 实现零回归（全量门禁 4 失败全部由 f474a64c0 引入、与 B1 无关，见 knowledge gotcha_timedemo_isOnActiveLevel_failure.md）。
 
 ## 9. 相关规格
 

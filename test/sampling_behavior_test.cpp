@@ -22,6 +22,7 @@
 #include "levels/gendung.h"
 #include "monster.h"
 #include "multi.h"
+#include "quests.h"
 #include "tables/monstdat.h"
 
 using namespace devilution;
@@ -330,6 +331,52 @@ TEST_F(SamplingBaselineTest, ClassifyCoversAllAiIds)
 	EXPECT_EQ(GetBehaviorClass(MonsterAIID::AcidUnique), BehaviorClass::Boss);
 	EXPECT_EQ(GetBehaviorClass(MonsterAIID::Custom), BehaviorClass::Boss);
 	EXPECT_EQ(GetBehaviorClass(MonsterAIID::Invalid), BehaviorClass::Boss);
+
+	// Non-Boss mappings are pinned explicitly too: a future AI addition that
+	// lands in the wrong class would silently shift the tail metric.
+	EXPECT_EQ(GetBehaviorClass(MonsterAIID::SkeletonMelee), BehaviorClass::Melee);
+	EXPECT_EQ(GetBehaviorClass(MonsterAIID::Zombie), BehaviorClass::Melee);
+	EXPECT_EQ(GetBehaviorClass(MonsterAIID::Fat), BehaviorClass::Melee);
+	EXPECT_EQ(GetBehaviorClass(MonsterAIID::Rhino), BehaviorClass::Melee);
+	EXPECT_EQ(GetBehaviorClass(MonsterAIID::Mega), BehaviorClass::Melee);
+	EXPECT_EQ(GetBehaviorClass(MonsterAIID::Snake), BehaviorClass::Melee);
+	EXPECT_EQ(GetBehaviorClass(MonsterAIID::GoatMelee), BehaviorClass::Melee);
+	EXPECT_EQ(GetBehaviorClass(MonsterAIID::SkeletonRanged), BehaviorClass::RangedTurret);
+	EXPECT_EQ(GetBehaviorClass(MonsterAIID::GoatRanged), BehaviorClass::RangedTurret);
+	EXPECT_EQ(GetBehaviorClass(MonsterAIID::Succubus), BehaviorClass::RangedTurret);
+	EXPECT_EQ(GetBehaviorClass(MonsterAIID::Magma), BehaviorClass::RangedKite);
+	EXPECT_EQ(GetBehaviorClass(MonsterAIID::Storm), BehaviorClass::RangedKite);
+	EXPECT_EQ(GetBehaviorClass(MonsterAIID::Acid), BehaviorClass::RangedKite);
+	EXPECT_EQ(GetBehaviorClass(MonsterAIID::BoneDemon), BehaviorClass::RangedKite);
+	EXPECT_EQ(GetBehaviorClass(MonsterAIID::Bat), BehaviorClass::Charge);
+	EXPECT_EQ(GetBehaviorClass(MonsterAIID::Sneak), BehaviorClass::Sneak);
+	EXPECT_EQ(GetBehaviorClass(MonsterAIID::SkeletonKing), BehaviorClass::Summon);
+}
+
+TEST_F(SamplingBaselineTest, QuestPreAddRePickDoesNotDoubleCount)
+{
+	if (missingMpqAssets_)
+		GTEST_SKIP() << "MPQ assets not found - skipping test";
+
+	// Q_VEIL (Lachdanan) pre-adds MT_RBLACK to LevelMonsterTypes; MT_RBLACK
+	// is also a regular member of the L13-14 pool, so sampling can re-pick
+	// it. The GetLevelMTypes count guard must not double-count that re-pick:
+	// a second distinct Melee type must still be sampleable (the cap allows
+	// 2 of a class, counting the pre-add).
+	LoadQuestData(); // populate QuestsData (SetUpTestSuite does not load it)
+	Quests[Q_VEIL]._qidx = Q_VEIL;
+	Quests[Q_VEIL]._qactive = QUEST_ACTIVE;
+	Quests[Q_VEIL]._qlevel = 14;
+
+	size_t maxMelee = 0;
+	for (uint32_t seed = 1; seed <= 5000; seed++) {
+		const auto classes = RunSampling(14, seed);
+		maxMelee = std::max(maxMelee, static_cast<size_t>(std::count(classes.begin(), classes.end(), BehaviorClass::Melee)));
+		EXPECT_LE(MaxSameClassCount(classes), 2) << "same-class cap must hold with quest pre-adds";
+	}
+	EXPECT_GE(maxMelee, 2) << "a second Melee type must be sampleable despite the MT_RBLACK re-pick";
+
+	Quests[Q_VEIL] = {};
 }
 
 } // namespace

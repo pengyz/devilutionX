@@ -3500,8 +3500,9 @@ std::expected<void, std::string> GetLevelMTypes()
 
 		// B1 sampling-anti-monopoly: cap the per-level behavior mix so random
 		// sampling cannot produce an all-kite Caves level or an all-same-class
-		// Hell level. Caves 9-12: at most 2 RangedKite types. Hell 13-16: at
-		// most 2 of any single class. Other level ranges are unconstrained.
+		// Hell level. Caves 9-12: at most 2 RangedKite types. Hell 13-15: at
+		// most 2 of any single class (L16 hardcodes its types and returns
+		// before the cap). Other level ranges are unconstrained.
 		// Counts start from the pre-added types (Golem + quest monsters), so
 		// the cap reflects the full LevelMonsterTypes composition a player
 		// faces, not just the random-sampled portion.
