@@ -16,6 +16,7 @@
 - [网络物品更新要网格索引非 InvList 索引](gotcha_inv_grid_vs_list_index.md) — `NetSendCmdChInvItem` 期望网格索引；传 InvList 索引会 OOB 读 + 多人损坏。用 `NetSyncInvItem` 反查
 - [多计数堆叠合并会静默丢物品](gotcha_multi_count_stack_merge.md) — `TryStackInInventory` 曾 +1 合并，叠 3 放到叠 1 变 2；多计数应开新格整放
 - [怪物等级对战斗压力无贡献（GetMinHit 钳制）](gotcha_monster_level_no_combat_pressure.md) — `hit = 2×(怪级−玩家级) + 30 − AC` 被 `GetMinHit()` 钳制，地狱层 AC≥16 角色悬崖项完全无效；降怪级是错误杠杆（只影响掉落/XP/被钳制命中）
+- [供应商谓词改动导致种子物品生成漂移](gotcha_vendor_predicate_seed_drift.md) — 改 `WitchItemOk`/`RndVendorItem` 过滤谓词 = 改 RNG 重试路径 = 同种子生成不同物品；pack 测试数组/golden SHA/demo 回放全部静默过期（实例：f474a64c0 开关移除后 War Staff→Book of Flame Wave）
 
 ## Patterns
 <!-- 代码约定、本项目开发模式 -->
@@ -34,6 +35,7 @@
 - [深度层旗舰 = 黑暗远征（视野限制）](decision_dark_expedition_direction.md) — 两轮 Oracle 对抗评审确认：光照是唯一引擎原生信息限制杠杆，但必须配反制（CanTarget + Infravision 卷轴预算）
 - [密度塌缩修复框架 = B1 采样约束 + A1/A3 克隆区分 + E1 地狱重组](decision_density_fix_package.md) — Oracle 对抗评审收敛的「最小连贯包」；关键洞察「池≠体验」（GetLevelMTypes 随机采样，B1 是唯一逐层体验杠杆）；排除 B2/C3/E2。**后续演进（2026-08-10 定稿）**：E1→悬崖评估（REJECT 重构）、A2→激励者（REJECT 重构）、全部 6 规格经多 agent 独立复核后 v4/v5 修订完成（A1/A3/B1/A2 v4、C2/E1 v5）——以框架总览为准
 - [密度修复框架独立复核结果（4 agent 发现系统性引擎事实错误）](decision_density_fix_review_findings.md) — 冲锋伤害路径断裂（special 列=0→1 伤害）、B1 27.8% 夸大 7×（Golem 预算遗漏，真实 4.13%）、E1 GetMinHit 证明错误（漏 base toHit 90-130，GetMinHit 是下限非钳制）、狂乱者 no-op 造假（goal=Attack 是纯 AI 攻击性）、C2 死亡钩子 MP 缺陷、A2 rate 引用错误（AnimStruct 静态字段）。教训：跨文档自洽 ≠ 正确，只有忠实引擎模拟能抓到。**修订状态（2026-08-10）**：全部规格已按复核结果修订（v4/v5），框架 §8.2 验证表自身 2 处错误已修正
+- **B1 采样反垄断已定稿（2026-08-13）**：Oracle 对抗评审 PASS（8/8 AC，cap 零 RNG 消费、1-8 层字节级 vanilla、L16 早退）；4 条非阻塞建议落地（BoneDemon 注记/quest 双计数单测/非 Boss 映射断言/L16 注释）。实现零回归——全量门禁 4 失败全部由 f474a64c0（开关移除）引入而非 B1，详见 [gotcha_vendor_predicate_seed_drift](gotcha_vendor_predicate_seed_drift.md) 与 [gotcha_timedemo_isOnActiveLevel_failure](gotcha_timedemo_isOnActiveLevel_failure.md)
 
 ## References
 <!-- 外部资源指针、关键文件位置 -->
