@@ -179,9 +179,23 @@
 | 9 | timedemo quarantine 状态 | 按用例名确认 `Timedemo.WarriorLevel1to2` 仍为 `Skipped`（`build/Testing/Temporary/LastTest.log`），quarantine 未变 | PASS |
 | 10 | CI 绿 | `gh run 34959598050`（`better-d1-ci.yml`，HEAD `d1e122ab6`）conclusion = **`success`** | PASS |
 
-本轮新增/相关提交：`8e92687a9`（merge: sync upstream master，28 commits / tip `e00b7260f`）、`91e805149`（`fix(build): add panels/quest_log.hpp include after the upstream quest split`）、`d1e122ab6`（`docs(knowledge): record heroname divergence state after the upstream sync`）。
+本轮新增/相关提交：`8e92687a9`（merge: sync upstream master，28 commits / tip `e00b7260f`）、`91e805149`（`fix(build): add panels/quest_log.hpp include after the upstream quest split`）、`d1e122ab6`（`docs(knowledge): record heroname divergence state after the upstream sync`）、`88035420d`（`fix(tools): build sampling_behavior_test in the gate`，最终全分支评审 F1 修复）。
 
-冲突实际为 **4 处**（与探测一致）。另两项探测期风险本轮**未触发**：`tools/run_tests.py` 的 `TEST_TARGETS` 未与 `CMake/Tests.cmake` 脱钩（上游本轮只改 benchmark 的链接依赖）；`questdat.hpp` 行尾维持 CRLF，本轮唯一 LF 的仍是 `Source/quests.h` 与上游新增的 7 个文件。
+### §7 补充验收（F1 修复后重跑门禁，2026-09-15）
+
+修复 `TEST_TARGETS` 脱钩并重跑 `python3 tools/run_tests.py --json /tmp/ci-sync2.json` 后：
+
+| 检查项 | 结果 |
+|---|---|
+| `ctest.total` / `failed` / `passed_pct` | `698` / `0` / `100` |
+| `drift.drift_ok` / `drift.passes` | `true` / `5` |
+| `build/sampling_behavior_test` mtime | `2026-09-15 19:10:33`（晚于本轮构建，此前为 `2026-08-13 22:30:58` 的旧二进制） |
+| `SamplingBaselineTest.*` 用例数与结果 | 13 个用例全部出现在 `LastTest.log` 且均为 `[ OK ]` |
+| `git rev-list --count HEAD..origin/master` | `0` |
+
+冲突实际为 **4 处**（与探测一致）。另一项探测期风险本轮**未触发**：`questdat.hpp` 行尾维持 CRLF，本轮唯一 LF 的仍是 `Source/quests.h` 与上游新增的 7 个文件。
+
+`tools/run_tests.py` 的 `TEST_TARGETS` 与 `CMake/Tests.cmake` 的脱钩需要更正表述：本轮上游只改了 benchmark 的链接依赖，**未新增/删除/改名任何 `tests`/`standalone_tests` 成员**——这一点属实；但**既有的 `sampling_behavior_test`**（在合并前就已注册于 `Tests.cmake` 的 `tests` 列表与 CTest）**早已处于脱钩状态**：它未被列入 `TEST_TARGETS`，导致 `run_tests.py` 的构建阶段从不重建它，ctest 长期用旧二进制跑它的 13 个 `SamplingBaselineTest.*` 用例（合并本身未引入或加重这个脱钩，pre-merge 的 `Tests.cmake` 同样含 `sampling_behavior_test`）。该缺口由最终全分支评审发现（F1），已由本轮提交 `88035420d`（`fix(tools): build sampling_behavior_test in the gate`）修复：`sampling_behavior_test` 加入 `TEST_TARGETS` 后重跑门禁验证，见下方补充验收数据。
 
 ### 执行中与规格不符/未预料之处
 
