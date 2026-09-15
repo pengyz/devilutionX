@@ -1055,6 +1055,25 @@ TEST_F(NetPackTest, UnPackNetPlayer_unterminatedNameIsBounded)
 	EXPECT_EQ(std::string_view(Players[1]._pName).size(), PlayerNameLength - 1);
 }
 
+// Same defect class as the player names above, in the ear path: TEar::heroname is
+// a char[17] that comes straight off the wire (DeltaImportItem memcpys whole
+// TCmdPItem structs) or out of a save/network pack, with no NUL guarantee.
+// RecreateEar/SyncDropEar take a string_view, so passing the raw field ran strlen()
+// past the allocation - pre-fix ASan reports a heap-buffer-overflow here.
+TEST_F(NetPackTest, UnPackNetItem_unterminatedEarNameIsBounded)
+{
+	auto packed = std::make_unique<ItemNetPack>();
+	std::memset(packed.get(), 'A', sizeof(ItemNetPack));
+	packed->def.wIndx = static_cast<_item_indexes>(Swap16LE(IDI_EAR));
+
+	Item item;
+	ASSERT_TRUE(UnPackNetItem(*MyPlayer, *packed, item));
+	ASSERT_EQ(item.IDidx, IDI_EAR) << "ear branch not taken - test would not cover the fix";
+
+	EXPECT_EQ(item._iIName[ItemNameLength - 1], '\0');
+	EXPECT_LE(std::string_view(item._iIName).size(), ItemNameLength - 1);
+}
+
 TEST_F(NetPackTest, UnPackNetPlayer_invalid_class)
 {
 	PlayerNetPack packed;

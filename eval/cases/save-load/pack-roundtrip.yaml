@@ -16,13 +16,13 @@ run:
 expected:
   exit_code: 0
   failed: 0
-  passed_min: 56
+  passed_min: 57
   skipped_max: 10
   output_contains: ["[  PASSED  ]"]
 
 description: >
   物品打包/解包往返一致性，含堆叠数、鉴定标志、网络包路径。
-  含玩家名边界回归（上游 b4dfc8d26）：PlayerPack/PlayerNetPack 的 pName 是
-  定长数组且无 NUL 保证，解包必须按 PlayerNameLength 定长读取，不得用裸指针
-  构造 string_view（旧实现 strlen 越界读）。passed_min 锁定 56 个用例全过。
+  含玩家名与耳朵名边界回归（上游 b4dfc8d26 同类）：PlayerPack/PlayerNetPack 的
+  pName 与 TEar::heroname 都是定长数组且无 NUL 保证，解包必须按 sizeof 定长读取，
+  不得用裸指针构造 string_view（旧实现 strlen 越界读）。passed_min 锁定 57 个用例全过。
   部分用例需 MPQ fixtures，缺失时 skip（skipped_max 容忍）。
