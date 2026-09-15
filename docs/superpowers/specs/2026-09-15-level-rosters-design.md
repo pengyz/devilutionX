@@ -151,7 +151,7 @@ level   max_image   tail_draw   class_floors          squad_chance   squad_size
 ### 4.4 加载期校验（拒绝启动而非静默降级）
 
 1. 每行 `monster_id` 必须在**当前加载的数据集**中存在；区间行须满足"区间内每层都可用"。
-2. `class_floors` 必须在该层候选池 + B1 caps 下**可满足**，否则报错并指出冲突项。caps 取 L9-12 `RangedKite ≤ 2`、L13-16 任意类别 `≤ 2`、其余无上限，**抽成单一真相源** `BehaviorClassCapForLevel(level, class)`（`level_roster.h` 导出）；校验器与采样循环（§4.2.5）共用，避免两处漂移。
+2. `class_floors` 必须在该层候选池 + B1 caps 下**可满足**，否则报错并指出冲突项。caps 取 L9-12 `RangedKite ≤ 2`、L13-16 任意类别 `≤ 2`（**注**：L16 因硬编码分支提前 return，cap 在 L16 实际不可达，见 §4.2.7）、其余无上限，**抽成单一真相源** `BehaviorClassCapForLevel(level, class)`（`level_roster.h` 导出）；校验器与采样循环（§4.2.5）共用，避免两处漂移。
 3. **unique 门控检查**：若 `(level, monster_id)` 的 base 类型等于**同层**某 unique 的 `type`，则必须显式列入 `allow_unique_boost`，否则**拒绝启动**（`:509-512` 会因 core 而提高该 unique 出现率；本规格默认保持稀有性不变）。
 4. spawn 数据（`gbIsSpawn == true`）下走宽松模式：只放宽三项（逐行可用性、unique 白名单、floors 可满足性）；**类型存在性检查在两种模式下共用**；并对 `entries ∪ params` 中出现的**每个 `level`** 一律要求至少 1 个 core 成员（比"有名册行"或"有参数行"任一驱动都严格）。
 
