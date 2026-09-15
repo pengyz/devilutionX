@@ -51,7 +51,7 @@
 
 **接口：**
 - 对外产出：`std::array<size_t, static_cast<size_t>(BehaviorClass::Count)> MeasurePlacedClassMix(uint8_t level, uint32_t seed)` —— 生成该层真实关卡、跑采样与放置，按**已放置怪物数**统计行为类别；返回数组的元素和等于该次放置的 `ActiveMonsterCount`。
-- 对外产出：`std::vector<_monster_id> MeasureRealisedTypes(uint8_t level, uint32_t seed)` —— 该次采样的 `LevelMonsterTypes` 类型集合（供任务 3 复用同一夹具）。
+- 对外产出：`std::size_t MeasurePlacedMonsterCount()` 由 `ActiveMonsterCount` 直接可得，无需额外封装。**注（裁决 R6）**：原计划列出的 `MeasureRealisedTypes` 已删除——测试二进制各自独立 TU，任务 3 的用例在 `sampling_behavior_test.cpp`，**无法**调用本文件的函数；任务 3 直接读 `LevelMonsterTypes` 即可。
 
 - [ ] **步骤 1：编写失败的测试**
 
