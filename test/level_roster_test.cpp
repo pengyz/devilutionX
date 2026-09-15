@@ -313,14 +313,53 @@ TEST(ParseClassFloorsTest, FatalsOnAnEmptyFloorValue)
 
 namespace {
 
-class LevelRosterFixtureLoadTest : public ::testing::Test {
+// Base fixture: LoadCoreArchives()/LoadMonsterData() only need to run once per binary (they are
+// expensive and idempotent-enough for repeated calls to just log a benign "already registered"
+// warning), so they stay in SetUpTestSuite(). AssetsPath is process-global mutable state that a
+// single test's body previously mutated directly; that made the two tests below only pass in a
+// specific run order (e.g. under --gtest_filter='LevelRosterFixtureLoadTest.LoadsTheShipped*'
+// alone, or under --gtest_shuffle) since nothing ever restored the original path. Each concrete
+// fixture below now saves/restores AssetsPath per-test in SetUp()/TearDown(), mirroring
+// HasLooseLogicAssetsTest in test/assets_test.cpp, so the two tests are independent of each
+// other and of execution order.
+class LevelRosterFixtureLoadTestBase : public ::testing::Test {
 protected:
 	static void SetUpTestSuite()
 	{
 		LoadCoreArchives();
 		gbIsSpawn = false;
 		LoadMonsterData();
-		paths::SetAssetsPath(paths::BasePath() + "/test/fixtures/");
+	}
+
+	void SetUp() override
+	{
+		savedAssetsPath_ = paths::AssetsPath();
+	}
+
+	void TearDown() override
+	{
+		paths::SetAssetsPath(savedAssetsPath_);
+	}
+
+private:
+	std::string savedAssetsPath_;
+};
+
+class LevelRosterFixtureLoadTest : public LevelRosterFixtureLoadTestBase {
+protected:
+	void SetUp() override
+	{
+		LevelRosterFixtureLoadTestBase::SetUp();
+		paths::SetAssetsPath(paths::BasePath() + "test/fixtures/");
+	}
+};
+
+class LevelRosterShippedLoadTest : public LevelRosterFixtureLoadTestBase {
+protected:
+	void SetUp() override
+	{
+		LevelRosterFixtureLoadTestBase::SetUp();
+		paths::SetAssetsPath(paths::BasePath() + "assets/");
 	}
 };
 
@@ -337,18 +376,37 @@ TEST_F(LevelRosterFixtureLoadTest, LoadingAnInterleavedFixtureGathersAllMembersO
 
 	const std::span<const LevelRosterEntry> level1 = GetLevelRoster(1);
 	ASSERT_EQ(level1.size(), 2u);
-	EXPECT_TRUE(std::any_of(level1.begin(), level1.end(), [](const LevelRosterEntry &e) { return e.type == MT_WSKELAX; }));
-	EXPECT_TRUE(std::any_of(level1.begin(), level1.end(), [](const LevelRosterEntry &e) { return e.type == MT_NZOMBIE; }));
+	const auto wskelax = std::find_if(level1.begin(), level1.end(), [](const LevelRosterEntry &e) { return e.type == MT_WSKELAX; });
+	const auto nzombie = std::find_if(level1.begin(), level1.end(), [](const LevelRosterEntry &e) { return e.type == MT_NZOMBIE; });
+	ASSERT_NE(wskelax, level1.end());
+	ASSERT_NE(nzombie, level1.end());
+	// Both rows are `core	-` in the fixture TSV (see test/fixtures/txtdata/monsters/
+	// level_rosters_interleaved.tsv): role Core, allow_unique_boost false.
+	EXPECT_EQ(wskelax->role, LevelRosterRole::Core);
+	EXPECT_FALSE(wskelax->allowUniqueBoost);
+	EXPECT_EQ(nzombie->role, LevelRosterRole::Core);
+	EXPECT_FALSE(nzombie->allowUniqueBoost);
 }
 
-TEST_F(LevelRosterFixtureLoadTest, LoadsTheShippedRosterAndValidatesIt)
+TEST_F(LevelRosterShippedLoadTest, LoadsTheShippedRosterAndValidatesIt)
 {
-	// Reset back to the real assets directory (the fixture test above pointed AssetsPath at
-	// test/fixtures/) before exercising the production LoadLevelRoster() entry point.
-	paths::SetAssetsPath(paths::BasePath() + "assets/");
 	LoadLevelRoster();
+
+	// Real values from the shipped tables (assets/txtdata/monsters/level_roster_params.tsv row
+	// "9	16000	3	RangedKite=1"): assert the parsed numbers rather than just non-null/non-empty,
+	// so swapping the maxImage/tailDraw columns (both valid positive ints) would be caught.
+	const LevelRosterParams *params9 = GetLevelRosterParams(9);
+	ASSERT_NE(params9, nullptr);
+	EXPECT_EQ(params9->maxImage, 16000);
+	EXPECT_EQ(params9->tailDraw, 3);
 
 	const std::span<const LevelRosterEntry> level9 = GetLevelRoster(9);
 	EXPECT_FALSE(level9.empty());
-	EXPECT_NE(GetLevelRosterParams(9), nullptr);
+	// assets/txtdata/monsters/level_rosters.tsv has "9	MT_BMAGMA	core	-": role Core,
+	// allow_unique_boost false. Pin this specific row's parsed fields, not just the roster's
+	// non-emptiness.
+	const auto bmagma = std::find_if(level9.begin(), level9.end(), [](const LevelRosterEntry &e) { return e.type == MT_BMAGMA; });
+	ASSERT_NE(bmagma, level9.end());
+	EXPECT_EQ(bmagma->role, LevelRosterRole::Core);
+	EXPECT_FALSE(bmagma->allowUniqueBoost);
 }

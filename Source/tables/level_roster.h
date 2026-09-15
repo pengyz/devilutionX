@@ -88,6 +88,13 @@ void SortRosterByLevel(std::span<LevelRosterEntry> entries);
  */
 std::span<const LevelRosterEntry> FindLevelRoster(std::span<const LevelRosterEntry> entries, uint8_t level);
 
+/**
+ * This function does not filter by monster availability (spawn/retail/hellfire): under spawn
+ * data most core rows are `availability=Retail` and therefore unavailable, so a caller that
+ * samples from this roster (Task 3's sampling loop) must apply its own availability filter
+ * against the currently loaded MonstersData before treating a returned entry as usable; a
+ * non-empty span here is not itself a guarantee of spawn-mode availability.
+ */
 std::span<const LevelRosterEntry> GetLevelRoster(uint8_t level);
 const LevelRosterParams *GetLevelRosterParams(uint8_t level);
 

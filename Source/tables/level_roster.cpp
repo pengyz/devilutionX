@@ -270,10 +270,13 @@ namespace {
 // out of this task's scope); it does not affect gameplay.
 void LogLoadedRosterSummary()
 {
-	for (uint8_t level = 1; level <= 16; level++) {
-		const std::span<const LevelRosterEntry> roster = GetLevelRoster(level);
-		const LevelRosterParams *params = GetLevelRosterParams(level);
-		LogVerbose("Level roster: level {} has {} entries, params {}", level, roster.size(),
+	// Iterate the levels actually present in Params (rather than a hardcoded Phase A range like
+	// 1..16) so this diagnostic keeps covering every loaded level once Phase A2 adds the L17-24
+	// HF overlay rows, with no edit required here.
+	for (const LevelRosterParams &param : Params) {
+		const std::span<const LevelRosterEntry> roster = GetLevelRoster(param.level);
+		const LevelRosterParams *params = GetLevelRosterParams(param.level);
+		LogVerbose("Level roster: level {} has {} entries, params {}", param.level, roster.size(),
 		    params != nullptr ? "present" : "missing");
 	}
 }
