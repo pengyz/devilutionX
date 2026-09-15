@@ -23,6 +23,7 @@
 #include "data/record_reader.hpp"
 #include "game_mode.hpp"
 #include "tables/monstdat.h"
+#include "utils/log.hpp"
 #include "utils/str_cat.hpp"
 #include "utils/str_split.hpp"
 
@@ -54,6 +55,8 @@ bool IsUniqueBaseForLevel(uint8_t level, _monster_id type)
 	return false;
 }
 
+} // namespace
+
 std::vector<std::pair<BehaviorClass, uint8_t>> ParseClassFloors(std::string_view value)
 {
 	std::vector<std::pair<BehaviorClass, uint8_t>> result;
@@ -76,6 +79,8 @@ std::vector<std::pair<BehaviorClass, uint8_t>> ParseClassFloors(std::string_view
 	}
 	return result;
 }
+
+namespace {
 
 void LoadLevelRosterEntriesFromFile(DataFile &dataFile, std::string_view filename)
 {
@@ -181,6 +186,30 @@ std::optional<std::string> ValidateLevelRoster(std::span<const LevelRosterEntry>
 		}
 	}
 
+	// Uniqueness checks (R21 + 2a rulings): a duplicate params row for the same level would
+	// have its second occurrence silently ignored by GetLevelRosterParams() (linear
+	// find_if returns the first match); a duplicate (level, monster_id) entry row would
+	// silently double-count that monster in caps/floor bookkeeping. Both apply in both modes
+	// since they are structural, not availability-related.
+	{
+		std::vector<uint8_t> paramLevels;
+		for (const LevelRosterParams &param : params)
+			paramLevels.push_back(param.level);
+		std::sort(paramLevels.begin(), paramLevels.end());
+		const auto dup = std::adjacent_find(paramLevels.begin(), paramLevels.end());
+		if (dup != paramLevels.end())
+			return StrCat("level ", *dup, " has more than one params row");
+	}
+	{
+		std::vector<std::pair<uint8_t, _monster_id>> entryKeys;
+		for (const LevelRosterEntry &entry : entries)
+			entryKeys.emplace_back(entry.level, entry.type);
+		std::sort(entryKeys.begin(), entryKeys.end());
+		const auto dup = std::adjacent_find(entryKeys.begin(), entryKeys.end());
+		if (dup != entryKeys.end())
+			return StrCat("level ", dup->first, " has more than one roster row for monster ", static_cast<int>(dup->second));
+	}
+
 	// Core-non-empty check: every distinct level appearing in entries or params must have
 	// at least one core member. This is enforced in both modes.
 	std::vector<uint8_t> levels;
@@ -232,18 +261,35 @@ std::optional<std::string> ValidateLevelRoster(std::span<const LevelRosterEntry>
 	return std::nullopt;
 }
 
-void LoadLevelRoster()
+namespace {
+
+// Verbose-only load-time diagnostic: reports each Phase A level's roster size and params so a
+// missing/short level shows up in a verbose log instead of only surfacing later as a silent
+// empty span at GetLevelRoster() call sites. This is the production caller for
+// GetLevelRoster()/GetLevelRosterParams() (Task 3's sampling loop is its own, separate caller,
+// out of this task's scope); it does not affect gameplay.
+void LogLoadedRosterSummary()
+{
+	for (uint8_t level = 1; level <= 16; level++) {
+		const std::span<const LevelRosterEntry> roster = GetLevelRoster(level);
+		const LevelRosterParams *params = GetLevelRosterParams(level);
+		LogVerbose("Level roster: level {} has {} entries, params {}", level, roster.size(),
+		    params != nullptr ? "present" : "missing");
+	}
+}
+
+} // namespace
+
+void LoadLevelRosterFromFiles(std::string_view rosterFile, std::string_view paramsFile)
 {
 	Entries.clear();
 	Params.clear();
 
-	const std::string_view rosterFilename = "txtdata\\monsters\\level_rosters.tsv";
-	DataFile rosterFile = DataFile::loadOrDie(rosterFilename);
-	LoadLevelRosterEntriesFromFile(rosterFile, rosterFilename);
+	DataFile rosterDataFile = DataFile::loadOrDie(rosterFile);
+	LoadLevelRosterEntriesFromFile(rosterDataFile, rosterFile);
 
-	const std::string_view paramsFilename = "txtdata\\monsters\\level_roster_params.tsv";
-	DataFile paramsFile = DataFile::loadOrDie(paramsFilename);
-	LoadLevelRosterParamsFromFile(paramsFile, paramsFilename);
+	DataFile paramsDataFile = DataFile::loadOrDie(paramsFile);
+	LoadLevelRosterParamsFromFile(paramsDataFile, paramsFile);
 
 	// GetLevelRoster() relies on same-level rows being physically contiguous. Nothing
 	// guarantees the TSV rows are grouped by level, so sort them here (stably, so rows
@@ -256,6 +302,13 @@ void LoadLevelRoster()
 	const std::optional<std::string> error = ValidateLevelRoster(Entries, Params);
 	if (error.has_value())
 		app_fatal(StrCat("Level roster validation failed: ", *error));
+
+	LogLoadedRosterSummary();
+}
+
+void LoadLevelRoster()
+{
+	LoadLevelRosterFromFiles("txtdata\\monsters\\level_rosters.tsv", "txtdata\\monsters\\level_roster_params.tsv");
 }
 
 std::span<const LevelRosterEntry> GetLevelRoster(uint8_t level)

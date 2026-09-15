@@ -9,6 +9,7 @@
 #include <optional>
 #include <span>
 #include <string>
+#include <string_view>
 #include <utility>
 #include <vector>
 
@@ -38,13 +39,32 @@ struct LevelRosterParams {
 /**
  * @brief Loads and validates the shipped level roster tables. Fatal on any validation failure.
  *
- * Not wired to any production call site yet (see Task 2b).
+ * Must be called after LoadMonsterData(): validation reads MonstersData/UniqueMonstersData,
+ * which LoadMonsterData() populates.
  *
  * Each call clears and rebuilds the internal Entries/Params storage, so any std::span or
  * pointer previously returned by GetLevelRoster()/GetLevelRosterParams() is invalidated the
  * moment this runs again; callers must not retain those views across a reload.
  */
 void LoadLevelRoster();
+
+/**
+ * @brief Loads and validates the level roster tables from the given file paths (instead of the
+ * shipped `txtdata\monsters\level_rosters.tsv`/`level_roster_params.tsv`). Fatal on any
+ * validation failure.
+ *
+ * `LoadLevelRoster()` calls this with the shipped paths; tests use it directly against
+ * `test/fixtures/` tables so this has a production caller.
+ */
+void LoadLevelRosterFromFiles(std::string_view rosterFile, std::string_view paramsFile);
+
+/**
+ * @brief Parses a `class_floors` cell (e.g. "Melee=2,Ranged=1") into class/floor pairs.
+ *
+ * Fatal (`app_fatal`) on a malformed entry: missing '=', an unknown BehaviorClass name, or a
+ * non-integer floor. An empty `value` yields an empty result (no floors for that level).
+ */
+std::vector<std::pair<BehaviorClass, uint8_t>> ParseClassFloors(std::string_view value);
 
 /**
  * @brief Stable-sorts `entries` by level, preserving each level's relative file order.
@@ -59,6 +79,12 @@ void SortRosterByLevel(std::span<LevelRosterEntry> entries);
  *
  * `entries` must already be sorted by level (see SortRosterByLevel()); otherwise rows for
  * `level` that are not contiguous will not all be included.
+ *
+ * The returned span is a view into `entries` and shares its lifetime: it is only valid as long
+ * as the backing storage is not reallocated, resized, or destroyed. In particular, a span
+ * returned from GetLevelRoster() (which is backed by LoadLevelRoster()'s internal storage) is
+ * invalidated by the next LoadLevelRoster()/LoadLevelRosterFromFiles() call; callers must not
+ * retain it across a reload.
  */
 std::span<const LevelRosterEntry> FindLevelRoster(std::span<const LevelRosterEntry> entries, uint8_t level);
 
