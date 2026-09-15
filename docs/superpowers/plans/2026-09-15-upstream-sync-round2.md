@@ -99,7 +99,7 @@
 
 ---
 
-### 任务 1：预检与基线固化
+## Task 1: 预检与基线固化
 
 **文件：**
 - 修改：无（只读 + 记录）
@@ -145,7 +145,7 @@ python3 tools/check_drift.py --base origin/master 2>&1 | tee /tmp/drift-before-s
 
 ---
 
-### 任务 2：执行 merge 并复现 4 处冲突
+## Task 2: 执行 merge 并复现 4 处冲突
 
 **文件：**
 - 修改：由 merge 自动（100 个文件自动合并 + 4 个冲突文件）
@@ -191,7 +191,7 @@ git grep -nE "^(<<<<<<<|>>>>>>>|=======)$" -- Source/ test/ CMake/ CMakeLists.tx
 
 ---
 
-### 任务 3：解决 `Source/quests.h`（整文件冲突 + fork 增量迁移）
+## Task 3: 解决 `Source/quests.h`（整文件冲突 + fork 增量迁移）
 
 **文件：**
 - 修改：`Source/quests.h`（改为上游版本）、`Source/tables/questdat.hpp`（补 fork 增量）
@@ -254,7 +254,7 @@ grep -n "scriptName" Source/quests.cpp Source/quests.h Source/tables/questdat.hp
 
 ---
 
-### 任务 4：解决 `Source/engine/render/scrollrt.cpp`
+## Task 4: 解决 `Source/engine/render/scrollrt.cpp`
 
 **文件：**
 - 修改：`Source/engine/render/scrollrt.cpp`（1 处冲突）
@@ -294,7 +294,7 @@ git diff origin/master -- Source/engine/render/scrollrt.cpp | head -40
 
 ---
 
-### 任务 5：解决 `Source/controls/plrctrls.cpp`
+## Task 5: 解决 `Source/controls/plrctrls.cpp`
 
 **文件：**
 - 修改：`Source/controls/plrctrls.cpp`（1 处冲突，双方各加一个 include）
@@ -323,7 +323,7 @@ grep -n "cursor_defs.hpp\|levels/gendung.h" Source/controls/plrctrls.cpp
 
 ---
 
-### 任务 6：解决 `Source/quests.cpp` 并提交 merge
+## Task 6: 解决 `Source/quests.cpp` 并提交 merge
 
 **文件：**
 - 修改：`Source/quests.cpp`（1 处冲突，fork 侧两个 include 对上游的删除）
@@ -393,7 +393,7 @@ git status --short                         # 预期：无输出
 
 ---
 
-### 任务 7：验证 quest_log 重构零连带（预期零改动）
+## Task 7: 验证 quest_log 重构零连带（预期零改动）
 
 **文件：**
 - 修改：无（本任务预期不产生代码变更，只验证）
@@ -439,7 +439,7 @@ git commit -m "fix(build): add panels/quest_log.hpp include after the upstream q
 
 - [ ] **步骤 4：未出现错误时不提交（预期路径）**
 
-### 任务 8：门禁 1-2（CMake 配置 + 全目标编译）
+## Task 8: 门禁 1-2（CMake 配置 + 全目标编译）
 
 **文件：**
 - 修改：无（除非编译再暴露问题，按任务 7 的判据处理并追加提交）
@@ -474,7 +474,7 @@ git commit -am "fix(build): adapt to upstream CMake changes"
 
 ---
 
-### 任务 9：门禁 3-4（测试目标 + 全量测试）
+## Task 9: 门禁 3-4（测试目标 + 全量测试）
 
 **文件：**
 - 修改：无（除非测试注册漂移，按判据处理）
@@ -531,7 +531,7 @@ cd build && ctest --output-on-failure -R "<失败测试名>"
 
 ---
 
-### 任务 10：eval smoke 与漂移校验
+## Task 10: eval smoke 与漂移校验
 
 **文件：**
 - 修改：无
@@ -567,7 +567,7 @@ python3 tools/check_drift.py --base origin/master 2>&1 | grep -E "PASS C |PASS C
 
 ---
 
-### 任务 11：复核 heroname 分叉状态并留档
+## Task 11: 复核 heroname 分叉状态并留档
 
 **文件：**
 - 修改：`docs/knowledge/pattern_fixed_width_field_reads.md`（追加同步后的分叉状态），必要时新建实施记录
@@ -604,7 +604,7 @@ git commit -m "docs(knowledge): record heroname divergence state after the upstr
 
 ---
 
-### 任务 12：推送、CI 与规格状态更新
+## Task 12: 推送、CI 与规格状态更新
 
 **文件：**
 - 修改：`docs/superpowers/specs/2026-09-15-upstream-sync-round2-design.md`（§7 状态改为「已实施」+ 实施记录）
