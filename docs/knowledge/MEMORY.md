@@ -17,6 +17,7 @@
 - [多计数堆叠合并会静默丢物品](gotcha_multi_count_stack_merge.md) — `TryStackInInventory` 曾 +1 合并，叠 3 放到叠 1 变 2；多计数应开新格整放
 - [怪物等级对战斗压力无贡献（GetMinHit 钳制）](gotcha_monster_level_no_combat_pressure.md) — `hit = 2×(怪级−玩家级) + 30 − AC` 被 `GetMinHit()` 钳制，地狱层 AC≥16 角色悬崖项完全无效；降怪级是错误杠杆（只影响掉落/XP/被钳制命中）
 - [供应商谓词改动导致种子物品生成漂移](gotcha_vendor_predicate_seed_drift.md) — 改 `WitchItemOk`/`RndVendorItem` 过滤谓词 = 改 RNG 重试路径 = 同种子生成不同物品；pack 测试数组/golden SHA/demo 回放全部静默过期（实例：f474a64c0 开关移除后 War Staff→Book of Flame Wave）
+- [timedemo 回放断言失败（isOnActiveLevel）](gotcha_timedemo_isOnActiveLevel_failure.md) — `f474a64c0` 的 `DarkExpeditionDropOk` 无条件生效改变掉落池权重 → 同一次 RNG 抽取得到不同物品 → 上游录制的 demo 回放 RNG 流分叉 → `interfac.cpp:363` 断言。**CI 自 2026-08-10 起一直红**（原文「CI 未受影响」已被 CI 日志证伪）；2026-09-15 起 `GTEST_SKIP` quarantine，待重录夹具解除
 
 ## Patterns
 <!-- 代码约定、本项目开发模式 -->
@@ -41,8 +42,3 @@
 <!-- 外部资源指针、关键文件位置 -->
 
 - [怪物配置图谱：各层段怪物池与密度诊断](analysis_monster_config_landscape.md) — 系统扫描 monstdat：教堂12类/墓穴13类/洞穴10类(远程垄断38%)/地狱6类(多样性骤降)；密度修复框架（A1/A2/A3/B1/C2/E1）各规格落地依据
-
-## Gotchas
-<!-- 平台坑、反直觉行为、踩雷记录 -->
-
-- [timedemo_test 本机断言失败（isOnActiveLevel）](gotcha_timedemo_isOnActiveLevel_failure.md) — `Timedemo.WarriorLevel1to2` 在本机 `interfac.cpp:363` 断言崩溃（`plrlevel != currlevel`）；已确认与 B1 cap 无关（stash 回退后仍在 HEAD 基线失败），CI 不受影响。待单独排查（git bisect + 回放路径时序）
