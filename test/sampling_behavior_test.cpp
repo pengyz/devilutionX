@@ -12,18 +12,25 @@
  */
 #include <gtest/gtest.h>
 
+#include <algorithm>
 #include <array>
 #include <cstddef>
 #include <cstdint>
+#include <cstdlib>
+#include <fstream>
+#include <sstream>
+#include <string>
 #include <vector>
 
 #include "engine/assets.hpp"
+#include "engine/load_cl2.hpp"
 #include "engine/random.hpp"
 #include "levels/gendung.h"
 #include "monster.h"
 #include "multi.h"
 #include "quests.h"
 #include "tables/monstdat.h"
+#include "utils/str_cat.hpp"
 
 using namespace devilution;
 
@@ -377,6 +384,239 @@ TEST_F(SamplingBaselineTest, QuestPreAddRePickDoesNotDoubleCount)
 	EXPECT_GE(maxMelee, 2) << "a second Melee type must be sampleable despite the MT_RBLACK re-pick";
 
 	Quests[Q_VEIL] = {};
+}
+
+// ---------------------------------------------------------------------------
+// P0 measurement (2026-09-15): what the sprite budget actually buys.
+//
+// These are measurements, not behaviour locks. They assert only invariants that
+// must hold for any budget, and - when SAMPLING_REPORT is set to a path - they
+// append a markdown table, so the numbers feed the decision material directly
+// instead of being scraped out of test output.
+// ---------------------------------------------------------------------------
+
+std::string MeasurementReportPath()
+{
+	const char *path = std::getenv("SAMPLING_REPORT");
+	return path == nullptr ? std::string {} : std::string { path };
+}
+
+void AppendMeasurementReport(const std::string &text)
+{
+	const std::string path = MeasurementReportPath();
+	if (path.empty())
+		return;
+	std::ofstream out(path, std::ios::app);
+	out << text;
+}
+
+std::string FormatMeasurement(double value)
+{
+	std::ostringstream out;
+	out.setf(std::ios::fixed);
+	out.precision(1);
+	out << value;
+	return out.str();
+}
+
+int RealisedImageTotal()
+{
+	int total = 0;
+	for (size_t i = 0; i < LevelMonsterTypeCount; i++)
+		total += MonstersData[LevelMonsterTypes[i].type].image;
+	return total;
+}
+
+size_t RealisedDistinctAi()
+{
+	std::vector<MonsterAIID> seen;
+	for (size_t i = 0; i < LevelMonsterTypeCount; i++) {
+		const MonsterAIID ai = MonstersData[LevelMonsterTypes[i].type].ai;
+		if (std::find(seen.begin(), seen.end(), ai) == seen.end())
+			seen.push_back(ai);
+	}
+	return seen.size();
+}
+
+size_t RealisedDistinctClass()
+{
+	std::array<bool, static_cast<size_t>(BehaviorClass::Count)> seen {};
+	for (size_t i = 0; i < LevelMonsterTypeCount; i++)
+		seen[static_cast<size_t>(GetBehaviorClass(MonstersData[LevelMonsterTypes[i].type].ai))] = true;
+	return static_cast<size_t>(std::count(seen.begin(), seen.end(), true));
+}
+
+// Mirrors IsMonsterAvailable (Source/monster.cpp:3161): availability flag plus
+// the level band. Duplicated here on purpose so production code stays untouched.
+bool IsMeasuredCandidate(size_t index)
+{
+	const MonsterData &data = MonstersData[index];
+	if (data.availability == MonsterAvailability::Never)
+		return false;
+	if (gbIsSpawn && data.availability == MonsterAvailability::Retail)
+		return false;
+	return currlevel >= data.minDunLvl && currlevel <= data.maxDunLvl;
+}
+
+// Real bytes the engine loads for one monster type: the animation files named
+// `monsters\<spritePath><letter><ext>` (monster.cpp:3224; Animletter :152).
+std::size_t MeasuredSpriteBytes(const MonsterData &data)
+{
+	static constexpr char AnimLetters[7] = "nwahds";
+	const size_t numAnims = data.hasSpecial ? 6 : 5;
+	std::size_t total = 0;
+	for (size_t i = 0; i < numAnims; i++) {
+		if (!data.hasAnim(i))
+			continue;
+		const std::string path = StrCat("monsters\\", data.spritePath(), AnimLetters[i], DEVILUTIONX_CL2_EXT);
+		size_t fileSize = 0;
+		(void)OpenAsset(path, fileSize);
+		total += fileSize;
+	}
+	return total;
+}
+
+// Best/worst case number of candidate types a budget can admit: draw the
+// smallest (or largest) images first. Bounds the realised count without
+// replicating the engine's random pick order.
+void BudgetFitBounds(int budget, size_t &minFit, size_t &maxFit)
+{
+	std::vector<int> images;
+	for (size_t i = 0; i < MonstersData.size(); i++) {
+		if (IsMeasuredCandidate(i) && MonstersData[i].image > 0)
+			images.push_back(MonstersData[i].image);
+	}
+	const auto countFit = [&images](int limit, bool ascending) {
+		std::vector<int> sorted = images;
+		std::sort(sorted.begin(), sorted.end());
+		if (!ascending)
+			std::reverse(sorted.begin(), sorted.end());
+		size_t count = 0;
+		int used = 0;
+		for (const int image : sorted) {
+			if (used + image > limit)
+				break;
+			used += image;
+			count++;
+		}
+		return count;
+	};
+	maxFit = countFit(budget, true);
+	minFit = countFit(budget, false);
+}
+
+TEST_F(SamplingBaselineTest, MeasurementRealisedPerLevel)
+{
+	if (missingMpqAssets_)
+		GTEST_SKIP() << "MPQ assets not found - skipping test";
+
+	constexpr int kSeeds = 40;
+	std::string report = "\n## P0-A: realised monster types per level (sprite budget 4000)\n\n"
+	                     "| level | types avg | distinct AI avg | distinct class avg | sum(image) avg | sum(image) max |\n"
+	                     "|---|---|---|---|---|---|\n";
+	for (uint8_t level = 1; level <= 16; level++) {
+		size_t types = 0;
+		size_t distinctAi = 0;
+		size_t distinctClass = 0;
+		int imageSum = 0;
+		int imageMax = 0;
+		for (int seed = 0; seed < kSeeds; seed++) {
+			currlevel = level;
+			InitLevelMonsters();
+			SetRndSeed(1000 + static_cast<uint32_t>(seed));
+			ASSERT_TRUE(GetLevelMTypes().has_value());
+			types += LevelMonsterTypeCount;
+			distinctAi += RealisedDistinctAi();
+			distinctClass += RealisedDistinctClass();
+			const int total = RealisedImageTotal();
+			imageSum += total;
+			imageMax = std::max(imageMax, total);
+			EXPECT_LE(LevelMonsterTypeCount, MaxLvlMTypes);
+		}
+		report += StrCat("| ", level, " | ", FormatMeasurement(static_cast<double>(types) / kSeeds),
+		    " | ", FormatMeasurement(static_cast<double>(distinctAi) / kSeeds),
+		    " | ", FormatMeasurement(static_cast<double>(distinctClass) / kSeeds),
+		    " | ", FormatMeasurement(static_cast<double>(imageSum) / kSeeds),
+		    " | ", imageMax, " |\n");
+	}
+	AppendMeasurementReport(report);
+}
+
+TEST_F(SamplingBaselineTest, MeasurementBudgetFitBounds)
+{
+	if (missingMpqAssets_)
+		GTEST_SKIP() << "MPQ assets not found - skipping test";
+
+	constexpr int kBudgets[] = { 4000, 6000, 8000, 12000, 20000 };
+	std::string report = "\n## P0-B: candidate types a sprite budget can admit (best/worst case)\n\n"
+	                     "| level | candidates |";
+	for (const int budget : kBudgets)
+		report += StrCat(" ", budget, " min/max |");
+	report += "\n|---|---|";
+	for (size_t i = 0; i < sizeof(kBudgets) / sizeof(*kBudgets); i++)
+		report += "---|---|";
+	report += "\n";
+	for (uint8_t level = 1; level <= 16; level++) {
+		currlevel = level;
+		size_t candidates = 0;
+		for (size_t i = 0; i < MonstersData.size(); i++) {
+			if (IsMeasuredCandidate(i))
+				candidates++;
+		}
+		report += StrCat("| ", level, " | ", candidates, " |");
+		for (const int budget : kBudgets) {
+			size_t minFit = 0;
+			size_t maxFit = 0;
+			BudgetFitBounds(budget, minFit, maxFit);
+			EXPECT_LE(minFit, maxFit);
+			report += StrCat(" ", minFit, "/", maxFit, " |");
+		}
+		report += "\n";
+	}
+	AppendMeasurementReport(report);
+}
+
+TEST_F(SamplingBaselineTest, MeasurementImageVsSpriteBytes)
+{
+	if (missingMpqAssets_)
+		GTEST_SKIP() << "MPQ assets not found - skipping test";
+
+	constexpr uint8_t kLevels[] = { 1, 5, 9, 14 };
+	size_t measuredTypes = 0;
+	std::string missingSprites;
+	std::string report = "\n## P0-C: image column vs real sprite bytes\n\n"
+	                     "| level | type | image | sprite KiB | KiB per image unit |\n"
+	                     "|---|---|---|---|---|\n";
+	report += StrCat("shareware data: ", gbIsSpawn ? "yes" : "no", "\n\n");
+	for (const uint8_t level : kLevels) {
+		currlevel = level;
+		InitLevelMonsters();
+		SetRndSeed(4242);
+		ASSERT_TRUE(GetLevelMTypes().has_value());
+		for (size_t i = 0; i < LevelMonsterTypeCount; i++) {
+			const MonsterData &data = MonstersData[LevelMonsterTypes[i].type];
+			const std::size_t bytes = MeasuredSpriteBytes(data);
+			if (bytes > 0) {
+				measuredTypes++;
+			} else {
+				missingSprites += data.name;
+				missingSprites += " ";
+			}
+			const double ratio = data.image > 0 ? (static_cast<double>(bytes) / 1024.0) / static_cast<double>(data.image) : 0.0;
+			report += StrCat("| ", level, " | ", data.name, " | ", data.image, " | ",
+			    FormatMeasurement(static_cast<double>(bytes) / 1024.0), " | ", FormatMeasurement(ratio), " |\n");
+		}
+	}
+	// OPEN ITEM (P0-C): every type measured 0 bytes here, i.e. OpenAsset did not
+	// resolve `monsters\\<spritePath><animletter>` + DEVILUTIONX_CL2_EXT for any
+	// realised type in this environment. Either the archive holding monster
+	// graphics is not present (this checkout ships none; the game data comes from
+	// the player's DIABDAT.MPQ / spawn.mpq) or the path/extension convention used
+	// by the loader differs from the one mirrored here. Deliberately NOT asserted:
+	// the image-vs-KiB calibration stays an open measurement until it is resolved.
+	report += StrCat("\nTypes with loadable sprites: ", measuredTypes, " of ", measuredTypes + (missingSprites.empty() ? 0 : 1),
+	    "; unresolved paths for: ", missingSprites, "\n");
+	AppendMeasurementReport(report);
 }
 
 } // namespace
