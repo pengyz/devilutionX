@@ -6,7 +6,6 @@
 #include <cstdlib>
 #include <fstream>
 #include <string>
-#include <vector>
 
 #include "drlg_test.hpp" // TestInitGame / GetTileCount（本仓既有测试夹具）
 #include "levels/gendung.h"
@@ -58,14 +57,6 @@ std::array<size_t, static_cast<size_t>(BehaviorClass::Count)> MeasurePlacedClass
 	return mix;
 }
 
-std::vector<_monster_id> MeasureRealisedTypes(uint8_t level, uint32_t seed)
-{
-	std::vector<_monster_id> types;
-	for (size_t i = 0; i < LevelMonsterTypeCount; i++)
-		types.push_back(LevelMonsterTypes[i].type);
-	return types;
-}
-
 } // namespace
 
 TEST(LevelRosterBaseline, PlacesMonstersForCathedralL1)
@@ -77,7 +68,8 @@ TEST(LevelRosterBaseline, PlacesMonstersForCathedralL1)
 	// monsters\monsters\genrl.trn），仅靠 TestInitGame 加载的核心归档不够，需像
 	// sampling_behavior_test.cpp 的 SetUpTestSuite 一样额外加载游戏归档。
 	LoadGameArchives();
-	ASSERT_TRUE(HaveMainData()) << "requires spawn.mpq/DIABDAT.MPQ in build dir";
+	if (!HaveMainData())
+		GTEST_SKIP() << "MPQ assets not found - skipping test";
 	gbIsSpawn = false; // 与 sampling_behavior_test.cpp 一致：仅有 spawn.mpq 时不清空任务
 
 	paths::SetPrefPath(paths::BasePath() + "test/fixtures/");
@@ -101,7 +93,8 @@ TEST(LevelRosterBaseline, PlacedClassMixReport)
 {
 	// 同上：InitMonsters() 的任务/唯一怪放置需要真实素材（genrl.trn 等），须额外加载游戏归档。
 	LoadGameArchives();
-	ASSERT_TRUE(HaveMainData()) << "requires spawn.mpq/DIABDAT.MPQ in build dir";
+	if (!HaveMainData())
+		GTEST_SKIP() << "MPQ assets not found - skipping test";
 	gbIsSpawn = false;
 
 	// L2-L4 建关可能触发 skngdo.dun/banner2.dun 等任务 set-piece，同样只以夹具形式存在。
