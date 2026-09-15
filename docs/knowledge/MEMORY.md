@@ -4,6 +4,7 @@
 <!-- 设计决策、模块边界、为什么选 A 不选 B -->
 
 ## Gotchas
+- [`gotcha_level_state_when_bypassing_loadgamelevel.md`](gotcha_level_state_when_bypassing_loadgamelevel.md) — 测试里自行建关必须补齐 SOLData / tile 元数据 / trigs；症状指纹：**所有层放置数完全相同**
 <!-- 平台坑、反直觉行为（Diablo 引擎/存档/渲染/Lua 等） -->
 
 - [SpellsData 位置索引 — 删行即错位（已修复）](gotcha_spelldata_positional_index.md) — 曾按行序 emplace 删行即错位；现已改名称键控加载，size 保持 max-enum+1 语义
