@@ -22,6 +22,7 @@
 ## Patterns
 <!-- 代码约定、本项目开发模式 -->
 
+- [定长 wire 字段必须按 sizeof 读取](pattern_fixed_width_field_reads.md) — `PlayerPack::pName`/`TEar::heroname` 等定长 `char[N]` 无 NUL 保证；裸指针转 `string_view`/`strcpy` 走 strlen 越界（上游 b4dfc8d26 只修了玩家名，耳朵名 5 处上游至今未修）。验证必须把整个堆分配填满非 NUL，否则 ASan 抓不到
 - [测试用行为断言而非内部函数](pattern_test_behavioral.md) — 匿名 ns 内部函数（WitchItemOk 等）不可测；测公开路径的端到端结果（SpawnWitch 后检查 WitchItems）
 - [整数百分比数学保确定性](pattern_integer_percent_math.md) — `lrad*pct/100` 而非浮点乘（x86 扩展精度 `10*0.6→5`）；全平台截断一致
 - [测试套件结构性盲区](pattern_test_structural_blindspot.md) — UT 只测模板隔离不测真实路径；Oracle 用运行时探针抓到 3 个盲区 bug。新功能测试应经公开 API 触发完整路径
