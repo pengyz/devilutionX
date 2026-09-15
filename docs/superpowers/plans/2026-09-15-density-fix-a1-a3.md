@@ -31,7 +31,7 @@
 |---|---|---|
 | 数据加载 | `LoadCoreArchives()`+`LoadGameArchives()`（需 MPQ）+ `LoadSpellData()`/`LoadPlayerDataFiles()`/`LoadMissileData()`/`LoadMonsterData()`/`LoadItemData()` | spike 实测 |
 | 玩家 | `Players.resize(1)`、`MyPlayer=&Players[0]`、给 `position.tile/future` 与 HP | spike |
-| 网格 | `memset(dungeon,0,…)`（0=可走地板）、`memset(dMonster/dPlayer/dTransVal,0,…)` | `drlg_common_test.cpp` 语义 |
+| 网格（可走性） | **可走性读 `SOLData[dPiece[x][y]]`，与 `dungeon` 无关**（`Source/levels/dun_tile_data.hpp:206`）。harness 设 `memset(dPiece,0,…)` + `SOLData[0]=TileProperties::None`（地板）、`SOLData[1]=TileProperties::Solid`（墙，用于墙角/LOS 构造）；另 `memset(dungeon/dMonster/dPlayer/dTransVal,0,…)` | `test/tile_properties_test.cpp` 先例 |
 | 关卡 | `currlevel` / `leveltype`（`dungeon_type`）/ `setlevel` | `Source/levels/gendung.h:134-137` |
 | **怪物池初始化** | **必须用 `InitLevelMonsters()`**（`monster.h:500`），它会清 `LevelMonsterTypeCount`/`monstimgtot` 并重建 `ActiveMonsters`。手写 memset 会让池只剩 1 个——采样循环有 `monstimgtot < 4000` 预算 | spike 实测（踩过） |
 | 池组成 | `SetRndSeed(x)` → `GetLevelMTypes()`；L1 教堂池 7 类、L9 洞穴池 4 类，可复现 | spike 实测 |
@@ -40,6 +40,7 @@
 | 可见性 | `IsTileVisible` 就是 `dFlags[x][y] & DungeonFlag::Visible`；只调 `AiProc` 可手动设 `activeForTicks=UINT8_MAX` 绕过；跑 `ProcessMonsters()` 必须先置可见位 | `Source/levels/gendung.h` |
 | 行为层 | `ProcessMonsters()`（`monster.h:550`）+ `InitMissiles()`：spike 中 L9 的 Acid 怪 200 tick 内**真的发出了导弹**（`Missiles` 非空，`_mitype=57`） | spike 实测 |
 | 确定性 | 裸 `AiProc` + `animInfo.processAnimation` 连跑 30 tick，同种子两次快照完全一致 | spike 实测 |
+| 音效 | `PlayEffect` 在 `gbSndInited`/`gbSoundOn` 守卫**之前**就 `GenerateRnd(2)`（`Source/monster.cpp`），headless 下不播声音但**照样消耗 1 次 LCG**；冲锋路径会走它。故 harness 固定 `gbSoundOn=false; gbSndInited=false;`（声明在 `Source/engine/sound.h`）——MP 确定性用例必须两侧同样设定。先例 `test/timedemo_test.cpp` 显式设两者 | 复核实测 |
 
 ### B. 引擎调用点（**实现时逐字复用，不要照本计划的伪代码发明签名**）
 
@@ -70,6 +71,7 @@
 
 - **D1 — `chargeCooldown` 复用 `goalVar3`，不新增 `Monster` 字段。** 依据：`Source/loadsave.cpp` 的 `SaveMonster`/`LoadMonster` 会序列化 `goalVar1/2/3`（`goalVar1` 写成 int32 读回 int16、`goalVar2/3` 读回 int8）与 `var1/2/3`，`Monster` **不是**临时结构；新增字段要么改存档格式（红线：存档兼容）、要么不持久化（读档后冷却丢失）。而 `goalVar1` 被 A1 的狂乱倒计时占用、`goalVar2` 被 `AiRangedAvoidance` 的 `RoundWalk` 占用，**`goalVar3` 在这两类 AI 上无使用者**（`monster.h` 注明它只被 `ScavengerAi`/`MegaAi`/`GolemAi` 使用），且 A3 规格原文即写「复用 goalVar 模式」。故本计划统一用 `goalVar3` 作为冲锋冷却（int8 语义，范围 0-127 tick 足够）。**若错的代价**：低——冷却语义完全等价，且不碰存档格式；若日后需要独立字段，再单独立项改存档版本。
 - **D2 — A1 规格 §4.3 的伪代码只作意图说明，签名与门控一律以引擎现行调用点为准**（见事实 §B）。依据：规格 v4 已把「前摇」「攻速/移速加成」等虚构机制删除，但伪代码里的 `LineClear(...)`/`AddMissile(...)` 参数列表仍是示意；直接照抄可能编译不过或行为不等价。**若错的代价**：低——编译门禁立即暴露。
+- **D3 — Storm Lord 的冲锋伤害是「有意的口径例外」**：TSV 实测 `MT_STORML` 普通伤害 12-24、special 4-16，与「special = 普通伤害值」的 A1/A3 口径不符；规格 A3 §4.2 明文要求 Storm Lord 不改列，故保持 4-16 并在 Task 8 步骤 1 显式声明该例外（否则会被误判为漏改）。若规格作者本意是 12-24，**先改 A3 规格 §4.2 再改数据**。**若错的代价**：低——只是一个承载的冲锋伤害偏低，且与规格字面一致。
 
 ---
 
@@ -128,8 +130,11 @@
 
 #include "engine/assets.hpp"
 #include "engine/random.hpp"
+#include "engine/sound.h"
 #include "game_mode.hpp"
+#include "levels/dun_tile_data.hpp"
 #include "levels/gendung.h"
+#include "levels/tile_properties.hpp"
 #include "missiles.h"
 #include "monster.h"
 #include "player.h"
@@ -162,6 +167,12 @@ public:
 		LoadMissileData();
 		LoadMonsterData();
 		LoadItemData();
+
+		// PlayEffect rolls GenerateRnd(2) *before* its gbSndInited/gbSoundOn
+		// guard (Source/monster.cpp), so the charge path consumes an LCG draw
+		// even with sound off. Pin both flags so draw counts are reproducible.
+		gbSoundOn = false;
+		gbSndInited = false;
 	}
 
 	void SetUp() override
@@ -176,6 +187,13 @@ public:
 		MyPlayer->position.future = WorldTilePosition { 15, 15 };
 		MyPlayer->_pMaxHPBase = 64 << 6;
 		MyPlayer->_pHPBase = 64 << 6;
+
+		// Walkability reads SOLData[dPiece[x][y]], NOT `dungeon`
+		// (Source/levels/dun_tile_data.hpp:206). Precedent for this pairing:
+		// test/tile_properties_test.cpp sets dPiece and SOLData together.
+		memset(dPiece, 0, sizeof(dPiece));
+		SOLData[0] = TileProperties::None; // tile 0: walkable floor
+		SOLData[1] = TileProperties::Solid; // tile 1: wall (cornered/LOS setups)
 
 		memset(dungeon, 0, sizeof(dungeon));
 		memset(dMonster, 0, sizeof(dMonster));
@@ -261,6 +279,12 @@ public:
 			for (int y = 0; y < MAXDUNY; y++)
 				dFlags[x][y] |= DungeonFlag::Visible;
 		}
+	}
+
+	/** Turns a tile into a wall: dPiece -> a solid SOLData entry. */
+	static void SetWall(Point position)
+	{
+		dPiece[position.x][position.y] = 1;
 	}
 
 	void TickWorld(int ticks = 1)
@@ -349,7 +373,10 @@ cmake = open('CMake/Tests.cmake').read()
 def block(name):
     m = re.search(r'set\(' + name + r'\s*(.*?)\n\)', cmake, re.S)
     return {l.strip() for l in m.group(1).splitlines() if l.strip()}
-registered = block('tests') | block('standalone_tests') | {'text_render_integration_test'}
+registered = block('tests') | block('standalone_tests')
+# Conditional registrations such as text_render_integration_test are added via
+# list(APPEND ...), so parse those too instead of hardcoding one name.
+registered |= set(re.findall(r'list\(APPEND\s+(?:tests|standalone_tests)\s+([a-z_0-9]+)\)', cmake))
 run = open('tools/run_tests.py').read()
 listed = set(re.findall(r'"([a-z_0-9]+)"', re.search(r'TEST_TARGETS = \[(.*?)\n\]', run, re.S).group(1)))
 print('registered-not-listed:', sorted(registered - listed))
@@ -404,7 +431,7 @@ MSG
 
 **接口：**
 - 依赖输入：Task 1 的 harness（仅用于后续测试）
-- 对外产出：`MonsterAIID::SkeletonCharge`、`MonsterAIID::SkeletonBerserk`（A1）与 `MonsterAIID::KiteCharger`（A3）三个枚举值；`AiProc` 对应槽位指向三个新函数（Task 3/6 实现）
+- 对外产出：`MonsterAIID::SkeletonCharge`、`MonsterAIID::SkeletonBerserk`（A1）与 `MonsterAIID::KiteCharger`（A3）三个枚举值；`AiProc` 对应槽位指向三个新函数（函数体在 **Task 3/7** 实现）；同时完成 `GetBehaviorClass` 登记与枚举遍历上界扩展（否则 B1 会被静默破坏、新值无人检查）
 
 - [ ] **步骤 1：追加枚举值**
 
@@ -416,7 +443,7 @@ MSG
 	KiteCharger, // A3: cave kite monster that charges when cornered or dying
 ```
 
-- [ ] **步骤 2：先在 `AiProc` 表中登记槽位（指向稍后实现的函数）**
+- [ ] **步骤 2：在 `AiProc` 表中登记槽位并补前置声明**
 
 在 `Source/monster.cpp` 的 `AiProc` 初始化列表末尾（`BoneDemon` 条目之后）追加：
 
@@ -426,7 +453,90 @@ MSG
 	/*MonsterAIID::KiteCharger     */ &KiteChargerAi,
 ```
 
-并在 `AiProc` 之前补三条前置声明（与文件中既有 `void XxxAi(Monster &monster);` 声明风格一致）：
+**位置初始化列表必须与枚举顺序严格对应**（错位会让整张表偏移）。在 `AiProc` 定义之前补三条前置声明（与文件中既有 `void XxxAi(Monster &monster);` 风格一致，**注意分号**）：
+
+```cpp
+void SkeletonChargeAi(Monster &monster);
+void SkeletonBerserkAi(Monster &monster);
+void KiteChargerAi(Monster &monster);
+```
+
+- [ ] **步骤 3：把 3 个新 AI 登记进行为分类（否则静默破坏 B1）**
+
+**这不是可选项**：`Source/tables/monstdat.cpp` 的 `GetBehaviorClass` 以 `default: return BehaviorClass::Boss;` 收尾（无 `-Wswitch` 报错，编译静默通过），而 `Source/monster.cpp` 的 B1 采样 cap **正是**按 `GetBehaviorClass(...)` 计数（`capKite = currlevel >= 9 && currlevel <= 12`，`overCap` 判 `cls == BehaviorClass::RangedKite`）。若不登记：
+
+- `MT_BMAGMA`/`MT_STORML` 改派 `KiteCharger` 后会落入 `Boss`，**洞穴 kite cap 直接失去两个成员**，L13-15 的同类 cap 也会把它们计成 Boss——这与 A3 规格「洞穴 38% 都是风筝怪」的立论冲突；
+- `test/sampling_behavior_test.cpp` 的 `CavesKiteTailBaseline` / `CavesAnyClassTailBaseline` 会因分布改变而可能翻红。
+
+改 `Source/tables/monstdat.cpp` 的 `GetBehaviorClass`：`KiteCharger` 归入返回 `BehaviorClass::RangedKite` 的那一组（与 `Magma`/`Storm`/`Acid`/`BoneDemon` 同组），`SkeletonCharge`/`SkeletonBerserk` 归入返回 `BehaviorClass::Melee` 的一组（与 `SkeletonMelee` 同组）；同步更新 `Source/tables/monstdat.h` 里 `GetBehaviorClass` 上方的注释（枚举清单）。
+
+- [ ] **步骤 4：扩展枚举遍历上界（否则新值无人检查）**
+
+`test/ai_registry_test.cpp` 与 `test/lua_integration_test.cpp` 都用 `for (int i = 0; i <= static_cast<int>(MonsterAIID::BoneDemon); i++)` 遍历，新增值排在 `BoneDemon` 之后**不会被检查**（`AiProc` 漏条目/错位都不报错）。把两处上界改为 `MonsterAIID::KiteCharger`，并把 `Source/monster.cpp` 中 `static_assert(static_cast<int>(MonsterAIID::BoneDemon) < AiProc.size(), ...)` 的上界同步改为 `MonsterAIID::KiteCharger`。
+
+- [ ] **步骤 5：跑派发表与 Lua 自检**
+
+```bash
+python3 tools/run_tests.py --test ai_registry_test
+python3 tools/run_tests.py --test lua_integration_test
+```
+
+预期：两者通过（`lua_integration_test` 里 `AiProc[FireMan] == nullptr` 的断言不受影响）。
+
+- [ ] **步骤 6：提交**
+
+```bash
+git add Source/tables/monstdat.h Source/tables/monstdat.cpp Source/monster.cpp \
+        test/ai_registry_test.cpp test/lua_integration_test.cpp
+git commit -F - <<'MSG'
+feat(monster): register SkeletonCharge/SkeletonBerserk/KiteCharger AI ids
+
+Adds three MonsterAIID values after BoneDemon, their AiProc slots and forward
+declarations, and - crucially - their behaviour classes. GetBehaviorClass ends
+in `default: return BehaviorClass::Boss`, so an unregistered AI silently becomes
+a Boss: the B1 sampling cap counts RangedKite members per level band, and A3
+re-assigns two cave kite monsters to KiteCharger, so leaving them unregistered
+would drop them out of the kite cap that A3's premise depends on.
+
+Also extends the enum-iteration bounds in ai_registry_test, lua_integration_test
+and the AiProc static_assert from BoneDemon to KiteCharger - otherwise the new
+values are never checked.
+MSG
+```
+
+---
+
+## Task 3: A1 —— `SkeletonChargeAi` / `SkeletonBerserkAi` 实现
+
+**文件：**
+- 修改：`Source/monster.cpp`
+
+**接口：**
+- 依赖输入：Task 2 的枚举值与 `AiProc` 条目
+- 对外产出：`SkeletonChargeAi(Monster &)`、`SkeletonBerserkAi(Monster &)`；文件内常量 `A1ChargeMinDistance`、`A1ChargeCooldownTicks`、`A1ChargeMaxLevel`、`A1BerserkHpPercent`、`A1BerserkTicks`（供 Task 7 复用冷却常量）
+
+- [ ] **步骤 1：新增常量块（匿名命名空间，不新增头文件符号）**
+
+在 `Source/monster.cpp` 的 `SkeletonAi` 定义之后新增：
+
+```cpp
+namespace {
+/** A1: charge only from at least this far away (RhinoAi uses 5). */
+constexpr unsigned A1ChargeMinDistance = 5;
+/** A1 spec §4.3: ~1.5s cooldown, prevents the low-HP chain kill-wall. */
+constexpr int8_t A1ChargeCooldownTicks = 30;
+/** A1 spec §5 red line 12 / AC8: charge only at currlevel <= 4, so Horror
+ *  Captain (data band 4-6) cannot leak the charge into the catacombs. */
+constexpr uint8_t A1ChargeMaxLevel = 4;
+/** A1 spec §4.1: berserk latches below 50% HP. */
+constexpr int A1BerserkHpPercent = 50;
+/** A1: how long the pursuit goal stays latched (FallenAi uses
+ *  30 * intelligence + 105; we use the same order of magnitude). */
+constexpr int16_t A1BerserkTicks = 105;
+} // namespace
+```
+
+- [ ] **步骤 2：实现两个 AI 函数**
 
 ```cpp
 void SkeletonChargeAi(Monster &monster)
@@ -447,7 +557,9 @@ void SkeletonChargeAi(Monster &monster)
 
 	const Direction md = GetDirection(monster.position.tile, monster.position.last);
 	const unsigned distanceToEnemy = monster.distanceToEnemy();
+	const int chargeRoll = GenerateRnd(100); // same draw order as RhinoAi
 	if (monster.goalVar3 == 0 && distanceToEnemy >= A1ChargeMinDistance
+	    && chargeRoll < 2 * monster.intelligence + 43
 	    && LineClear([&monster](Point position) { return IsTileAvailable(monster, position); }, monster.position.tile, monster.enemyPosition)) {
 		if (AddMissile(monster.position.tile, monster.enemyPosition, md, MissileID::Rhino, TARGET_PLAYERS, monster, 0, 0) != nullptr) {
 			if (monster.data().hasSpecialSound)
@@ -463,8 +575,8 @@ void SkeletonChargeAi(Monster &monster)
 
 void SkeletonBerserkAi(Monster &monster)
 {
-	// Mirror FallenAi's shape (Source/monster.cpp): latch the pursuit goal
-	// below half HP, then run the countdown *before* the Stand early-return.
+	// Mirrors FallenAi's order (Source/monster.cpp:2314-2322): latch first,
+	// then run the countdown, then the Stand early-return.
 	if (monster.goal == MonsterGoal::Normal
 	    && monster.hitPoints * 100 < monster.maxHitPoints * A1BerserkHpPercent) {
 		monster.goal = MonsterGoal::Attack;
@@ -481,8 +593,9 @@ void SkeletonBerserkAi(Monster &monster)
 	}
 
 	if (monster.goal == MonsterGoal::Attack) {
-		// FallenAi's pursuit branch, verbatim. SkeletonAi never reads goal,
-		// so latching the goal without this branch would be a no-op.
+		// FallenAi's pursuit branch (Source/monster.cpp:2364-2368), verbatim.
+		// SkeletonAi never reads goal, so latching the goal without this
+		// branch would be a no-op.
 		if (monster.distanceToEnemy() < 2)
 			StartAttack(monster);
 		else
@@ -490,15 +603,15 @@ void SkeletonBerserkAi(Monster &monster)
 	} else {
 		SkeletonAi(monster);
 	}
+	monster.checkStandAnimationIsLoaded(monster.direction);
 }
 ```
 
-**关于「与 RhinoAi 的关系」**（实施时按此判断，不要自行发明）：
+**与 RhinoAi 的关系**（实施时按此判断，不要自行发明）：
 
-- **LOS 门控与 `AddMissile` 实参表逐字取自 `RhinoAi`**（`Source/monster.cpp`）：门控是 `LineClear([&monster](Point position) { return IsTileAvailable(monster, position); }, monster.position.tile, monster.enemyPosition)`，最小距离 5，调用是 `AddMissile(monster.position.tile, monster.enemyPosition, md, MissileID::Rhino, TARGET_PLAYERS, monster, 0, 0)`，并检查返回值是否 `!= nullptr`；成功后 `hasSpecialSound` 播放 `MonsterSound::Special`、`occupyTile(tile, true)`、置 `mode = Charge`。上面代码已照抄，**若与现行代码不符以现行代码为准**并在提交信息里写明文件:行。
-- **本 AI 刻意去掉 RhinoAi 的概率门**（`v < 2 * monster.intelligence + 43`）。理由：A1 规格 AC1 要求「距离 ≥ N 且视线通 → 同 tick 冲锋」是**可断言**的确定性行为；概率门会让判定依赖 RNG 抽值，测试只能靠多 tick 撞概率。连锁冲锋的风险由 `A1ChargeCooldownTicks` 冷却承担（规格 §4.3 已把它列为必需平衡项）。**若错的代价**：低——冲锋频率高于 Rhino 系；若实测过密，再加 `FlipCoin` 门并调整对应 AC。
-
-**上面两段已按引擎现行代码逐字写出**（LOS 门控写法、`AddMissile` 实参表与返回值判空、`occupyTile`、`PlayEffect`、`mode = Charge`；狂乱者的 pursuit 分支与倒计时次序取自 `FallenAi`）。实施时若与现行 `Source/monster.cpp` 不一致（引擎演进），**以现行代码为准**并在提交信息里写明取用来源（文件:行）。
+- **LOS 门控、概率门、`AddMissile` 实参表逐字取自 `RhinoAi`**（`Source/monster.cpp`）：`LineClear([&monster](Point position) { return IsTileAvailable(monster, position); }, …)`、最小距离 5、`chargeRoll < 2 * monster.intelligence + 43`、`AddMissile(…, MissileID::Rhino, TARGET_PLAYERS, monster, 0, 0) != nullptr`；成功后 `PlayEffect(…, MonsterSound::Special)`（当 `data().hasSpecialSound`）、`occupyTile(tile, true)`、`mode = Charge`。**若与现行代码不符以现行代码为准**并在提交信息写明文件:行。
+- **保留概率门**（**不做**「确定性命中」的简化）：RhinoAi 的门是三重（距离 + 概率 + LOS），冷却在规格 §4.3/§5 红线 14 里的职责是**走廊公平性余量**，不是用来抵掉概率门带来的额外频率。若去掉概率门，教堂 1-4 的 Horror 会变成「距离够 + LOS 通就每 30 tick 必冲」，频率高于 Rhino 系，与规格的公平性论证冲突。
+  因此 **AC1 的「同 tick 冲锋」改用固定种子断言**：实现时用一条探针找出「首 tick 的 `GenerateRnd(100)` < `2*intelligence+43`」的种子并写死到测试里（见 Task 5 AC1 行），而不是删掉门控。
 
 - [ ] **步骤 3：编译并跑 harness 自检**
 
@@ -518,7 +631,8 @@ feat(monster): implement A1 skeleton charge and berserk AI
 
 SkeletonChargeAi: same-tick charge (AddMissile(Rhino) + mode=Charge) copied
 from RhinoAi/SnakeAi, gated by distance, line of sight and a cooldown, and
-restricted to currlevel <= 6 so Horror Captain cannot leak above its band.
+restricted to currlevel <= 4 (A1 spec §5 red line 12) so Horror Captain
+(band 4-6) cannot leak the charge into 5-6.
 
 SkeletonBerserkAi: latches goal=Attack below 50% HP and copies FallenAi's
 pursuit branch verbatim - SkeletonAi never reads goal, so setting the goal
@@ -584,29 +698,27 @@ for p in ['assets/txtdata/monsters/monstdat.tsv','mods/hf/txtdata/monsters/monst
 ```cpp
 TEST_F(MonsterBehaviorHarnessTest, SkeletonDifferentiationDataAssignment)
 {
-	const auto aiOf = [](const char *id) -> std::string {
-		for (const MonsterData &data : MonstersData) {
-			if (id == std::string_view(data.monsterId))  // 字段名以 monstdat.h 为准
-				return std::string(/* ai 名称映射，见下 */);
-		}
-		return {};
+	// MonstersData is a std::vector<MonsterData> indexed by _monster_id
+	// (Source/tables/monstdat.h; engine precedent Source/monster.cpp:3304).
+	const auto dataOf = [](_monster_id id) -> const MonsterData & {
+		return MonstersData[static_cast<size_t>(id)];
 	};
-	// 以 LevelMonsterTypes 无法覆盖未上场的行（minDunLvl 过滤），因此这里直接
-	// 断言 TSV 的三行映射：用 LoadMonsterData 后的 MonstersData 查 ai 字段。
-	EXPECT_EQ(static_cast<int>(MonstersDataById(MT_XSKELAX).ai), static_cast<int>(MonsterAIID::SkeletonCharge));
-	EXPECT_EQ(static_cast<int>(MonstersDataById(MT_XSKELSD).ai), static_cast<int>(MonsterAIID::SkeletonCharge));
-	EXPECT_EQ(static_cast<int>(MonstersDataById(MT_RSKELAX).ai), static_cast<int>(MonsterAIID::SkeletonBerserk));
-	EXPECT_EQ(static_cast<int>(MonstersDataById(MT_XSKELAX).minDamageSpecial), 4);
-	EXPECT_EQ(static_cast<int>(MonstersDataById(MT_XSKELAX).maxDamageSpecial), 9);
-	EXPECT_EQ(static_cast<int>(MonstersDataById(MT_XSKELSD).minDamageSpecial), 5);
-	EXPECT_EQ(static_cast<int>(MonstersDataById(MT_XSKELSD).maxDamageSpecial), 14);
-	// 未改派的 5 行保持 SkeletonMelee
+	// The level pool cannot cover rows that are filtered out by minDunLvl, so
+	// assert the TSV mapping directly on the loaded monster data.
+	EXPECT_EQ(static_cast<int>(dataOf(MT_XSKELAX).ai), static_cast<int>(MonsterAIID::SkeletonCharge));
+	EXPECT_EQ(static_cast<int>(dataOf(MT_XSKELSD).ai), static_cast<int>(MonsterAIID::SkeletonCharge));
+	EXPECT_EQ(static_cast<int>(dataOf(MT_RSKELAX).ai), static_cast<int>(MonsterAIID::SkeletonBerserk));
+	EXPECT_EQ(static_cast<int>(dataOf(MT_XSKELAX).minDamageSpecial), 4);
+	EXPECT_EQ(static_cast<int>(dataOf(MT_XSKELAX).maxDamageSpecial), 9);
+	EXPECT_EQ(static_cast<int>(dataOf(MT_XSKELSD).minDamageSpecial), 5);
+	EXPECT_EQ(static_cast<int>(dataOf(MT_XSKELSD).maxDamageSpecial), 14);
+	// The other five rows stay SkeletonMelee
 	for (const _monster_id id : { MT_WSKELAX, MT_TSKELAX, MT_WSKELSD, MT_TSKELSD, MT_RSKELSD })
-		EXPECT_EQ(static_cast<int>(MonstersDataById(id).ai), static_cast<int>(MonsterAIID::SkeletonMelee));
+		EXPECT_EQ(static_cast<int>(dataOf(id).ai), static_cast<int>(MonsterAIID::SkeletonMelee));
 }
 ```
 
-**实现要求**：`MonstersDataById` / `MonstersData` 的索引方式以 `Source/tables/monstdat.h` 现行 API 为准（`MonstersData` 以 `_monster_id` 为下标时可直接 `MonstersData[static_cast<size_t>(MT_XSKELAX)]`；若索引方式不同，改用与之匹配的查法）。**不要发明 API**——先 `grep -n "MonstersData" Source/tables/monstdat.h` 读清再写。
+**实现要求**：`MonstersData` 是 `std::vector<MonsterData>`、以 `_monster_id` 作下标（`Source/tables/monstdat.h:353` 的 `extern std::vector<MonsterData> MonstersData;`；引擎自身先例 `Source/monster.cpp:3304` `const MonsterData &monsterData = MonstersData[type];`）。**没有 `MonstersDataById` 这个 API**（全仓 grep 零命中），不要发明它。
 
 - [ ] **步骤 5：运行并提交**
 
@@ -633,7 +745,7 @@ git commit -m "feat(monster): re-assign A1 skeleton rows (charge/berserk/normal)
 
 | AC | 用例要点 | 断言 |
 |---|---|---|
-| 1 | 距离 ≥ 阈值 + 视线通 → 同 tick 冲锋 | `monster.mode == MonsterMode::Charge`（**无前摇**：同一 tick 内） |
+| 1 | 距离 ≥ 阈值 + 视线通 + 概率门通过 → 同 tick 冲锋 | `monster.mode == MonsterMode::Charge`（**无前摇**：同一 tick 内）。**概率门保留**（与 `RhinoAi` 一致）：实现时先用一条探针找出「首 tick 的 `GenerateRnd(100)` < `2*intelligence+43`」的种子并写死进用例（`SpawnAt(..., seed)`），从而使「同 tick」可断言——不要为了测试方便删掉门控 |
 | 2 | 冲锋弹道确实生成 | 行为层：`TickWorld()` 后 `Missiles` 非空且含 Rhino 类型 |
 | 3 | 冲锋冷却 | 冲锋后 `goalVar3 == A1ChargeCooldownTicks`；冷却期内再 tick 不再冲锋 |
 | 4 | 近距退回普通 | 距离 < 阈值 → 走 `SkeletonAi`（mode 不进入 Charge） |
@@ -707,11 +819,14 @@ description: >
 - [ ] **步骤 2：重新生成 nightly 集合**
 
 ```bash
-python3 -m tools.eval.sync_case_sets --write
+python3 -m tools.eval.sync_case_sets --write    # 重写 _nightly.yaml（该文件头注明不要手改）
+python3 -m tools.eval.sync_case_sets --check    # 一致性校验
 git diff --stat eval/cases/_nightly.yaml
 ```
 
-预期：`_nightly.yaml` 新增一行本 case 的 id。
+预期：`_nightly.yaml` 新增一行本 case 的 id；`--check` 输出一致（无缺引用/悬空引用）。
+
+**关于 `_smoke.yaml`**：它是**人工维护**的精选集（`tools/eval/sync_case_sets.py` 注释 `smoke stays curated`，`--write` 不会动它）。本 case 需要 MPQ 且耗时较长，**不加入 `_smoke.yaml`**——因此 Task 6 步骤 3 的 `--smoke` 只是**回归门禁**，并不覆盖本 case；本 case 由步骤 3 的 `--run` 单独验证。
 
 - [ ] **步骤 3：跑该 case 与 smoke 门禁**
 
@@ -734,11 +849,11 @@ git commit -m "test(eval): add monster-skeleton-differentiation case (A1)"
 ## Task 7: A3 —— `KiteChargerAi` 实现
 
 **文件：**
-- 修改：`Source/monster.cpp`
+- 修改：`Source/monster.cpp`、`Source/monster.h`
 
 **接口：**
-- 依赖输入：Task 2 的 `MonsterAIID::KiteCharger` 与 `AiProc` 条目
-- 对外产出：`KiteChargerAi(Monster &)`；常量 `A3ChargeMinDistance`、`A3LastStandHpPercent`、`A3CorneredDirections`
+- 依赖输入：Task 2 的 `MonsterAIID::KiteCharger` 与 `AiProc` 条目；Task 3 的 `A1ChargeCooldownTicks`（**同一 TU 内定义于 A1 常量块之后，不要重复定义**）
+- 对外产出：`KiteChargerAi(Monster &)`；`int CountOpenDirections(Point)`（在 `monster.h` 导出）；常量 `A3ChargeMinDistance`、`A3LastStandHpPercent`、`A3CorneredDirections`
 
 - [ ] **步骤 1：新增常量与函数**
 
@@ -752,6 +867,23 @@ constexpr int A3LastStandHpPercent = 30;
 constexpr int A3CorneredDirections = 3;
 } // namespace
 
+/** Counts how many of the four orthogonal neighbours of `center` are walkable.
+ *  The "cornered" test: <= 3 open directions means a corridor or a dead end
+ *  (A3 spec §4.3 - the threshold was raised from <2 to <=3 so corridors count).
+ *  Declared in Source/monster.h so the AC5 unit test can call it directly;
+ *  do NOT make it static and do NOT put it in an anonymous namespace. */
+int CountOpenDirections(Point center)
+{
+	static constexpr Displacement NeighbourOffsets[] = { { 0, -1 }, { 1, 0 }, { 0, 1 }, { -1, 0 } };
+	int open = 0;
+	for (const Displacement &offset : NeighbourOffsets) {
+		const Point neighbour = center + offset;
+		if (InDungeonBounds(neighbour) && IsTileWalkable(neighbour))
+			open++;
+	}
+	return open;
+}
+
 void KiteChargerAi(Monster &monster)
 {
 	if (monster.mode != MonsterMode::Stand || monster.activeForTicks == 0) {
@@ -760,7 +892,7 @@ void KiteChargerAi(Monster &monster)
 	}
 
 	if (monster.goalVar3 > 0)
-		monster.goalVar3--; // shared charge cooldown (see A1)
+		monster.goalVar3--; // shared charge cooldown (defined with A1, Task 3)
 
 	const Direction md = GetDirection(monster.position.tile, monster.position.last);
 	const unsigned distanceToEnemy = monster.distanceToEnemy();
@@ -781,25 +913,19 @@ void KiteChargerAi(Monster &monster)
 	}
 	AiRangedAvoidance(monster);
 }
+```
 
-/** Counts how many of the four orthogonal neighbours of `center` are walkable.
- *  The "cornered" test: <= 3 open directions means a corridor or a dead end
- *  (A3 spec §4.3 - the threshold was raised from <2 to <=3 so corridors count). */
-int CountOpenDirections(Point center)
-{
-	static constexpr Displacement NeighbourOffsets[] = { { 0, -1 }, { 1, 0 }, { 0, 1 }, { -1, 0 } };
-	int open = 0;
-	for (const Displacement &offset : NeighbourOffsets) {
-		const Point neighbour = center + offset;
-		if (InDungeonBounds(neighbour) && IsTileWalkable(neighbour))
-			open++;
-	}
-	return open;
-}
+**为什么 A3 不需要 A1 的那个概率门**：A1 的触发条件只有「距离 + 视线」，概率门用来压频率；A3 的触发条件是**墙角或垂死**——这本身就限制住了频率（开阔地且血量充足时永不冲锋），且 A3 规格 §4.3 与 AC1/AC2 都要求确定性触发。**不要把 `RhinoAi` 的概率门复制到 A3**；若实测冲锋过密，按规格 §4.3「实施时验证走廊场景并记录」先记录，再决定是否加门。
+- [ ] **步骤 2：在 `Source/monster.h` 导出助手**
 
-- [ ] **步骤 2：实现「开阔方向数」判定**
+在 `Source/monster.h` 的怪物 AI 声明区（与 `void ProcessMonsters();` 同一区块）新增：
 
-要求：以玩家（`monster.enemyPosition`）为中心统计可走方向数，使用引擎既有的可走性判据（`IsTileWalkable`，`Source/levels/tile_properties.hpp`）。把统计逻辑写成**文件内的 static 助手函数**（例如 `static int CountOpenDirections(Point center)`），并给它一条独立断言用例（见 Task 8 的 AC5）。
+```cpp
+/** A3: number of walkable orthogonal neighbours of `center` (cornered test). */
+[[nodiscard]] int CountOpenDirections(Point center);
+```
+
+`CountOpenDirections` 已在步骤 1 定义在 `KiteChargerAi` **之前**（同文件内顺序即满足编译），并在此导出以供 Task 8 的 AC5 独立单测调用。**不要写成 `static`、不要放进匿名命名空间**。
 
 - [ ] **步骤 3：编译并跑 harness 自检**
 
@@ -811,7 +937,7 @@ python3 tools/run_tests.py --test monster_behavior_test
 - [ ] **步骤 4：提交**
 
 ```bash
-git add Source/monster.cpp
+git add Source/monster.cpp Source/monster.h
 git commit -F - <<'MSG'
 feat(monster): implement A3 KiteChargerAi (cornered / last-stand charge)
 
@@ -847,12 +973,14 @@ MSG
 
 `MT_XACID`（Lava Maw）按规格 §4.2 是**备选**，本计划**不改**。
 
+**口径例外（D3，必须显式声明，否则会被误判为漏改）**：TSV 实测 `MT_STORML` 普通伤害 **12-24**、special **4-16**；而 A1/A3 的冲锋口径是「special 伤害列 = 普通伤害值」（Hell Stone 2-20 即照此设）。规格 A3 §4.2 明文写 Storm Lord「special 4-16 已有真实伤害，无需改列」，故本计划**保持 4-16 不变**并把它记为**有意的口径例外**：Storm Lord 的冲锋伤害（4-16）低于其普通远程攻击（12-24）。若规格作者本意是 12-24，**先改 A3 规格 §4.2 再改数据**。
+
 - [ ] **步骤 2：按 A3 规格 §6 写用例**
 
 | AC | 用例要点 | 断言 |
 |---|---|---|
 | 1 | 墙角冲锋 | 玩家被墙包围（可走方向 ≤3）→ 冲锋（mode=Charge） |
-| 1b | 冲锋伤害投递 | 承载的 special 列被 `MonsterAttackPlayer` 使用：断言 Hell Stone `minDamageSpecial/maxDamageSpecial == 2/20`，Storm Lord `4/16`（数据层）+ 冲锋命中路径产出的伤害落在该区间（行为层） |
+| 1b | 冲锋伤害投递 | 承载的 special 列被 `MonsterAttackPlayer` 使用：断言 Hell Stone `2/20`、Storm Lord `4/16`（数据层；**Storm Lord 的 4-16 是有意例外，见步骤 1 的 D3**）+ 冲锋命中路径产出的伤害落在该区间（行为层） |
 | 2 | 垂死反击 | HP < 30% → 冲锋而非继续风筝 |
 | 3 | 正常仍风筝 | 开阔地 + HP 充足 → 走 `AiRangedAvoidance`（mode 不进入 Charge） |
 | 4 | 冷却 | 冲锋后 `goalVar3` 置位；冷却期内不冲锋 |
@@ -917,6 +1045,7 @@ description: >
 
 ```bash
 python3 -m tools.eval.sync_case_sets --write
+python3 -m tools.eval.sync_case_sets --check    # 一致性校验
 python3 -m tools.eval.backend --run monster-kite-combination
 python3 -m tools.eval.backend --smoke; echo "exit=$?"
 ```
@@ -935,7 +1064,17 @@ git commit -m "test(eval): add monster-kite-combination case (A3)"
 **文件：**
 - 修改：`docs/superpowers/specs/2026-08-10-cathedral-skeleton-differentiation-design.md`、`docs/superpowers/specs/2026-08-10-cave-kite-combination-design.md`、`docs/superpowers/specs/2026-08-10-density-fix-framework-overview.md`（§7 进度表）
 
-- [ ] **步骤 1：全量门禁**
+- [ ] **步骤 1：B1 采样用例必须仍全绿（行为分类改动的直接验收）**
+
+Task 2 把 `KiteCharger` 登记为 `RangedKite`、两个 Skeleton 变体登记为 `Melee`，这会改变 B1 cap 的成员计数，进而可能影响 `sampling_behavior_test` 里钉死的分布值（`CavesKiteTailBaseline`、`CavesAnyClassTailBaseline` 等）：
+
+```bash
+python3 tools/run_tests.py --test sampling_behavior_test
+```
+
+预期：全部 `SamplingBaselineTest.*` 通过。**若数值漂移超出容差**：在同一提交内按**实测**更新该测试的钉死值，并在提交信息里写明测量方法与非确定性（跑多次取范围）——**不要**把断言改成恒真或删掉断言。
+
+- [ ] **步骤 1b：全量门禁**
 
 ```bash
 python3 tools/run_tests.py --json /tmp/ci-a1a3.json
@@ -975,12 +1114,14 @@ git commit -m "docs(spec): mark A1/A3 implemented with acceptance results"
 |---|---|
 | A1 §4.1 行为变体（冲锋/狂乱/普通 + tint 分配） | Task 3（AI）、Task 4（数据） |
 | A1 §4.2 数值口径（special 伤害列 = 普通伤害值） | Task 4 步骤 1（4-9 / 5-14） |
-| A1 §4.3 实现要点（枚举/AiProc/两函数/层守卫/冷却） | Task 2、Task 3 |
+| A1 §4.3 实现要点（枚举/AiProc/两函数/层守卫/冷却） | Task 2（枚举 + AiProc + **行为分类登记** + **遍历上界**）、Task 3（常量 + 两函数实现） |
 | A1 §6 AC1-AC12 | Task 5（AC1-9）、Task 6（AC12 eval）、Task 10（AC10 全量、AC11 漂移） |
 | A1 §7 harness 量化 | Task 6 的 case |
 | A3 §4.1 组合行为（墙角/垂死 + 反制 5 条） | Task 7（AI）、Task 8（测试） |
 | A3 §4.2 承载选择（Hell Stone 需设列、Storm Lord 已有） | Task 8 步骤 1 |
-| A3 §4.3 实现要点（门控/冷却/墙角判定） | Task 7 |
+| A3 §4.3 实现要点（门控/冷却/墙角判定） | Task 7（含 `CountOpenDirections` 在 `monster.h` 导出以便 AC5 单测） |
+| 新增 `MonsterAIID` 值的连带：`GetBehaviorClass` 分类、枚举遍历上界、`AiProc` 位置对应 | Task 2 步骤 2-4 |
+| harness 的网格与音效前提（`SOLData`/`dPiece` 决定可走性；`PlayEffect` 先抽 RNG 再判 sound 开关） | Task 1 步骤 1 + 事实 §A |
 | A3 §6 AC1-AC10 | Task 8（AC1-7）、Task 9（AC10 eval）、Task 10（AC8/9） |
 | 框架 §7「harness 先行（纯测试不改游戏代码）」 | Task 1 |
 | C2 §6「harness 前提：能跑 AiProc tick」 | Task 1（两层 tick；`ProcessPlayers` 到期路径与 `MonsterDeath` 路径**本计划不实现**——它们是 C2 规格的 AC 需求，留待 C2 实施时在其自身任务里扩展 harness，本计划的 harness 已预留 `TickWorld()`） |
