@@ -2,7 +2,7 @@
 
 **日期**：2026-09-15（v2 —— 探测深入后的修订，见 §3「探测深入」）
 **分类**：Infra
-**状态**：已批准（实施计划见 `plans/2026-09-15-upstream-sync-round2.md`）
+**状态**：已实施（2026-09-15；实施计划见 `plans/2026-09-15-upstream-sync-round2.md`，实施记录与验收逐项结果见 §7）
 **评判基准**：`2026-07-27-better-d1-design-charter.md`
 **前置**：`2026-07-27-upstream-integration-design.md`（已实施；其三个全局迁移阻塞项已消解）
 
@@ -93,6 +93,8 @@
 
 **因此本轮预期零编译连带**，实施计划的任务 7 相应改为「验证零改动」，仅在编译真的报错时才现场诊断。另：`test/ui_test.hpp` 与 `test/panel_state_test.cpp` 也在 24 文件交集内（上游 `53b91fd7a`），自动合并成功；前者被 13 个测试二进制共享，故其健康度由全量门禁兜底。
 
+**结论修正（2026-09-15 实施后补记）**：上述「零编译连带」的推断**只对非冲突文件成立**。`Source/controls/plrctrls.cpp` 虽是这 12 个消费者文件之一，**同时又是本次 merge 的 4 个手工冲突文件之一**——冲突的 hunk 被人工解决时，不会继承上游在同一 hunk 自动合并进来的 `#include "panels/quest_log.hpp"`，于是它以「有使用、无声明」的形态在编译期报了 7 处错误（该文件用到 `QuestLogIsOpen` / `QuestlogUp` / `QuestlogDown` / `StartQuestlog`）。该 include 由提交 `91e805149` 补上（1 行，位置符合 include 字母序）。**教训：冲突文件不适用「改动不重叠即自动合并安全」的推断，必须单独列入待补 include 的检查清单。**
+
 ## 4. 方案
 
 ### 集成方式：merge（不 rebase）
@@ -107,7 +109,7 @@
 2. 在 `feature/qol-upgrades` 上 `git merge origin/master`。
 3. 解 4 处冲突（逐处判定依据）：
    - `quests.h` —— **取上游全文（保持 LF）**，并把 fork 的唯一增量 `QuestData::scriptName` 补进 `Source/tables/questdat.hpp` 的 `struct QuestData`（理由与行尾判据见 §3「探测深入」）。
-   - `scrollrt.cpp` —— 取上游签名（`drawInfoBox` + `yield()`），核对 fork 的 `DrawMain` 调用点全部适配并**保留** fork 同处改动。
+   - `scrollrt.cpp` —— 保留上游新增的 `this_sdl_thread::yield();`，`DrawMain` 调用点保留 fork 形态（`DrawMain(hgt, false, ...)`），**不回退** fork 移除 `drawInfoBox` 脏矩形重构的改动（该处是**语义冲突**，原写「取上游签名（`drawInfoBox` + `yield()`）」并不准确，详见 §7「执行中与规格不符/未预料之处」第 1 点，裁决 R8）。
    - `plrctrls.cpp` —— 行级判定，取两侧 include 并集（`cursor_defs.hpp` + `levels/gendung.h`）。
    - `quests.cpp` —— 保留 fork 的两个 include（`lua/lua_event.hpp`、`minitext.h`），除非确认其消费者已随上游改动消失。
 4. 处理上游 quest 重构的编译连带（`panels/quest_log.hpp`），四道门禁（配置 → 编译 → 测试目标 → 全量），见 §6。
@@ -134,7 +136,7 @@
 | 1 | 分类已判定 | Infra，第 2 节给出判定树逐步结果 |
 | 2 | 问题陈述指向具体症状 | 是：merge-base 停滞 2026-07-26、落后 28 提交、heroname 已成 fork-only 分叉、上游 6 个面向玩家的修复未合入。非"感觉该同步了" |
 | 3 | 数值标注出处 | 是，第 3 节每项均有命令依据 |
-| 4 | 「已实施」需有非测试调用者且验收标准全部通过 | 本规格状态为「草案」，未标「已实施」。达成 §6 全部标准后方可改标 |
+| 4 | 「已实施」需有非测试调用者且验收标准全部通过 | 已于 2026-09-15 改标「已实施」：非测试调用者为仓库内全部生产代码（配置/构建/线程/渲染路径在合入后即消费新版上游实现），§6 十项验收逐项通过（逐项实测见 §7） |
 
 ### 基础设施红线
 
@@ -162,7 +164,52 @@
 
 ## 7. 状态
 
-**草案（待批准）。** 批准后按 §4 执行；实施计划另立 `docs/superpowers/plans/`（本规格 §4 已给出可直接展开的步骤与门禁）。
+**已实施（2026-09-15）。** 合并提交 `8e92687a9`（双父：`fd2956ea8` + 上游 `e00b7260f`），`git rev-list --count HEAD..origin/master` = `0`。§6 十项验收逐项实测结果如下（数据取自 2026-09-15 本轮实测，未做任何推算）：
+
+| # | 验收项 | 实测结果 | 状态 |
+|---|---|---|---|
+| 1 | merge 完成且无残留冲突标记 | `git grep -nE "^(<<<<<<<\|>>>>>>>\|=======)$" -- Source/ test/ CMake/ CMakeLists.txt` 无输出 | PASS |
+| 2 | 已同步到上游 tip | `git rev-list --count HEAD..origin/master` = `0` | PASS |
+| 3 | 构建通过 | `python3 tools/run_tests.py --json /tmp/ci-sync.json` → `steps.build.ok == true` | PASS |
+| 4 | 全量测试通过 | 同次 JSON：`ctest.total=698`、`ctest.failed=0`、`ctest.passed_pct=100`、`ctest.skipped=3`（与基线 698/0/3 一致） | PASS |
+| 5 | eval smoke 门禁 | `python3 -m tools.eval.backend --smoke` exit 0，**36/36 PASS**（产物 `eval/results/20260915-183246/eval-summary.json`，其 `git_head` 为 `91e805149`） | PASS |
+| 6 | 漂移校验 | `drift.drift_ok == true`、`drift.passes == 5`；同步前后输出差异**只有** `merge-base:` 行（`b3e52b1ea` → `e00b7260f`），5 项仍全 PASS | PASS |
+| 7 | 行尾未被破坏 | check C / C2 PASS；`Source/quests.h` 保持上游的 LF（CRLF 0 / LF 32） | PASS |
+| 8 | heroname 分叉状态已复核并记录 | 上游 tip `e00b7260f` 上仍是 **5 处裸字段读取**（`Source/msg.cpp:1094/1360/1368/1398`、`Source/pack.cpp:445`），fork 修复完好未被覆盖；已由 `d1e122ab6` 留档 | PASS |
+| 9 | timedemo quarantine 状态 | 按用例名确认 `Timedemo.WarriorLevel1to2` 仍为 `Skipped`（`build/Testing/Temporary/LastTest.log`），quarantine 未变 | PASS |
+| 10 | CI 绿 | `gh run 34959598050`（`better-d1-ci.yml`，HEAD `d1e122ab6`）conclusion = **`success`** | PASS |
+
+本轮新增/相关提交：`8e92687a9`（merge: sync upstream master，28 commits / tip `e00b7260f`）、`91e805149`（`fix(build): add panels/quest_log.hpp include after the upstream quest split`）、`d1e122ab6`（`docs(knowledge): record heroname divergence state after the upstream sync`）。
+
+冲突实际为 **4 处**（与探测一致）。另两项探测期风险本轮**未触发**：`tools/run_tests.py` 的 `TEST_TARGETS` 未与 `CMake/Tests.cmake` 脱钩（上游本轮只改 benchmark 的链接依赖）；`questdat.hpp` 行尾维持 CRLF，本轮唯一 LF 的仍是 `Source/quests.h` 与上游新增的 7 个文件。
+
+### 执行中与规格不符/未预料之处
+
+**1. `scrollrt.cpp` 的冲突是语义冲突，不是文本冲突（裁决 R8）**
+
+- **现象**：上游在该 hunk 使用的 `drawInfoBox` 变量，已被 fork 自己的提交 `ed1dad939`（`refactor: remove drawInfoBox dirty rect`）在设计上移除——双方对同一处代码各有意图，git 无法按行取舍；`DrawMain(int dwHgt, bool drawDesc, ...)` 签名两侧一致。规格把它当作普通「取上游一侧」的行级冲突来写，是错的。
+- **证据**：`git show <rev>:Source/engine/render/scrollrt.cpp | grep -c drawInfoBox` → merge-base `b3e52b1ea` = **4**、fork 侧（HEAD）= **0**、上游侧 `e00b7260f` = **4**；`DrawMain` 签名逐字一致。
+- **处置/裁决**：实现者未擅自取舍，**正确停机上报**；控制者裁决 **R8** —— **保留**上游新增的 `this_sdl_thread::yield();`，**保留** fork 的 `DrawMain(hgt, false, ...)` 调用形态，**不回退** fork 的重构。§4 步骤 3 的原文「取上游签名」已按 R8 改写。
+
+**2. `quests.cpp` 首次解决时被整块取了一侧（Critical，裁决 R9/R10）**
+
+- **现象**：首次解决该冲突时 blob 与 merge 前**逐字节相同** —— 上游对该文件的 **341 行删除**（把 15+ 个函数与全局变量迁往 `Source/levels/drlg_quests.cpp`、`Source/panels/quest_log.cpp`、`Source/tables/questdat.cpp`）被整体丢弃，于是与新文件**重复定义符号**，链接期必然失败。
+- **证据**：`git diff --stat b3e52b1ea origin/master -- Source/quests.cpp` = `2 insertions(+), 341 deletions(-)`；按 git 真实三方合并结果重建后该文件为 **638 行、纯 CRLF**（CRLF 638 / LF 638 / LF-only 0）；include 冲突块只保留 `#include "lua/lua_event.hpp"`，**删除** `#include "minitext.h"`（其消费者 `InitQTextMsg` 已随迁移消失，实测合并结果里无 `minitext.h` 符号被使用）。
+- **处置/裁决**：任务评审发现后，控制者裁决 **R9/R10** —— 按 **git 真实三方合并结果**重建该文件，修复直接 **amend 进 merge commit `8e92687a9`**，未新增独立提交。
+
+**3. §3「quest_log 重构零编译连带」的结论不完整（由 `91e805149` 落实）**
+
+- **现象**：`Source/controls/plrctrls.cpp` 是 quest_log 重构的消费者，**同时又是本次 merge 的 4 个手工冲突文件之一**；冲突文件不会继承上游在同一 hunk 自动合并进来的 `#include "panels/quest_log.hpp"`，因此触发 **7 处编译错误**（该文件使用了 `QuestLogIsOpen` / `QuestlogUp` / `QuestlogDown` / `StartQuestlog` 却无声明）。
+- **证据**：§3 的「12 个消费者文件各含 1 个 include」结论来自**非冲突文件**的自动合并；`plrctrls.cpp` 恰是唯一同时落在「消费者集合」与「4 个冲突文件集合」交集中的文件。修复为 1 行，位置符合 include 字母序（`minitext.h` 与 `missiles.h` 之间）。
+- **处置/裁决**：由提交 `91e805149` 补上该 include。教训已回写 §3 末尾：**冲突文件不适用「改动不重叠即自动合并安全」的推断，必须单独列入待补 include 的检查清单。**
+
+**4. §4 对 `quests.h` 的处置需显式给出「保持 LF」的判据来源**
+
+- **现象**：§4 步骤 3 的处置本身（取上游全文并保持 LF）与 §3 判据一致，但初稿未把判据来源显式回指 §3，读者无从得知「保持 LF」是硬要求还是风格偏好；§4 风险表对应行虽已引用 §3，步骤 3 与风险表之间未互相闭合。
+- **证据**：判据来自实测——`.gitattributes` 为 `* -text`（git 不做行尾归一化），门禁 C 以**新的 merge-base（= 上游 tip `e00b7260f`）**为基线比对行尾类型，把 `quests.h` 写回 CRLF 会直接 FAIL，且会保证以后每次同步都整文件冲突。本轮实测 `Source/quests.h` = CRLF 0 / LF 32，drift check C PASS。
+- **处置**：§4 步骤 3、§4 风险表、§3「探测深入」、§6 第 7 项四处判据来源已一致（步骤 3 维持「取上游全文（保持 LF）」并注明「理由与行尾判据见 §3『探测深入』」）。**未发现 §3 与 §4 之间存在与实测矛盾的陈述。**
+
+**文档内部不一致（本次一并修正）**：本规格原有三处对同一状态字段的表述互相矛盾——头部元数据写「**状态**：已批准」、§7 写「**草案（待批准）**」、§5 通用红线 #4 写「本规格状态为『草案』」。本次按实测统一为「**已实施（2026-09-15）**」，并同步更新 §5 通用红线 #4 的判定依据。
 
 相关规格：
 
