@@ -18,6 +18,7 @@
 #include <cstdint>
 #include <cstdlib>
 #include <fstream>
+#include <set>
 #include <sstream>
 #include <string>
 #include <vector>
@@ -617,6 +618,59 @@ TEST_F(SamplingBaselineTest, MeasurementImageVsSpriteBytes)
 	report += StrCat("\nTypes with loadable sprites: ", measuredTypes, " of ", measuredTypes + (missingSprites.empty() ? 0 : 1),
 	    "; unresolved paths for: ", missingSprites, "\n");
 	AppendMeasurementReport(report);
+}
+
+TEST_F(SamplingBaselineTest, MeasurementRosterIdentity)
+{
+	if (missingMpqAssets_)
+		GTEST_SKIP() << "MPQ assets not found - skipping test";
+
+	// The "roster" of a level is the union of every type it can realise across
+	// many seeds. Two levels whose rosters overlap almost completely are
+	// interchangeable to the player, which is the identity half of the
+	// content-collapse problem (P0-B showed a big budget makes it worse).
+	constexpr int kSeeds = 200;
+	std::vector<std::set<size_t>> rosters(17);
+	for (uint8_t level = 1; level <= 16; level++) {
+		for (int seed = 0; seed < kSeeds; seed++) {
+			currlevel = level;
+			InitLevelMonsters();
+			SetRndSeed(2000 + static_cast<uint32_t>(seed));
+			ASSERT_TRUE(GetLevelMTypes().has_value());
+			for (size_t i = 0; i < LevelMonsterTypeCount; i++)
+				rosters[level].insert(LevelMonsterTypes[i].type);
+		}
+	}
+	const auto jaccard = [&rosters](uint8_t a, uint8_t b) {
+		size_t intersection = 0;
+		for (const size_t type : rosters[a]) {
+			if (rosters[b].count(type) != 0)
+				intersection++;
+		}
+		const size_t unionSize = rosters[a].size() + rosters[b].size() - intersection;
+		return unionSize == 0 ? 0.0 : static_cast<double>(intersection) / static_cast<double>(unionSize);
+	};
+
+	std::string report = "\n## P0-D: level roster identity (200 seeds per level)\n\n"
+	                     "| level | roster size | Jaccard vs previous | Jaccard vs L1 |\n"
+	                     "|---|---|---|---|\n";
+	for (uint8_t level = 1; level <= 16; level++) {
+		report += StrCat("| ", level, " | ", rosters[level].size(), " | ",
+		    level > 1 ? FormatMeasurement(jaccard(static_cast<uint8_t>(level - 1), level)) : std::string { "-" },
+		    " | ", FormatMeasurement(jaccard(1, level)), " |\n");
+	}
+	AppendMeasurementReport(report);
+
+	// Sanity checks only. A level's roster legitimately EXCEEDS its candidate
+	// pool (measured: L3 roster 25 vs 24 candidates) because GetLevelMTypes
+	// pre-adds types that the level band does not cover: MT_GOLEM is added
+	// unconditionally as PLACE_SPECIAL, and quest uniques (Garbud/Zhar/
+	// SnotSpill/Lachdan/WarlordOfBlood/SKING) are added by quest availability.
+	// So the roster is "candidates + pre-adds", not "candidates".
+	for (uint8_t level = 1; level <= 16; level++) {
+		EXPECT_GT(rosters[level].size(), 0u) << "level " << static_cast<int>(level) << " sampled nothing";
+		EXPECT_LE(rosters[level].size(), MonstersData.size()) << "level " << static_cast<int>(level);
+	}
 }
 
 } // namespace
