@@ -253,6 +253,8 @@ TEST(LevelRosterTest, ValidationRejectsAMonsterUnavailableAtThatLevel)
 运行：`python3 tools/run_tests.py --test level_roster_test --filter 'LevelRosterTest.*'`
 预期：构建失败（`tables/level_roster.h` 不存在）
 
+> **执行裁决（2026-09-15，见 SDD 台账 R15-R19）**：本步骤的骨架代码已被修订——校验必须①含 **B1 caps** 的可满足性判定（caps 抽成 `BehaviorClassCapForLevel` 单一真相源，采样循环复用）；②加载时按 `level` **stable_sort**（访问器依赖同层连续）；③类型存在性检查**先于** `gbIsSpawn` 分支（`MT_INVALID` 可被 `enum_cast` 解析）；④core 非空检查覆盖 `entries ∪ params` 的每个 level；⑤校验 `max_image > 0`、`tail_draw >= 0`，并拒绝哨兵 `BehaviorClass::Count`。
+
 - [ ] **步骤 3：编写最小实现**
 
 `Source/tables/level_roster.h`：
