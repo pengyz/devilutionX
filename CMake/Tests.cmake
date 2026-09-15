@@ -58,6 +58,7 @@ set(tests
   vendor_test
   panel_state_test
   sampling_behavior_test
+  level_roster_baseline_test
   store_transaction_test
   visual_store_test
   stash_test
