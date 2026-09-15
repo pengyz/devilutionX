@@ -1,4 +1,7 @@
 #include <cstdint>
+#include <cstring>
+#include <memory>
+#include <string_view>
 
 #include <gtest/gtest.h>
 
@@ -1011,6 +1014,45 @@ bool TestNetPackValidation()
 TEST_F(NetPackTest, UnPackNetPlayer_valid)
 {
 	ASSERT_TRUE(TestNetPackValidation());
+}
+
+// Regression (upstream b4dfc8d26): PlayerPack::pName / PlayerNetPack::pName are
+// fixed-size arrays with no NUL guarantee, so they must be read as exactly
+// PlayerNameLength bytes. Building the string_view from the raw pointer ran
+// strlen() past the field on truncated or hostile save/network data.
+//
+// The truncation rule either way: a full-width unterminated name becomes
+// PlayerNameLength - 1 chars + NUL. Only the NetPack case is falsifiable by a
+// sanitizer build - a valid PlayerPack has NULs right after pName, so strlen()
+// stops inside the struct there and its test is a bounded-contract lock.
+//
+// Both live in NetPackTest because its fixture loads the full player/monster/item
+// data that UnPackPlayer needs; PackTest only loads spell + item data.
+TEST_F(NetPackTest, UnPackPlayer_unterminatedNameIsBounded)
+{
+	PlayerPack packed;
+	PackPlayer(packed, *MyPlayer);
+	std::memset(packed.pName, 'A', sizeof(packed.pName)); // no NUL terminator
+
+	UnPackPlayer(packed, Players[1]);
+
+	EXPECT_EQ(Players[1]._pName[PlayerNameLength - 1], '\0');
+	EXPECT_EQ(std::string_view(Players[1]._pName).size(), PlayerNameLength - 1);
+}
+
+TEST_F(NetPackTest, UnPackNetPlayer_unterminatedNameIsBounded)
+{
+	// Every byte of the packet is non-NUL, so pre-fix the raw-pointer
+	// string_view walked past the end of the allocation (heap-buffer-overflow
+	// under ASan). The name copy is the first statement of UnPackNetPlayer, so
+	// it runs even though the deliberately garbage remainder fails validation.
+	auto packed = std::make_unique<PlayerNetPack>();
+	std::memset(packed.get(), 'A', sizeof(PlayerNetPack));
+
+	EXPECT_FALSE(UnPackNetPlayer(*packed, Players[1]));
+
+	EXPECT_EQ(Players[1]._pName[PlayerNameLength - 1], '\0');
+	EXPECT_EQ(std::string_view(Players[1]._pName).size(), PlayerNameLength - 1);
 }
 
 TEST_F(NetPackTest, UnPackNetPlayer_invalid_class)
