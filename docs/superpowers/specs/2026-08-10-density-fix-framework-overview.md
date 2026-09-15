@@ -35,6 +35,7 @@
 **依赖关系**：
 - 所有规格共享：怪物 AI tick harness（A1 规格定义的 Infra 前置）
 - B1 依赖 A1/A3 完成后的行为类别分布（风筝上限须按 A3 后的类别校准）
+- **A1/A3 反向依赖采样与预算**（2026-09-15 多维度探索实测追加）：A1/A3 的行为变体能否被玩家看到，取决于 `GetLevelMTypes` 的采样结果——当前 `monstimgtot < 4000` 的精灵预算把后期单层实得怪物压到 **2-4 类**（distinct AI 仅 2.1-2.2），而 A3 的承载又与 B1 已生效的「洞穴风筝上限 2」正面竞争。因此 A1/A3 的验收应从「变体实现生效」改为「**变体在采样后仍可见**」（复用 `test/sampling_behavior_test.cpp` 的分布断言），并建议其前置一个零美术的「采样与编组」工作流。证据：`docs/superpowers/explore/2026-09-15-content-direction-synthesis.md` 与 `controller-factcheck.md`
 - E1 依赖玩家等级模型验证（XP 曲线实测）
 
 ---
