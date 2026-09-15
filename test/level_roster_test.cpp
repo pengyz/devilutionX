@@ -156,24 +156,19 @@ TEST_F(LevelRosterTest, ValidationRejectsAClassFloorThatExceedsTheB1CapAtL14)
 	EXPECT_NE(error->find("caps"), std::string::npos);
 }
 
-TEST_F(LevelRosterTest, LoadedRosterKeepsAllMembersOfAnInterleavedLevel)
+TEST_F(LevelRosterTest, SortRosterByLevelThenFindLevelRosterKeepsAllMembersOfAnInterleavedLevel)
 {
-	// The per-level roster accessor assumes same-level entries are contiguous. Loading
+	// FindLevelRoster() assumes same-level entries are contiguous. SortRosterByLevel()
 	// must sort by level first so interleaved TSV rows (level 1, 2, 1) don't silently drop
-	// the second level-1 batch.
+	// the second level-1 batch, and must be stable so within-level file order survives.
 	std::vector<LevelRosterEntry> entries {
 		{ 1, MT_WSKELAX, LevelRosterRole::Core, false },
 		{ 2, MT_SNEAK, LevelRosterRole::Core, false },
 		{ 1, MT_NZOMBIE, LevelRosterRole::Core, false },
 	};
-	std::stable_sort(entries.begin(), entries.end(), [](const LevelRosterEntry &a, const LevelRosterEntry &b) {
-		return a.level < b.level;
-	});
 
-	const auto begin = std::find_if(entries.begin(), entries.end(), [](const LevelRosterEntry &e) { return e.level == 1; });
-	ASSERT_NE(begin, entries.end());
-	const auto end = std::find_if(begin, entries.end(), [](const LevelRosterEntry &e) { return e.level != 1; });
-	const std::span<const LevelRosterEntry> level1 { &*begin, static_cast<size_t>(std::distance(begin, end)) };
+	SortRosterByLevel(entries);
+	const std::span<const LevelRosterEntry> level1 = FindLevelRoster(entries, 1);
 
 	ASSERT_EQ(level1.size(), 2u);
 	EXPECT_EQ(level1[0].type, MT_WSKELAX);

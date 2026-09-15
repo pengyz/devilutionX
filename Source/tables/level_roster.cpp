@@ -142,6 +142,22 @@ uint8_t BehaviorClassCapForLevel(uint8_t level, BehaviorClass cls)
 	return 0;
 }
 
+void SortRosterByLevel(std::span<LevelRosterEntry> entries)
+{
+	std::stable_sort(entries.begin(), entries.end(), [](const LevelRosterEntry &a, const LevelRosterEntry &b) {
+		return a.level < b.level;
+	});
+}
+
+std::span<const LevelRosterEntry> FindLevelRoster(std::span<const LevelRosterEntry> entries, uint8_t level)
+{
+	const auto begin = std::find_if(entries.begin(), entries.end(), [level](const LevelRosterEntry &e) { return e.level == level; });
+	if (begin == entries.end())
+		return {};
+	const auto end = std::find_if(begin, entries.end(), [level](const LevelRosterEntry &e) { return e.level != level; });
+	return { &*begin, static_cast<size_t>(std::distance(begin, end)) };
+}
+
 std::optional<std::string> ValidateLevelRoster(std::span<const LevelRosterEntry> entries, std::span<const LevelRosterParams> params)
 {
 	// Type existence/bounds is shared by both modes: a row naming an id outside
@@ -210,7 +226,7 @@ std::optional<std::string> ValidateLevelRoster(std::span<const LevelRosterEntry>
 			const uint8_t cap = BehaviorClassCapForLevel(param.level, cls);
 			const size_t effective = cap == 0 ? available : std::min(available, static_cast<size_t>(cap));
 			if (effective < floor)
-				return StrCat("level ", param.level, " class floor ", static_cast<int>(cls), " needs ", floor, " but only ", effective, " candidates exist (", available, " raw, 被 caps 截断 to ", static_cast<int>(cap), ")");
+				return StrCat("level ", param.level, " class floor ", static_cast<int>(cls), " needs ", floor, " but only ", effective, " candidates exist (", available, " raw candidates, B1 sampling caps this class to ", static_cast<int>(cap), ")");
 		}
 	}
 	return std::nullopt;
@@ -232,9 +248,7 @@ void LoadLevelRoster()
 	// GetLevelRoster() relies on same-level rows being physically contiguous. Nothing
 	// guarantees the TSV rows are grouped by level, so sort them here (stably, so rows
 	// sharing a level keep their file order, which matters for tail draw ordering).
-	std::stable_sort(Entries.begin(), Entries.end(), [](const LevelRosterEntry &a, const LevelRosterEntry &b) {
-		return a.level < b.level;
-	});
+	SortRosterByLevel(Entries);
 
 	Entries.shrink_to_fit();
 	Params.shrink_to_fit();
@@ -246,11 +260,7 @@ void LoadLevelRoster()
 
 std::span<const LevelRosterEntry> GetLevelRoster(uint8_t level)
 {
-	const auto begin = std::find_if(Entries.begin(), Entries.end(), [level](const LevelRosterEntry &e) { return e.level == level; });
-	if (begin == Entries.end())
-		return {};
-	const auto end = std::find_if(begin, Entries.end(), [level](const LevelRosterEntry &e) { return e.level != level; });
-	return { &*begin, static_cast<size_t>(std::distance(begin, end)) };
+	return FindLevelRoster(Entries, level);
 }
 
 const LevelRosterParams *GetLevelRosterParams(uint8_t level)

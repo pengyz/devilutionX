@@ -46,6 +46,22 @@ struct LevelRosterParams {
  */
 void LoadLevelRoster();
 
+/**
+ * @brief Stable-sorts `entries` by level, preserving each level's relative file order.
+ *
+ * GetLevelRoster()/FindLevelRoster() rely on same-level rows being physically contiguous,
+ * which the source TSV does not guarantee, so LoadLevelRoster() calls this before use.
+ */
+void SortRosterByLevel(std::span<LevelRosterEntry> entries);
+
+/**
+ * @brief Returns the contiguous run of rows for `level` from an already sorted table.
+ *
+ * `entries` must already be sorted by level (see SortRosterByLevel()); otherwise rows for
+ * `level` that are not contiguous will not all be included.
+ */
+std::span<const LevelRosterEntry> FindLevelRoster(std::span<const LevelRosterEntry> entries, uint8_t level);
+
 std::span<const LevelRosterEntry> GetLevelRoster(uint8_t level);
 const LevelRosterParams *GetLevelRosterParams(uint8_t level);
 
