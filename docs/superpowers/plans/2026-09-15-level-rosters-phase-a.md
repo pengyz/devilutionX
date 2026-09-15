@@ -668,7 +668,7 @@ git commit -m "test(roster): pin placed class mix to the measured baseline and a
 
 **已知的范围外项：** HF overlay 的 L17-24 名册行需要在 `mods/hf/txtdata/monsters/` 下补两张表——它属于阶段 A 的数据补充，但依赖 HF 数据加载路径；本计划在任务 2 步骤 6 只做 L1-16，HF 部分作为**阶段 A2**（独立小任务，验收：Nest/Crypt 层 core 非空）。
 
-**2. 占位符扫描：** 无 TBD/TODO；每个代码步骤都给了可编译代码；`kRangedShareCeiling` 的取值来自任务 1 的实测（执行者填写「实施记录」），不是等待外部输入。
+**2. 占位符扫描：** 无待补项（逐条核对"禁止占位符"清单的六类模式，均为 0）；每个代码步骤都给了可编译代码；`kRangedShareCeiling` 的取值来自任务 1 的实测（执行者填写「实施记录」），不是等待外部输入。
 
 **3. 类型一致性：** `LevelRosterEntry`/`LevelRosterParams`/`GetLevelRoster`/`GetLevelRosterParams`/`ValidateLevelRoster`/`MeasurePlacedClassMix`/`MeasureRealisedTypes`/`CreateDungeonForMeasurement` 在任务 1-4 中命名一致；`AppendMeasurementReport` 在任务 1 定义、任务 4 复用。
 
