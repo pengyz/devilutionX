@@ -1,0 +1,4 @@
+level	monster_id	role	allow_unique_boost
+1	MT_WSKELAX	core	-
+2	MT_SNEAK	core	-
+1	MT_NZOMBIE	core	-

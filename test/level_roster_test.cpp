@@ -3,12 +3,14 @@
 #include <algorithm>
 #include <span>
 #include <string>
+#include <utility>
 #include <vector>
 
 #include "engine/assets.hpp"
 #include "game_mode.hpp"
 #include "tables/level_roster.h"
 #include "tables/monstdat.h"
+#include "utils/paths.h"
 
 using namespace devilution;
 
@@ -206,7 +208,7 @@ TEST_F(LevelRosterTest, ValidationRejectsAParamsLevelWithNoCoreInRetailMode)
 TEST_F(LevelRosterTest, ValidationRejectsAnEntryLevelWithNoCoreAndNoParamsRow)
 {
 	// A level with a roster entry (tail only, no params row at all) but no core member
-	// must be rejected: the check is driven by entries ∪ params, not just params rows.
+	// must be rejected: the check is driven by (entries union params), not just params rows.
 	const std::vector<LevelRosterEntry> entries { { 1, MT_NZOMBIE, LevelRosterRole::Tail, false } };
 	const std::vector<LevelRosterParams> params {};
 	const auto error = ValidateLevelRoster(entries, params);
@@ -243,4 +245,110 @@ TEST_F(LevelRosterTest, ValidationRejectsTheClassFloorCountSentinel)
 	const auto error = ValidateLevelRoster(entries, params);
 	ASSERT_TRUE(error.has_value());
 	EXPECT_NE(error->find("Count"), std::string::npos);
+}
+
+TEST_F(LevelRosterTest, ValidationRejectsADuplicateParamsLevel)
+{
+	const std::vector<LevelRosterEntry> entries { { 1, MT_WSKELAX, LevelRosterRole::Core, false } };
+	const std::vector<LevelRosterParams> params {
+		{ 1, 6000, 2, {} },
+		{ 1, 9000, 3, {} },
+	};
+	const auto error = ValidateLevelRoster(entries, params);
+	ASSERT_TRUE(error.has_value());
+	EXPECT_NE(error->find("more than one"), std::string::npos);
+}
+
+TEST_F(LevelRosterTest, ValidationRejectsADuplicateEntryLevelAndMonsterId)
+{
+	// Same (level, monster_id) pair appearing twice must be rejected even though each row
+	// individually is a valid, available roster entry.
+	const std::vector<LevelRosterEntry> entries {
+		{ 1, MT_WSKELAX, LevelRosterRole::Core, false },
+		{ 1, MT_WSKELAX, LevelRosterRole::Tail, false },
+	};
+	const std::vector<LevelRosterParams> params { { 1, 6000, 2, {} } };
+	const auto error = ValidateLevelRoster(entries, params);
+	ASSERT_TRUE(error.has_value());
+	EXPECT_NE(error->find("more than one"), std::string::npos);
+}
+
+TEST(ParseClassFloorsTest, ParsesTwoValidEntries)
+{
+	// BehaviorClass has no enumerator literally named "Ranged"; the two real ranged
+	// categories are RangedTurret/RangedKite, so both positive entries here use real names.
+	const auto result = ParseClassFloors("Melee=2,RangedTurret=1");
+	const std::vector<std::pair<BehaviorClass, uint8_t>> expected {
+		{ BehaviorClass::Melee, 2 },
+		{ BehaviorClass::RangedTurret, 1 },
+	};
+	EXPECT_EQ(result, expected);
+}
+
+TEST(ParseClassFloorsTest, EmptyValueYieldsAnEmptyResult)
+{
+	EXPECT_TRUE(ParseClassFloors("").empty());
+}
+
+TEST(ParseClassFloorsTest, FatalsOnAnEntryMissingTheEqualsSign)
+{
+	EXPECT_EXIT(ParseClassFloors("Melee2"), ::testing::ExitedWithCode(1), "missing");
+}
+
+TEST(ParseClassFloorsTest, FatalsOnAnUnknownClassName)
+{
+	EXPECT_EXIT(ParseClassFloors("Ranged=1"), ::testing::ExitedWithCode(1), "unknown BehaviorClass");
+}
+
+TEST(ParseClassFloorsTest, FatalsOnANonNumericFloor)
+{
+	EXPECT_EXIT(ParseClassFloors("Melee=abc"), ::testing::ExitedWithCode(1), "bad integer");
+}
+
+TEST(ParseClassFloorsTest, FatalsOnAnEmptyFloorValue)
+{
+	// "Melee=" has an '=' but nothing after it: from_chars must fail to parse the floor.
+	EXPECT_EXIT(ParseClassFloors("Melee="), ::testing::ExitedWithCode(1), "bad integer");
+}
+
+namespace {
+
+class LevelRosterFixtureLoadTest : public ::testing::Test {
+protected:
+	static void SetUpTestSuite()
+	{
+		LoadCoreArchives();
+		gbIsSpawn = false;
+		LoadMonsterData();
+		paths::SetAssetsPath(paths::BasePath() + "/test/fixtures/");
+	}
+};
+
+} // namespace
+
+TEST_F(LevelRosterFixtureLoadTest, LoadingAnInterleavedFixtureGathersAllMembersOfALevel)
+{
+	// The fixture's rows are deliberately out of level order (L1, L2, L1) to prove the
+	// production loader (not just SortRosterByLevel() in isolation) still collects every
+	// level-1 row via LoadLevelRosterFromFiles() -> GetLevelRoster().
+	LoadLevelRosterFromFiles(
+	    "txtdata\\monsters\\level_rosters_interleaved.tsv",
+	    "txtdata\\monsters\\level_roster_params_interleaved.tsv");
+
+	const std::span<const LevelRosterEntry> level1 = GetLevelRoster(1);
+	ASSERT_EQ(level1.size(), 2u);
+	EXPECT_TRUE(std::any_of(level1.begin(), level1.end(), [](const LevelRosterEntry &e) { return e.type == MT_WSKELAX; }));
+	EXPECT_TRUE(std::any_of(level1.begin(), level1.end(), [](const LevelRosterEntry &e) { return e.type == MT_NZOMBIE; }));
+}
+
+TEST_F(LevelRosterFixtureLoadTest, LoadsTheShippedRosterAndValidatesIt)
+{
+	// Reset back to the real assets directory (the fixture test above pointed AssetsPath at
+	// test/fixtures/) before exercising the production LoadLevelRoster() entry point.
+	paths::SetAssetsPath(paths::BasePath() + "assets/");
+	LoadLevelRoster();
+
+	const std::span<const LevelRosterEntry> level9 = GetLevelRoster(9);
+	EXPECT_FALSE(level9.empty());
+	EXPECT_NE(GetLevelRosterParams(9), nullptr);
 }

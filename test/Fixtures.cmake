@@ -94,6 +94,8 @@ set(devilutionx_fixtures
   txtdata/lf_no_trail.tsv
   txtdata/sample.tsv
   txtdata/utf8_bom.tsv
+  txtdata/monsters/level_rosters_interleaved.tsv
+  txtdata/monsters/level_roster_params_interleaved.tsv
 )
 
 copy_files(
