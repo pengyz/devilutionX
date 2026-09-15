@@ -50,7 +50,7 @@
 | 上游 tip | `e00b7260f`（2026-09-15） | `git fetch origin master` |
 | 落后提交数 | 28 | `git rev-list --count HEAD..origin/master` |
 | 上游侧触及文件 | 106 | `git log --name-only --format="" HEAD..origin/master \| sort -u` |
-| 本分支侧改动文件 | 263 | `git diff --name-only $(git merge-base HEAD origin/master) HEAD` |
+| 本分支侧改动文件 | 265 | `git diff --name-only $(git merge-base HEAD origin/master) HEAD` |
 | 两侧交集（理论冲突面） | 24 | `comm -12` |
 | 探测性 merge 实际冲突 | **4 个文件 / 4 个冲突块** | 见下 |
 | 测试基线 | 698（0 failed / 3 skipped） | `python3 tools/run_tests.py` |
@@ -86,7 +86,12 @@
 
 ### 探测深入：上游 quest 重构的编译连带（2026-09-15 追加）
 
-上游把 `QuestLogIsOpen` / `pQLogCel` / `DrawQuestLog` 从 `quests.h`+`quests.cpp` 迁到新建的 `Source/panels/quest_log.{hpp,cpp}`。fork 侧消费者：`Source/minitext.cpp:165`、`Source/qol/chatlog.cpp:107`（均写 `QuestLogIsOpen = false;`），它们原先依赖 `quests.h` 的声明 → 合并后预期编译失败，修法是补 `#include "panels/quest_log.hpp"`。这类连带由编译门禁暴露，实施计划的任务 7 已按「判据 + 已确认文件」写明，不做盲目预改。
+初稿预判「合并后 fork 侧消费者会因缺少声明而编译失败」——**该预判已被证伪**。上游把 `QuestLogIsOpen` / `pQLogCel` / `DrawQuestLog` 从 `quests.h`+`quests.cpp` 迁到新建的 `Source/panels/quest_log.{hpp,cpp}` 时，**同时给每个消费者文件补了 `#include "panels/quest_log.hpp"`**；fork 对这些文件的本地改动不与那一行重叠，故 git 自动合并即完成迁移。复验（`git -c rerere.enabled=false merge --no-commit --no-ff origin/master`）：
+
+- 12 个消费者文件（`minitext.cpp`、`qol/chatlog.cpp`、`diablo.cpp`、`stores.cpp`、`control/control_panel.cpp`、`controls/game_controls.cpp`、`controls/touch/gamepad.cpp`、`controls/touch/renderers.cpp`、`controls/plrctrls.cpp`、`engine/render/scrollrt.cpp`、`test/panel_state_test.cpp`、`test/ui_test.hpp`）**各含 1 个**该 include；
+- `Source/quests.cpp` 对这三个符号的引用计数为 **0**（上游的删除与 fork 的 2 行 include 冲突不重叠，自动合并已生效）→ 无重复定义风险。
+
+**因此本轮预期零编译连带**，实施计划的任务 7 相应改为「验证零改动」，仅在编译真的报错时才现场诊断。另：`test/ui_test.hpp` 与 `test/panel_state_test.cpp` 也在 24 文件交集内（上游 `53b91fd7a`），自动合并成功；前者被 13 个测试二进制共享，故其健康度由全量门禁兜底。
 
 ## 4. 方案
 
@@ -118,7 +123,7 @@
 | 上游渲染改动与 fork 渲染改动语义冲突 | `e00b7260f`、`c90181d54`；fork 侧有浮动信息 UI、双 tooltip、暗黑远征光照 | `scrollrt_test`、`palette_blending_test`、eval `render-*`；必要时逐屏验证 |
 | 同步后漂移校验口径变化掩盖真实漂移 | `check_drift.py` 以 merge-base 为基线 | 同步前后各跑一次 drift 并对比输出，结论写入实施记录 |
 | 行尾差异造成整文件冲突，且处置错误会直接挂门禁 | `.gitattributes` = `* -text`；上游把 `quests.h` 重写为 LF（24 个交集文件中唯一一个） | 被上游重写为 LF 的文件**保持 LF**（判据见 §3「探测深入」）；门禁 C 在 §6 第 7 项单列 |
-| 上游 quest 重构（`QuestLogIsOpen`/`DrawQuestLog` 迁往 `panels/quest_log.hpp`）导致 fork 消费者编译失败 | 上游 #8475；fork 消费者 `minitext.cpp:165`、`qol/chatlog.cpp:107` | 由编译门禁暴露后按判据补 include（实施计划任务 7），不做盲目预改 |
+| ~~上游 quest 重构导致 fork 消费者编译失败~~ **已证伪**：上游补 include 的改动随自动合并进入 fork，12 个消费者文件均无脱钩 | 复验见 §3「探测深入：quest_log 重构」 | 无需缓解；保留任务 7 作为「零连带」的验证关卡（编译报错才现场诊断） |
 
 ## 5. 红线检查
 
@@ -152,7 +157,7 @@
 | 6 | 漂移校验 | 同上 JSON `steps.drift` | `drift_ok == true`，5 项 PASS |
 | 7 | 行尾未被破坏 | drift check C / C2 | 两项 PASS；并确认 `Source/quests.h` 保持上游的 LF（若被写回 CRLF，C 会 FAIL——见 §3「探测深入」） |
 | 8 | heroname 分叉状态已复核并记录 | `git show origin/master:Source/msg.cpp \| grep -n heroname` | 有明确结论（已修/未修）并写入实施记录；未修则提上游 PR |
-| 9 | timedemo quarantine 状态 | `cd build && ./timedemo_test --gtest_filter='Timedemo.*'` | 仍为 `Skipped`（若上游改动使其变化，记录原因） |
+| 9 | timedemo quarantine 状态 | `cd build && ./timedemo_test --gtest_filter='Timedemo.*'`，或按名字查 `build/Testing/Temporary/LastTest.log` | 仍为 `Skipped`（**按用例名确认**，不依赖聚合 skipped 计数；若上游改动使其变化，记录原因） |
 | 10 | CI 绿 | `gh run list --workflow=better-d1-ci.yml --limit 1` | 最新一次为 `success` |
 
 ## 7. 状态

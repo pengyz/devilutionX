@@ -29,7 +29,7 @@
 | merge-base | `b3e52b1ea`（2026-07-26） | `git merge-base HEAD origin/master` |
 | 上游 tip | `e00b7260f` | `git fetch origin master` |
 | 落后提交 | 28 | `git rev-list --count HEAD..origin/master` |
-| 上游触及 / fork 改动 / 交集 | 106 / 263 / 24 文件 | `git log --name-only`、`git diff --name-only`、`comm -12` |
+| 上游触及 / fork 改动 / 交集 | 106 / **265** / 24 文件 | `git log --name-only`、`git diff --name-only`、`comm -12` |
 | 探测性 merge 冲突 | **4 文件 / 4 块** | worktree + `--no-commit` + `--abort` |
 | 测试基线 | 698（0 failed / 3 skipped） | `python3 tools/run_tests.py` |
 
@@ -72,7 +72,13 @@
 
 上游 `Source/tables/questdat.hpp:117-127` 的 `struct QuestData` 字段与 fork 完全一致（`_qdlvl` … `_qlstr`），**只缺这一行**。
 
-**预期编译连带**（上游任务重构）：`QuestLogIsOpen` / `pQLogCel` / `DrawQuestLog` 从 `quests.h`+`quests.cpp` 迁到新建的 `Source/panels/quest_log.{hpp,cpp}`。fork 侧消费者：`Source/minitext.cpp:165`、`Source/qol/chatlog.cpp:107`（都写 `QuestLogIsOpen = false;`）。上游 `panels/quest_log.hpp:9-12` 有这三个声明。
+**quest_log 重构的编译连带：经复验为「零连带」**（初稿按「预期编译失败」写过，已被探测性 merge 证伪）。上游把 `QuestLogIsOpen` / `pQLogCel` / `DrawQuestLog` 从 `quests.h`+`quests.cpp` 迁到新建的 `Source/panels/quest_log.{hpp,cpp}`，但**上游同时给每个消费者文件补了 `#include "panels/quest_log.hpp"`**，而 fork 对这些文件的本地改动不与那一行重叠，因此 git 自动合并即完成迁移。`git -c rerere.enabled=false merge --no-commit --no-ff origin/master` 后实测：下列 12 个文件**各含 1 个**该 include，且 `Source/quests.cpp` 对这三个符号的引用为 **0**（上游对该文件的删除也与 fork 的 2 行 include 冲突不重叠，自动合并已生效）——既无「未声明」编译错误，也无与 `panels/quest_log.cpp` 的重复定义。
+
+| 已自动带上 include 的文件（复验计数均为 1） |
+|---|
+| `Source/minitext.cpp`、`Source/qol/chatlog.cpp`、`Source/diablo.cpp`、`Source/stores.cpp`、`Source/control/control_panel.cpp`、`Source/controls/game_controls.cpp`、`Source/controls/touch/gamepad.cpp`、`Source/controls/touch/renderers.cpp`、`Source/controls/plrctrls.cpp`、`Source/engine/render/scrollrt.cpp`、`test/panel_state_test.cpp`、`test/ui_test.hpp` |
+
+**另一处需注意的交集文件**：`test/ui_test.hpp` 与 `test/panel_state_test.cpp` 也在 24 文件交集内（上游 `53b91fd7a` 改动过），探测性 merge 中**未产生冲突**（自动合并成功，并各自带上该 include）。它们是 13 个测试二进制共享的头（`test/ui_test.hpp`），因此它们的健康度影响面比单文件更大——任务 9 的全量门禁是其验收依据。
 
 ---
 
@@ -89,7 +95,7 @@
 | `Source/engine/render/scrollrt.cpp` | 采用上游两行（`yield()` + `drawInfoBox` 参数） |
 | `Source/controls/plrctrls.cpp` | 两个 include 都保留 |
 | `Source/quests.cpp` | 保留 fork 的两个 include |
-| `Source/minitext.cpp`、`Source/qol/chatlog.cpp` | 预计补 `#include "panels/quest_log.hpp"`（编译门禁确认后） |
+| `test/ui_test.hpp`、`test/panel_state_test.cpp` | 交集文件（上游改过），探测 merge 自动合并成功、无需人工改动 —— 但由任务 9 全量门禁验收 |
 
 ---
 
@@ -234,7 +240,7 @@ sed -n '/struct QuestData/,/};/p' Source/tables/questdat.hpp   # 预期：末行
 python3 -c "b=open('Source/tables/questdat.hpp','rb').read(); print('CRLF', b.count(b'\r\n'), 'LF', b.count(b'\n'))"
 ```
 
-预期：该文件行尾与上游一致（LF，即 `CRLF 0`）。**若上游是 CRLF 则保持 CRLF**——判据是「与该文件在上游的行尾一致」，不是固定值。
+预期：`CRLF 141 LF 141`（**上游该文件本身就是 CRLF**——本轮唯一的 LF 文件是 `Source/quests.h` 与上游新增的 7 个文件，`questdat.hpp` 不在其中）。判据是「与该文件在上游的行尾一致」，不是固定值；本例的一致值就是 CRLF。
 
 - [ ] **步骤 6：确认消费者的引用链完整**
 
@@ -387,54 +393,51 @@ git status --short                         # 预期：无输出
 
 ---
 
-### 任务 7：处理预期编译连带（`panels/quest_log.hpp`）
+### 任务 7：验证 quest_log 重构零连带（预期零改动）
 
 **文件：**
-- 修改（按编译错误逐个确认）：`Source/minitext.cpp`、`Source/qol/chatlog.cpp`，以及编译暴露的其它文件
+- 修改：无（本任务预期不产生代码变更，只验证）
+- 测试：`cmake --build build --target libdevilutionx`（编译即验证）
 
 **接口：**
 - 依赖输入：任务 6 的 merge commit
-- 对外产出：库编译通过（任务 8 的前置）
+- 对外产出：库编译通过的结论（任务 8 的前置）
 
-- [ ] **步骤 1：先编译，让错误说话（不要提前盲改）**
+**背景（已在探测阶段复验）**：初稿曾预判此步会产生「`QuestLogIsOpen` 未声明」编译错误，**该预判已被证伪**。上游迁移这三个符号时**同时给每个消费者文件补了 `#include "panels/quest_log.hpp"`**，且 fork 对这些文件的本地改动不与那一行重叠 → git 自动合并即完成；`Source/quests.cpp` 对这三个符号的引用计数已为 0（无重复定义）。复验命令与计数见本计划「探测阶段已确认的事实」。
+
+- [ ] **步骤 1：编译，确认零连带**
 
 ```bash
 cmake --build build --target libdevilutionx -j 20 2>&1 | grep -E "error:" | head -30
 ```
 
-预期：出现 `QuestLogIsOpen` / `pQLogCel` / `DrawQuestLog` 未声明的错误（上游已把它们迁出 `quests.h`）。
+预期：**无输出**（零编译错误）。
 
-- [ ] **步骤 2：对每个「未声明」错误补对应 include**
-
-判据：错误指向一个 fork 文件使用了 `QuestLogIsOpen` / `pQLogCel` / `DrawQuestLog` 中任一个，而该文件没有 `#include "panels/quest_log.hpp"`。逐个补：
-
-```cpp
-#include "panels/quest_log.hpp"
-```
-
-已知的两个文件（探测阶段确认的消费者）：
-
-- `Source/minitext.cpp`（第 165 行 `QuestLogIsOpen = false;`）
-- `Source/qol/chatlog.cpp`（第 107 行 `QuestLogIsOpen = false;`）
-
-- [ ] **步骤 3：重编译确认该类错误清零**
+- [ ] **步骤 2：确认 12 个消费者文件的 include 已就位（机器判据，不靠肉眼）**
 
 ```bash
-cmake --build build --target libdevilutionx -j 20 2>&1 | grep -cE "error:"   # 预期：0
+for f in Source/minitext.cpp Source/qol/chatlog.cpp Source/diablo.cpp Source/stores.cpp \
+         Source/control/control_panel.cpp Source/controls/game_controls.cpp \
+         Source/controls/touch/gamepad.cpp Source/controls/touch/renderers.cpp \
+         Source/controls/plrctrls.cpp Source/engine/render/scrollrt.cpp \
+         test/panel_state_test.cpp test/ui_test.hpp; do
+  printf '%-45s %s\n' "$f" "$(grep -c 'panels/quest_log.hpp' "$f")"
+done
+grep -c "QuestLogIsOpen\|pQLogCel\|DrawQuestLog" Source/quests.cpp
 ```
 
-- [ ] **步骤 4：提交**
+预期：前 12 行计数**均为 1**；最后一行输出 `0`。
+
+- [ ] **步骤 3：仅当步骤 1 出现编译错误时才现场诊断**
+
+判据：读错误原文，确认是哪个符号在哪个文件未被声明；若确为该类，给该文件补 `#include "panels/quest_log.hpp"`，重编译至零错误，然后提交：
 
 ```bash
 git add -A Source/
-git commit -m "fix(build): include panels/quest_log.hpp after the upstream quest split
-
-Upstream moved QuestLogIsOpen/pQLogCel/DrawQuestLog out of quests.h into
-the new panels/quest_log.hpp. The fork's consumers in minitext.cpp and
-qol/chatlog.cpp relied on the old declaration site."
+git commit -m "fix(build): add panels/quest_log.hpp include after the upstream quest split"
 ```
 
----
+- [ ] **步骤 4：未出现错误时不提交（预期路径）**
 
 ### 任务 8：门禁 1-2（CMake 配置 + 全目标编译）
 
@@ -497,6 +500,26 @@ print('ctest', d['steps']['ctest']); print('drift_ok', d['steps']['drift']['drif
 ```
 
 预期：`failed == 0`、`passed_pct == 100`。测试数量若不再是 698：**必须记录变化原因**（上游新增/删除测试），判据仍是零失败。
+
+- [ ] **步骤 2b：按名字确认 timedemo 仍为 Skipped（不能只看聚合计数）**
+
+`run_tests.py` 的 `summary` 只记录 skipped **计数**，不记录被跳过用例的名字，因此聚合数字不变也可能掩盖状态翻转：
+
+```bash
+grep -n "WarriorLevel1to2" build/Testing/Temporary/LastTest.log
+```
+
+预期：出现 `Timedemo.WarriorLevel1to2 (Skipped)`（规格 §6 验收项 9）。
+
+- [ ] **步骤 2c：确认本地测试目标列表未与 `CMake/Tests.cmake` 脱钩**
+
+`tools/run_tests.py` 的 `TEST_TARGETS` 是手工列表，`check_drift.py` 的 A 项只校验 `Tests.cmake` ↔ `test/*.cpp`，**不校验这个列表**：
+
+```bash
+git diff b3e52b1ea origin/master -- CMake/Tests.cmake | grep -E '^[+-]  [a-z_0-9]+_test'
+```
+
+预期：无输出（本轮上游对 `Tests.cmake` 的改动只涉及 `dun_render_benchmark` 的链接依赖与 `test_main`，未增删改任何 `tests`/`standalone_tests` 成员）。**若有输出：必须同步更新 `tools/run_tests.py` 的 `TEST_TARGETS`**，否则该工具会静默漏跑新测试。
 
 - [ ] **步骤 3：失败处理（若发生）**
 
@@ -631,6 +654,23 @@ git push myrepo feature/qol-upgrades
 
 ---
 
+## 对抗性复核记录（2026-09-15，kiro 子代理 + 主 agent 复验）
+
+对初稿做过一次独立对抗性复核（要求只读、只写可验证结论）。发现与处置：
+
+| id | 严重度 | 问题 | 处置 |
+|---|---|---|---|
+| F1 | blocker | 任务 7 的「预期编译连带」是**假问题**：探测性 merge（rerere 关闭）显示 12 个消费者文件已由上游改动自动带上 `#include "panels/quest_log.hpp"`，`quests.cpp` 对三个符号的引用计数为 0 → 既无未声明错误也无重复定义 | 任务 7 重写为「验证零连带」（机器判据：12 文件各 1 个 include、引用计数 0），仅在编译真报错时进入诊断分支；规格 §3 对应段落同步改写 |
+| F2 | high | 事实表「本分支侧改动文件 = 263」错误，实测 **265** | 计划与规格两处均改为 265（复验命令 `git diff --name-only $(git merge-base HEAD origin/master) HEAD \| wc -l`） |
+| F3 | high | `test/ui_test.hpp`、`test/panel_state_test.cpp` 在 24 文件交集内（上游 `53b91fd7a` 改过）却未被文档提及 | 已在「探测阶段已确认的事实」与规格 §3 写明：自动合并成功、无需人工改动，由任务 9 全量门禁兜底（`ui_test.hpp` 被 13 个测试二进制共享） |
+| F4 | medium | 任务 3 步骤 5 对 `questdat.hpp` 行尾的预期写成 LF，实际上游是 **CRLF**（141/141）；本轮唯一 LF 的是 `Source/quests.h` 与上游新增的 7 个文件 | 预期输出改为 `CRLF 141 LF 141` 并说明原因 |
+| F5 | medium | `tools/run_tests.py` 的 `TEST_TARGETS` 手工列表与 `CMake/Tests.cmake` 存在结构性脱钩风险（`check_drift.py` A 项不校验该列表）。本轮未触发，但计划对此沉默 | 任务 9 增加步骤 2c：用 `git diff <merge-base> origin/master -- CMake/Tests.cmake` 过滤集合成员增删，有输出则必须同步 `TEST_TARGETS` |
+| F8 | low | 任务 9 只校验聚合 `skipped` 计数，无法发现 timedemo 从 Skipped 翻转成别的状态（`run_tests.py` 不记录被跳过用例名） | 任务 9 增加步骤 2b：按名字查 `LastTest.log` 确认 `Timedemo.WarriorLevel1to2 (Skipped)` |
+
+复核同时确认以下断言为真（不再展开）：merge-base/tip/28 提交；4 个冲突文件与冲突块行数、三处小冲突原文逐字一致；`quests.h` 149 CRLF vs 32 LF 与 markers 位置；`questdat.hpp` 的 `QuestData` 字段只缺 `scriptName`；`git checkout --theirs` 与 `git commit -F -` 在 merge 状态下的语义；`libdevilutionx`/`devilutionx` 目标名存在；heroname 上游 5 处仍未修；24 个交集文件中仅 `quests.h` 行尾不一致；`.editorconfig`/`.gitattributes`/`CMakePresets.json` 未被上游改动。
+
+复核也**自我纠正**了两条早期误判（一度以为 `quests.cpp` 会与 `panels/quest_log.cpp` 重复定义而构成 blocker；实测该定义已被自动合并删除），这也说明本节的结论以复验命令为准。
+
 ## 自审
 
 **1. 规格覆盖度（规格 §6 十项验收 → 本计划任务）**
@@ -650,7 +690,7 @@ git push myrepo feature/qol-upgrades
 
 **2. 占位符扫描**
 
-本计划不含 TBD/TODO/「后续补充」；任务 7 的编译连带给出了**判据**（错误指向哪个符号、补哪个 include）与已确认的两个文件，而不是「修复编译错误」这类空话。任务 8 步骤 3、任务 9 步骤 3 是条件分支，各自写明触发条件、命令与提交信息。
+本计划不含 TBD/TODO/「后续补充」。任务 7 经对抗性复核后从「处理预期编译连带」改为**「验证零连带」**——原写法让执行者去修一个 git 自动合并已经解决的问题（假问题），属于会误导执行者的缺陷；现版本给出机器可判的计数判据（12 个文件各 1 个 include、`quests.cpp` 引用计数 0），仅在编译真的报错时才进入现场诊断分支。任务 8 步骤 3、任务 9 步骤 3 是条件分支，各自写明触发条件、命令与提交信息。
 
 **3. 类型与命名一致性**
 
