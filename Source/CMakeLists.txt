@@ -84,7 +84,6 @@ set(libdevilutionx_SRCS
 
   items/validation.cpp
 
-  levels/reencode_dun_cels.cpp
   levels/setmaps.cpp
   levels/themes.cpp
   levels/tile_properties.cpp
@@ -131,6 +130,7 @@ set(libdevilutionx_SRCS
   panels/level_info.cpp
   panels/mainpanel.cpp
   panels/partypanel.cpp
+  panels/quest_log.cpp
   panels/spell_book.cpp
   panels/spell_icons.cpp
   panels/spell_list.cpp
@@ -157,7 +157,6 @@ set(libdevilutionx_SRCS
   storm/storm_svid.cpp
 
   tables/misdat.cpp
-  tables/textdat.cpp
   tables/townerdat.cpp
 
   utils/display.cpp
@@ -197,6 +196,8 @@ target_link_dependencies(libdevilutionx_mod_identity PUBLIC
   libdevilutionx_file_util
   libdevilutionx_ini
   libdevilutionx_log
+  PRIVATE
+  libdevilutionx_sdl2_to_1_2_backports
 )
 
 add_devilutionx_object_library(libdevilutionx_assets
@@ -248,6 +249,7 @@ add_devilutionx_object_library(libdevilutionx_codec
 target_link_dependencies(libdevilutionx_codec PRIVATE
   DevilutionX::SDL
   libdevilutionx_log
+  libdevilutionx_sdl2_to_1_2_backports
 )
 
 add_devilutionx_object_library(libdevilutionx_control
@@ -313,6 +315,7 @@ target_link_dependencies(libdevilutionx_paths PUBLIC
   DevilutionX::SDL
   libdevilutionx_file_util
   libdevilutionx_log
+  PRIVATE
   libdevilutionx_sdl2_to_1_2_backports
 )
 
@@ -349,11 +352,12 @@ add_devilutionx_object_library(libdevilutionx_direction
 add_devilutionx_object_library(libdevilutionx_dun_render
   engine/render/dun_render.cpp
 )
-target_link_libraries(libdevilutionx_dun_render
+target_link_dependencies(libdevilutionx_dun_render
   PUBLIC
   DevilutionX::SDL
   libdevilutionx_light_render
   libdevilutionx_surface
+  libdevilutionx_palette_blending
   PRIVATE
   libdevilutionx_options
 )
@@ -376,6 +380,7 @@ add_devilutionx_object_library(libdevilutionx_file_util
 target_link_dependencies(libdevilutionx_file_util PRIVATE
   DevilutionX::SDL
   libdevilutionx_log
+  libdevilutionx_sdl2_to_1_2_backports
   ${DEVILUTIONX_PLATFORM_FILE_UTIL_LINK_LIBRARIES}
 )
 
@@ -395,21 +400,47 @@ target_link_dependencies(libdevilutionx_game_mode PRIVATE
   libdevilutionx_options
 )
 
+add_devilutionx_object_library(libdevilutionx_dun_tile_data
+  levels/dun_tile_data.cpp
+  levels/reencode_dun_cels.cpp
+)
+target_link_dependencies(libdevilutionx_dun_tile_data PUBLIC
+  tl
+  unordered_dense::unordered_dense
+  libdevilutionx_assets
+  PRIVATE
+  libdevilutionx_format_int
+  libdevilutionx_sdl2_to_1_2_backports
+)
+
+add_devilutionx_object_library(libdevilutionx_parse_dungeon_type
+  levels/parse_dungeon_type.cpp
+)
+target_link_dependencies(libdevilutionx_parse_dungeon_type PUBLIC
+  tl
+)
+
 add_devilutionx_object_library(libdevilutionx_gendung
   levels/crypt.cpp
   levels/drlg_l1.cpp
   levels/drlg_l2.cpp
   levels/drlg_l3.cpp
   levels/drlg_l4.cpp
+  levels/drlg_quests.cpp
   levels/gendung.cpp
 )
-target_link_dependencies(libdevilutionx_gendung PUBLIC
+target_link_dependencies(libdevilutionx_gendung
+  PUBLIC
   DevilutionX::SDL
   tl
   libdevilutionx_assets
+  libdevilutionx_dun_tile_data
   libdevilutionx_items
-  libdevilutionx_monster
+  libdevilutionx_questdat
   libdevilutionx_random
+  PRIVATE
+  libdevilutionx_level_objects
+  libdevilutionx_format_int
 )
 
 add_devilutionx_object_library(libdevilutionx_headless_mode
@@ -425,6 +456,8 @@ target_link_dependencies(libdevilutionx_init PUBLIC
   libdevilutionx_config
   libdevilutionx_mpq
   libdevilutionx_options
+  PRIVATE
+  libdevilutionx_sdl2_to_1_2_backports
 )
 
 add_devilutionx_object_library(libdevilutionx_load_cel
@@ -476,6 +509,7 @@ target_link_dependencies(libdevilutionx_load_clx
   tl
   PRIVATE
   libdevilutionx_assets
+  libdevilutionx_sdl2_to_1_2_backports
 )
 
 add_devilutionx_object_library(libdevilutionx_load_pcx
@@ -503,6 +537,13 @@ add_devilutionx_object_library(libdevilutionx_light_render
   engine/render/light_render.cpp
 )
 
+add_devilutionx_object_library(libdevilutionx_light_tables
+  engine/light_tables.cpp
+)
+target_link_dependencies(libdevilutionx_light_tables PUBLIC
+  libdevilutionx_dun_tile_data
+)
+
 add_devilutionx_object_library(libdevilutionx_lighting
   lighting.cpp
 )
@@ -511,6 +552,7 @@ target_link_dependencies(libdevilutionx_lighting PUBLIC
   magic_enum::magic_enum
   tl
   unordered_dense::unordered_dense
+  libdevilutionx_light_tables
   libdevilutionx_vision
 )
 
@@ -532,6 +574,7 @@ target_link_dependencies(libdevilutionx_items
   sol2::sol2
   tl
   libdevilutionx_headless_mode
+  libdevilutionx_sdl2_to_1_2_backports
   libdevilutionx_sound
   libdevilutionx_spells
   libdevilutionx_stores
@@ -581,7 +624,9 @@ target_link_dependencies(libdevilutionx_level_objects PUBLIC
   libdevilutionx_options
   libdevilutionx_player
   libdevilutionx_random
+  libdevilutionx_sdl2_to_1_2_backports
   libdevilutionx_txtdata
+  libdevilutionx_questdat
 )
 
 add_devilutionx_object_library(libdevilutionx_monster
@@ -598,6 +643,7 @@ target_link_dependencies(libdevilutionx_monster
   unordered_dense::unordered_dense
   libdevilutionx_game_mode
   libdevilutionx_headless_mode
+  libdevilutionx_sdl2_to_1_2_backports
   libdevilutionx_sound
   libdevilutionx_txtdata
   PRIVATE
@@ -633,6 +679,8 @@ if(SUPPORTS_MPQ)
     mpqfs::mpqfs
     tl
     libdevilutionx_file_util
+    PRIVATE
+    libdevilutionx_sdl2_to_1_2_backports
   )
 else()
   add_library(libdevilutionx_mpq INTERFACE)
@@ -642,9 +690,13 @@ add_devilutionx_object_library(libdevilutionx_multiplayer
   multi.cpp
   pack.cpp
 )
-target_link_dependencies(libdevilutionx_multiplayer PUBLIC
+target_link_dependencies(libdevilutionx_multiplayer
+  PUBLIC
   libdevilutionx_config
   libdevilutionx_items
+  libdevilutionx_sdl2_to_1_2_backports
+  PRIVATE
+  libdevilutionx_game_mode
 )
 
 add_devilutionx_object_library(libdevilutionx_options
@@ -659,6 +711,7 @@ target_link_dependencies(libdevilutionx_options PUBLIC
   libdevilutionx_control_mode
   libdevilutionx_logged_fstream
   libdevilutionx_quick_messages
+  libdevilutionx_sdl2_to_1_2_backports
   libdevilutionx_strings
   libdevilutionx_ini
 )
@@ -702,14 +755,31 @@ target_link_dependencies(libdevilutionx_player
   libdevilutionx_strings
 )
 
+add_devilutionx_object_library(libdevilutionx_questdat
+  tables/questdat.cpp
+)
+target_link_dependencies(libdevilutionx_questdat PUBLIC
+  tl
+  libdevilutionx_dun_tile_data
+  libdevilutionx_parse_dungeon_type
+  PRIVATE
+  magic_enum::magic_enum
+  libdevilutionx_game_mode
+  libdevilutionx_textdat
+)
+
 add_devilutionx_object_library(libdevilutionx_quests
   quests.cpp
 )
 target_link_dependencies(libdevilutionx_quests
   PUBLIC
-  libdevilutionx_surface
-  libdevilutionx_gendung
+  libdevilutionx_monster
   PRIVATE
+  libdevilutionx_dun_tile_data
+  libdevilutionx_gendung
+  libdevilutionx_options
+  libdevilutionx_questdat
+  libdevilutionx_surface
   libdevilutionx_control
 )
 
@@ -753,6 +823,7 @@ add_devilutionx_object_library(libdevilutionx_text_render
 )
 target_link_dependencies(libdevilutionx_text_render
   PUBLIC
+  libdevilutionx_sdl2_to_1_2_backports
   libdevilutionx_surface
   PRIVATE
   unordered_dense::unordered_dense
@@ -774,6 +845,26 @@ target_link_dependencies(libdevilutionx_ticks PRIVATE
   DevilutionX::SDL
 )
 
+add_devilutionx_object_library(libdevilutionx_parse_sfx_id
+  parse_sfx_id.cpp
+)
+target_link_dependencies(libdevilutionx_parse_sfx_id PUBLIC
+  magic_enum::magic_enum
+  tl
+)
+
+add_devilutionx_object_library(libdevilutionx_textdat
+  tables/textdat.cpp
+)
+target_link_dependencies(libdevilutionx_textdat PUBLIC
+  magic_enum::magic_enum
+  unordered_dense::unordered_dense
+  libdevilutionx_parse_sfx_id
+  libdevilutionx_txtdata
+  PRIVATE
+  libdevilutionx_strings
+)
+
 add_devilutionx_object_library(libdevilutionx_txtdata
   data/file.cpp
   data/parser.cpp
@@ -785,6 +876,8 @@ target_link_dependencies(libdevilutionx_txtdata PUBLIC
   libdevilutionx_assets
   libdevilutionx_parse_int
   libdevilutionx_strings
+  PRIVATE
+  libdevilutionx_sdl2_to_1_2_backports
 )
 
 add_devilutionx_object_library(libdevilutionx_utf8
@@ -825,7 +918,8 @@ else()
       SDL_audiolib::SDL_audiolib
     )
   endif()
-  target_link_dependencies(libdevilutionx_sound PUBLIC
+  target_link_dependencies(libdevilutionx_sound
+    PUBLIC
     DevilutionX::SDL
     magic_enum::magic_enum
     tl
@@ -833,6 +927,8 @@ else()
     libdevilutionx_options
     libdevilutionx_random
     libdevilutionx_sdl2_to_1_2_backports
+    PRIVATE
+    libdevilutionx_game_mode
   )
 endif()
 
@@ -845,6 +941,7 @@ target_link_dependencies(libdevilutionx_stores PUBLIC
   libdevilutionx_clx_render
   libdevilutionx_control
   libdevilutionx_options
+  libdevilutionx_sdl2_to_1_2_backports
   libdevilutionx_sound
   libdevilutionx_strings
 )
@@ -874,9 +971,6 @@ if(USE_SDL1)
     libdevilutionx_strings
     libdevilutionx_utils_console
   )
-  target_link_libraries(DevilutionX::SDL INTERFACE
-    libdevilutionx_sdl2_to_1_2_backports
-  )
   if(APPLE)
     enable_language(OBJC)
     target_sources(libdevilutionx_sdl2_to_1_2_backports PRIVATE
@@ -895,6 +989,8 @@ endif()
 if(AMIGA AND NOT WARPOS)
   # Works around a missing `__cmpdf2` in the hard-float libgcc multilib.
   list(APPEND libdevilutionx_SRCS platform/amiga/cmpdf2.c)
+  # Works around a missing `__xpg_strerror_r` under GCC 15's libstdc++.
+  list(APPEND libdevilutionx_SRCS platform/amiga/strerror_r.c)
 endif()
 
 if(NOT DISABLE_DEMOMODE)
@@ -979,9 +1075,11 @@ target_link_dependencies(libdevilutionx PUBLIC
   libdevilutionx_crawl
   libdevilutionx_direction
   libdevilutionx_dun_render
+  libdevilutionx_sdl2_to_1_2_backports
   libdevilutionx_surface
   libdevilutionx_file_util
   libdevilutionx_format_int
+  libdevilutionx_dun_tile_data
   libdevilutionx_game_mode
   libdevilutionx_gendung
   libdevilutionx_headless_mode
@@ -990,6 +1088,7 @@ target_link_dependencies(libdevilutionx PUBLIC
   libdevilutionx_items
   libdevilutionx_level_objects
   libdevilutionx_light_render
+  libdevilutionx_light_tables
   libdevilutionx_lighting
   libdevilutionx_monster
   libdevilutionx_mpq
@@ -997,8 +1096,12 @@ target_link_dependencies(libdevilutionx PUBLIC
   libdevilutionx_options
   libdevilutionx_padmapper
   libdevilutionx_palette_blending
+  libdevilutionx_parse_dungeon_type
   libdevilutionx_parse_int
+  libdevilutionx_parse_sfx_id
   libdevilutionx_pathfinding
+  libdevilutionx_questdat
+  libdevilutionx_textdat
   libdevilutionx_pkware_encrypt
   libdevilutionx_player
   libdevilutionx_primitive_render
@@ -1016,9 +1119,6 @@ target_link_dependencies(libdevilutionx PUBLIC
   libdevilutionx_utf8
   libdevilutionx_utils_console
 )
-if(NOT TARGET_PLATFORM STREQUAL "dos")
-  target_link_dependencies(libdevilutionx PUBLIC Threads::Threads)
-endif()
 if(DEVILUTIONX_SCREENSHOT_FORMAT STREQUAL DEVILUTIONX_SCREENSHOT_FORMAT_PNG)
   target_link_dependencies(libdevilutionx PUBLIC libdevilutionx_surface_to_png)
 endif()

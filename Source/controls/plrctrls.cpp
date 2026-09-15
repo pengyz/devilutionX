@@ -27,6 +27,7 @@
 #include "controls/game_controls.h"
 #include "controls/touch/gamepad.h"
 #include "cursor.h"
+#include "cursor_defs.hpp"
 #include "levels/gendung.h"
 #include "doom.h"
 #include "engine/point.hpp"

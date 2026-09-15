@@ -84,6 +84,7 @@
 #include "panels/console.hpp"
 #include "panels/info_box.hpp"
 #include "panels/partypanel.hpp"
+#include "panels/quest_log.hpp"
 #include "panels/spell_book.hpp"
 #include "panels/spell_list.hpp"
 #include "spell_tooltip.h"
@@ -134,8 +135,6 @@
 
 namespace devilution {
 
-uint32_t DungeonSeeds[NUMLEVELS];
-std::optional<uint32_t> LevelSeeds[NUMLEVELS];
 Point MousePosition;
 bool gbRunGameResult;
 bool ReturnToMainMenu;
@@ -958,6 +957,7 @@ void RunGameLoop(interface_mode uMsg)
 		}
 
 		ProcessGameMessagePackets();
+		this_sdl_thread::yield();
 		if (game_loop(gbGameLoopStartup))
 			diablo_color_cyc_logic();
 		gbGameLoopStartup = false;
