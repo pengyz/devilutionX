@@ -1091,7 +1091,7 @@ bool DeltaGetItem(const TCmdGItem &message, uint8_t bLevel)
 			delta.def.dwSeed = message.def.dwSeed;
 			if (message.def.wIndx == IDI_EAR) {
 				delta.ear.bCursval = message.ear.bCursval;
-				CopyUtf8(delta.ear.heroname, message.ear.heroname, sizeof(delta.ear.heroname));
+				CopyUtf8(delta.ear.heroname, std::string_view(message.ear.heroname, sizeof(message.ear.heroname)), sizeof(delta.ear.heroname));
 			} else {
 				delta.item.bId = message.item.bId;
 				delta.item.bDur = message.item.bDur;
@@ -1357,7 +1357,7 @@ void PrepareItemForNetwork(const Item &item, TCmdChItem &message)
 void RecreateItem(const Player &player, const TCmdPItem &message, Item &item)
 {
 	if (message.def.wIndx == Swap16LE(IDI_EAR))
-		RecreateEar(item, Swap16LE(message.ear.wCI), Swap32LE(message.ear.dwSeed), message.ear.bCursval, message.ear.heroname);
+		RecreateEar(item, Swap16LE(message.ear.wCI), Swap32LE(message.ear.dwSeed), message.ear.bCursval, std::string_view(message.ear.heroname, sizeof(message.ear.heroname)));
 	else
 		RecreateItem(player, message.item, item);
 }
@@ -1365,7 +1365,7 @@ void RecreateItem(const Player &player, const TCmdPItem &message, Item &item)
 void RecreateItem(const Player &player, const TCmdChItem &message, Item &item)
 {
 	if (message.def.wIndx == Swap16LE(IDI_EAR))
-		RecreateEar(item, Swap16LE(message.ear.wCI), Swap32LE(message.ear.dwSeed), message.ear.bCursval, message.ear.heroname);
+		RecreateEar(item, Swap16LE(message.ear.wCI), Swap32LE(message.ear.dwSeed), message.ear.bCursval, std::string_view(message.ear.heroname, sizeof(message.ear.heroname)));
 	else
 		RecreateItem(player, message.item, item);
 }
@@ -1395,7 +1395,7 @@ int SyncDropEar(Point position, const TEar &ear)
 	    Swap16LE(ear.wCI),
 	    Swap32LE(ear.dwSeed),
 	    ear.bCursval,
-	    ear.heroname);
+	    std::string_view(ear.heroname, sizeof(ear.heroname)));
 }
 
 int SyncDropItem(const TCmdGItem &message)

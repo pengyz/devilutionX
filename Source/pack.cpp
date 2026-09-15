@@ -450,7 +450,7 @@ bool UnPackNetItem(const Player &player, const ItemNetPack &packedItem, Item &it
 	if (idx < 0 || idx >= static_cast<_item_indexes>(AllItemsList.size()))
 		return true;
 	if (idx == IDI_EAR) {
-		RecreateEar(item, Swap16LE(packedItem.ear.wCI), Swap32LE(packedItem.ear.dwSeed), packedItem.ear.bCursval, packedItem.ear.heroname);
+		RecreateEar(item, Swap16LE(packedItem.ear.wCI), Swap32LE(packedItem.ear.dwSeed), packedItem.ear.bCursval, std::string_view(packedItem.ear.heroname, sizeof(packedItem.ear.heroname)));
 		return true;
 	}
 
