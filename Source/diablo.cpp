@@ -102,6 +102,7 @@
 #include "stores.h"
 #include "storm/storm_net.hpp"
 #include "storm/storm_svid.h"
+#include "tables/level_roster.h"
 #include "tables/monstdat.h"
 #include "tables/playerdat.hpp"
 #include "towners.h"
@@ -2809,6 +2810,7 @@ int DiabloMain(int argc, char **argv)
 	LoadSpellDescData();
 	LoadMissileData();
 	LoadMonsterData();
+	LoadLevelRoster();
 	LoadItemData();
 	LoadObjectData();
 	LoadQuestData();

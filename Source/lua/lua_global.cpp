@@ -42,6 +42,7 @@
 #include "options.h"
 #include "plrmsg.h"
 #include "stores.h"
+#include "tables/level_roster.h"
 #include "utils/console.h"
 #include "utils/log.hpp"
 #include "utils/str_cat.hpp"
@@ -275,6 +276,7 @@ void LuaReloadActiveMods()
 	LoadSpellData();
 	LoadMissileData();
 	LoadMonsterData();
+	LoadLevelRoster();
 	LoadItemData();
 	LoadObjectData();
 	LoadQuestData();
