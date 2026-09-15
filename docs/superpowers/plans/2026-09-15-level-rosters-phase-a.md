@@ -43,7 +43,7 @@
 
 ---
 
-### 任务 1：基线实测（placed class mix 与名册规模）
+## Task 1: 基线实测（placed class mix 与名册规模）
 
 **文件：**
 - 新建：`test/level_roster_baseline_test.cpp`
@@ -191,7 +191,7 @@ git commit -m "test(roster): measure the placed class-mix baseline per level"
 
 ---
 
-### 任务 2：名册数据与加载/校验单元
+## Task 2: 名册数据与加载/校验单元
 
 **文件：**
 - 新建：`assets/txtdata/monsters/level_rosters.tsv`、`assets/txtdata/monsters/level_roster_params.tsv`
@@ -402,7 +402,7 @@ git commit -m "feat(roster): add per-level roster tables with load-time validati
 
 ---
 
-### 任务 3：采样接入（core 预加 + 尾池 + 配额 + 逐层预算）
+## Task 3: 采样接入（core 预加 + 尾池 + 配额 + 逐层预算）
 
 **文件：**
 - 修改：`Source/monster.cpp`（`GetLevelMTypes()`，`:3439+`）
@@ -560,6 +560,13 @@ TEST_F(SamplingBaselineTest, A1A3VariantsAreCore)
 运行：`python3 tools/run_tests.py --test sampling_behavior_test`
 预期：全部 PASS
 
+在提交前必须处理**本任务引入的采样顺序变化**的两个后果：
+1. 若 `timedemo` 或其它硬编码夹具失配 → 按 `docs/knowledge/` 既有流程**重生成**（宪章决策 35：不做存档兼容，但夹具必须重生成）；
+2. 若 B1 既有期望（`HellL15SameClassTailBaseline` 等）因 core 预加而失败 → 按规格 §4.5 调整**名册或 `class_floors`**，**不得**放宽阈值。
+
+运行：`python3 tools/run_tests.py --json /tmp/ci.json`
+预期：`ctest.failed == 0`、`passed_pct == 100`、`drift.drift_ok == true`
+
 ```bash
 git add Source/monster.cpp test/sampling_behavior_test.cpp
 git commit -m "feat(roster): sample each level from its roster (core + bounded tail + class floors)"
@@ -567,7 +574,7 @@ git commit -m "feat(roster): sample each level from its roster (core + bounded t
 
 ---
 
-### 任务 4：class mix 验收、eval、夹具与台账
+## Task 4: class mix 验收、eval、夹具与台账
 
 **文件：**
 - 修改：`test/level_roster_baseline_test.cpp`（加入阈值用例）
@@ -617,9 +624,7 @@ TEST(LevelRosterBaseline, PlacedClassMixWithinBaseline)
 
 - [ ] **步骤 4：重生成受影响夹具 + 台账**
 
-```bash
-python3 tools/run_tests.py --json /tmp/ci.json   # 若 timedemo 等夹具因 RNG 序列变化而失败，按 docs/knowledge 的既有流程重生成
-```
+（夹具重生成已在任务 3 完成；本任务只需确认全量门禁仍绿。）
 
 在 `docs/knowledge/decision_save_format_policy.md` 台账追加一行（日期 / 变更："逐层名册改变采样顺序 → `monster.levelType` 索引语义变化" / 触碰：`Source/monster.cpp`、`assets/txtdata/monsters/level_rosters.tsv` / 兼容处置：**不做兼容**（决策 35））。
 
