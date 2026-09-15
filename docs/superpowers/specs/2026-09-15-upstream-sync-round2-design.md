@@ -1,8 +1,8 @@
 # 上游同步（第二轮）：28 个提交 / 4 处冲突
 
-**日期**：2026-09-15
+**日期**：2026-09-15（v2 —— 探测深入后的修订，见 §3「探测深入」）
 **分类**：Infra
-**状态**：草案（待批准）
+**状态**：已批准（实施计划见 `plans/2026-09-15-upstream-sync-round2.md`）
 **评判基准**：`2026-07-27-better-d1-design-charter.md`
 **前置**：`2026-07-27-upstream-integration-design.md`（已实施；其三个全局迁移阻塞项已消解）
 
@@ -70,6 +70,24 @@
 
 **`Source/msg.cpp` 不在交集内**（上游 28 提交未触及它）——本轮同步不会动到刚修的 heroname 读取路径。
 
+### 探测深入：`quests.h` 的整文件冲突（2026-09-15 追加）
+
+初稿按「4 个文件各 1 块冲突」记录，其中 `quests.h` 标为「184 行块，需逐段对照」——**该措辞是错的**，实测结论如下：
+
+| 项 | 事实 | 出处 |
+|---|---|---|
+| 冲突形态 | **整文件冲突**（`<<<<<<<` 在第 1 行，`=======` 在第 151 行） | 探测性 merge |
+| 冲突成因 | 上游把 `quests.h` **重写为 LF**（fork 侧为 CRLF；24 个交集文件中唯一行尾不同的一个），并把它 148 行内容搬到新建的 `Source/tables/questdat.hpp` | `git diff --stat b3e52b1ea origin/master -- Source/quests.h` = `32 insertions(+), 148 deletions(-)`；三方行尾对比 CRLF(merge-base/HEAD) vs LF(origin/master) |
+| fork 侧相对 merge-base 的增量 | **只有 1 行**：`struct QuestData` 末尾的 `std::string scriptName;` | `git diff b3e52b1ea HEAD -- Source/quests.h` = `1 insertion(+)` |
+| 上游新家缺什么 | 上游 `Source/tables/questdat.hpp:117-127` 的 `struct QuestData` 字段与 fork 完全一致，**只缺 `scriptName`** | 逐字比对 |
+| 行尾装置 | `.gitattributes` 为 `* -text`（git 不做行尾归一化）→ CRLF/LF 差异一律整文件冲突 | `.gitattributes` |
+
+**因此 `quests.h` 的正确处置不是「逐段对照取并集」，而是**：取上游全文（保持 LF），把 fork 的 `scriptName` 落到 `tables/questdat.hpp` 的 `QuestData` 里。保持 LF 是硬要求：门禁 C 以**新的 merge-base（= 上游 tip）**为基线比对行尾类型，把该文件写回 CRLF 会直接 FAIL，且会保证以后每次同步都整文件冲突。
+
+### 探测深入：上游 quest 重构的编译连带（2026-09-15 追加）
+
+上游把 `QuestLogIsOpen` / `pQLogCel` / `DrawQuestLog` 从 `quests.h`+`quests.cpp` 迁到新建的 `Source/panels/quest_log.{hpp,cpp}`。fork 侧消费者：`Source/minitext.cpp:165`、`Source/qol/chatlog.cpp:107`（均写 `QuestLogIsOpen = false;`），它们原先依赖 `quests.h` 的声明 → 合并后预期编译失败，修法是补 `#include "panels/quest_log.hpp"`。这类连带由编译门禁暴露，实施计划的任务 7 已按「判据 + 已确认文件」写明，不做盲目预改。
+
 ## 4. 方案
 
 ### 集成方式：merge（不 rebase）
@@ -83,10 +101,11 @@
 1. `git fetch origin master` 固化基线（**已完成**）。
 2. 在 `feature/qol-upgrades` 上 `git merge origin/master`。
 3. 解 4 处冲突（逐处判定依据）：
+   - `quests.h` —— **取上游全文（保持 LF）**，并把 fork 的唯一增量 `QuestData::scriptName` 补进 `Source/tables/questdat.hpp` 的 `struct QuestData`（理由与行尾判据见 §3「探测深入」）。
    - `scrollrt.cpp` —— 取上游签名（`drawInfoBox` + `yield()`），核对 fork 的 `DrawMain` 调用点全部适配并**保留** fork 同处改动。
-   - `quests.h` —— 184 行块按「上游新增状态」+「fork 既有改动」逐段对照；**禁止整块取一侧**。
-   - `plrctrls.cpp` / `quests.cpp` —— 行级判定，取两侧语义并集。
-4. 四道门禁（配置 → 编译 → 测试目标 → 全量），见 §6。
+   - `plrctrls.cpp` —— 行级判定，取两侧 include 并集（`cursor_defs.hpp` + `levels/gendung.h`）。
+   - `quests.cpp` —— 保留 fork 的两个 include（`lua/lua_event.hpp`、`minitext.h`），除非确认其消费者已随上游改动消失。
+4. 处理上游 quest 重构的编译连带（`panels/quest_log.hpp`），四道门禁（配置 → 编译 → 测试目标 → 全量），见 §6。
 5. 同步后立即复核 heroname：`git show origin/master:Source/msg.cpp | grep -n heroname`。若上游仍未修（当前如此）→ 保留 fork 修复，按 `docs/knowledge/pattern_fixed_width_field_reads.md` 记为 fork-only 分叉点，并把该修复提为上游 PR（文案与 ASan 复现已具备）。
 
 ### 风险与缓解
@@ -98,6 +117,8 @@
 | `quests.h` 184 行块误取一侧导致任务逻辑回归 | `2c1a364da`（#8475） | 逐段对照 + `quests_test` / `quest_script_test` |
 | 上游渲染改动与 fork 渲染改动语义冲突 | `e00b7260f`、`c90181d54`；fork 侧有浮动信息 UI、双 tooltip、暗黑远征光照 | `scrollrt_test`、`palette_blending_test`、eval `render-*`；必要时逐屏验证 |
 | 同步后漂移校验口径变化掩盖真实漂移 | `check_drift.py` 以 merge-base 为基线 | 同步前后各跑一次 drift 并对比输出，结论写入实施记录 |
+| 行尾差异造成整文件冲突，且处置错误会直接挂门禁 | `.gitattributes` = `* -text`；上游把 `quests.h` 重写为 LF（24 个交集文件中唯一一个） | 被上游重写为 LF 的文件**保持 LF**（判据见 §3「探测深入」）；门禁 C 在 §6 第 7 项单列 |
+| 上游 quest 重构（`QuestLogIsOpen`/`DrawQuestLog` 迁往 `panels/quest_log.hpp`）导致 fork 消费者编译失败 | 上游 #8475；fork 消费者 `minitext.cpp:165`、`qol/chatlog.cpp:107` | 由编译门禁暴露后按判据补 include（实施计划任务 7），不做盲目预改 |
 
 ## 5. 红线检查
 
@@ -129,7 +150,7 @@
 | 4 | 全量测试通过 | `python3 tools/run_tests.py --json /tmp/ci.json` | `ctest.failed == 0`、`ctest.passed_pct == 100`（基线 698 项，以零失败为准，数量变化须记录原因） |
 | 5 | eval smoke 门禁 | `python3 -m tools.eval.backend --smoke` | exit 0（36/36） |
 | 6 | 漂移校验 | 同上 JSON `steps.drift` | `drift_ok == true`，5 项 PASS |
-| 7 | 行尾未被破坏 | drift check C / C2 | PASS |
+| 7 | 行尾未被破坏 | drift check C / C2 | 两项 PASS；并确认 `Source/quests.h` 保持上游的 LF（若被写回 CRLF，C 会 FAIL——见 §3「探测深入」） |
 | 8 | heroname 分叉状态已复核并记录 | `git show origin/master:Source/msg.cpp \| grep -n heroname` | 有明确结论（已修/未修）并写入实施记录；未修则提上游 PR |
 | 9 | timedemo quarantine 状态 | `cd build && ./timedemo_test --gtest_filter='Timedemo.*'` | 仍为 `Skipped`（若上游改动使其变化，记录原因） |
 | 10 | CI 绿 | `gh run list --workflow=better-d1-ci.yml --limit 1` | 最新一次为 `success` |
