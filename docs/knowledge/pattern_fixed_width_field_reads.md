@@ -21,6 +21,8 @@ strcpy(hero_names[i], pkplr.pName);                                             
 
 **实例（同一类，两次）**：上游 `b4dfc8d26` 修了玩家名 3 处（本 fork 原样存在，已移植 `4d8fd3f5b`），但**没修耳朵名**——`TEar::heroname` 在 `msg.cpp`（抄写、`RecreateEar` ×2、`SyncDropEar`）与 `pack.cpp`（`UnPackNetItem`）共 5 处同样越界，**上游 master 至今仍是**（fork 修于 `a82c0a827`）。
 
+**上游状态（2026-09-15 同步后复核）**：仍**未修**。判据是上游 tip 而非本地：以 `origin/master` = `e00b7260fff69f42a3d16b60353abced6ee04ace`（`2026-09-15 05:32:22 +0200`，`Prevent inlining of blitter operations`）实测，裸字段读取恰好仍是 5 处——`Source/msg.cpp:1094`（`CopyUtf8` 的源 `message.ear.heroname`）、`1360` 与 `1368`（`RecreateItem` ×2 的 `RecreateEar` 实参）、`1398`（`SyncDropEar` 实参 `ear.heroname`）、`Source/pack.cpp:445`（`UnPackNetItem` 的 `RecreateEar` 实参 `packedItem.ear.heroname`），均未加 `sizeof` 限定。fork 侧同 5 个调用点已收敛为 `std::string_view(field, sizeof(field))`（`a82c0a827`，本轮 merge 后未被上游覆盖）——即该分歧在本轮同步后依然存在，fork 修复需继续保留。
+
 **为什么：** 越界读不会崩溃（读到 NUL 就停），只会把相邻内存当名字读出来（物品名变成垃圾、潜在信息泄露），或走到未映射页时崩——**没有编译期信号、正常游玩也不触发**，只有恶意/损坏输入才暴露。C++ 的 `char*` → `string_view` 隐式转换把这种不安全读写得很自然，是这类 bug 反复出现的原因。
 
 **何时使用：** 任何把定长字段交给 `std::string_view`/`std::string`/`CopyUtf8`/`FormatRuntime`/`strcpy`/`strcat` 的地方。审计现有代码：
