@@ -14,7 +14,7 @@
 
 - 分类已定：A1/A3 属**扩充层（Expansion）**，按各自规格第 2 节；harness 属 **Infra**（纯测试、玩家零感知）。
 - **零新美术**：只复用既有 16 帧 special / Attack 动画与 tint，不新增贴图。
-- **存档格式可改，但必须有纪律（宪章决策 34，2026-09-15）**：本分支**不保证存档兼容性，甚至不保证存档格式兼容**——`Monster`/`Item` 等结构可新增字段并序列化。但必须：① 留**版本标记**；② 版本不匹配时**明确拒绝或明确忽略**该存档，**不得静默误读**（仓库已有两起静默损坏事故）；③ 多人要求同版本；④ 改动后**重新生成**硬编码夹具（`pack_test` 期望数组、`writehero` golden SHA、`timedemo` 参考存档与采样用例），不得手改数字。冲锋冷却因此用**显式字段**（见事实 §D1）。
+- **存档格式可改，且初版功能阶段不做兼容（宪章决策 34 + 35，2026-09-15）**：不保证存档兼容性（甚至不保证格式兼容），**兼容层留到初版功能完成后单独立项**。现阶段只要求：① 改动后**重新生成**硬编码夹具（`pack_test` 期望数组、`writehero` golden SHA、`timedemo` 参考存档与采样用例），不得手改数字；② 在格式台账 `docs/knowledge/decision_save_format_policy.md` 记一行（给将来的兼容层留地图）；③ 多人要求同版本。冲锋冷却因此用**显式字段**（见事实 §D1）。
 - **数据改动只允许**改 `assets/txtdata/monsters/monstdat.tsv` 与 `mods/hf/txtdata/monsters/monstdat.tsv` 的既有行；**不得新增怪物行**；两处必须同步（它们在这些行上逐字相同，实测见事实 §C）。
 - 行尾：C++ 与 `.tsv` 均为 **CRLF**；`.md/.yml/.yaml/.py` 为 **LF**。改动后逐文件自查。
 - 测试注册**两处都要**：`CMake/Tests.cmake`（`tests` 列表）**与** `tools/run_tests.py` 的 `TEST_TARGETS`。本轮上游同步刚修过这两处脱钩导致的覆盖缺口（`sampling_behavior_test`），不要再造同类问题。
@@ -530,7 +530,7 @@ MSG
 	int8_t chargeCooldown = 0;
 ```
 
-2）在 `Source/loadsave.cpp` 的 `SaveMonster`/`LoadMonster` 中各加一处序列化（与相邻 `goalVar2/3` 同一次读写）；并按宪章决策 34 的纪律留**存档版本标记**，使不匹配的旧存档被**明确拒绝或忽略**而非静默误读。
+2）在 `Source/loadsave.cpp` 的 `SaveMonster`/`LoadMonster` 中各加一处序列化（与相邻 `goalVar2/3` 同一次读写）。**不做兼容处理**（决策 35：初版功能阶段不保证兼容）；但需**重新生成受影响夹具**，并在 `docs/knowledge/decision_save_format_policy.md` 台账追加一行。
 
 3）在 `Source/monster.cpp` 的 `SkeletonAi` 定义之后新增常量块：
 
@@ -654,10 +654,11 @@ pursuit branch verbatim - SkeletonAi never reads goal, so setting the goal
 alone would be a no-op (this exact mistake was caught in spec review v4).
 
 The charge cooldown is an explicit, persisted Monster::chargeCooldown.
-Charter decision 34 waived save (and save-format) compatibility, so there is no
-longer a reason to smuggle it into goalVar3 - which ScavengerAi/MegaAi/GolemAi
-still own. SaveMonster/LoadMonster gain one serialised field, guarded by a save
-version marker so mismatched saves are refused or ignored, never misread.
+Charter decisions 34/35 waived save (and save-format) compatibility and defer
+the compatibility layer until after the first feature set, so there is no longer
+a reason to smuggle it into goalVar3 - which ScavengerAi/MegaAi/GolemAi still
+own. SaveMonster/LoadMonster gain one serialised field; the format-change
+ledger records it and the fixtures are regenerated rather than hand-edited.
 
 Spec: docs/superpowers/specs/2026-08-10-cathedral-skeleton-differentiation-design.md
 MSG

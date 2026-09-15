@@ -33,6 +33,7 @@
 <!-- 调试方法、关键日志位置、排查路径 -->
 
 ## Decisions
+- [`decision_save_format_policy.md`](decision_save_format_policy.md) — 存档格式策略（初版功能阶段不做兼容）+ **格式变更台账**（动序列化前先查、动完记一行）
 <!-- 已验证的取舍（含正反馈） -->
 
 - [深度层旗舰 = 黑暗远征（视野限制）](decision_dark_expedition_direction.md) — 两轮 Oracle 对抗评审确认：光照是唯一引擎原生信息限制杠杆，但必须配反制（CanTarget + Infravision 卷轴预算）
