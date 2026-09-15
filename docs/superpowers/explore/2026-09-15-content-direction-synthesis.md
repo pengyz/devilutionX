@@ -45,7 +45,7 @@
 | 约束 | 证据 | 后果 |
 |---|---|---|
 | **采样预算 4000** | `monster.cpp:3516`（`while (nt > 0 && LevelMonsterTypeCount < MaxLvlMTypes && monstimgtot < 4000)`）+ 循环内 `image > 4000 - monstimgtot` 淘汰 | 后期单层 2-4 类；**改它=一个常量**，但须先实测 |
-| **`image` 单位未证实** | `MT_XSKELAX` frames=72/image=553、`MT_BMAGMA` frames=75/image=1680（帧数近似、image 差 3×） | "4000→8000=内存翻倍"是**推断**；须用 `monster.cpp:3691` 的 `LogVerbose("… KiB …")` 实测 |
+| **`image` 单位未证实** | `MT_XSKELAX` frames=72/image=553、`MT_BMAGMA` frames=75/image=1680（帧数近似、image 差 3×） | 仅影响**遗留目标**的预算参数化；**内存不是决策门槛**（2026-09-15 作者判定）。改采样的真代价是**存档 `levelType` 索引语义**与**层身份同质化** |
 | **存档 `levelType` 是 `LevelMonsterTypes` 索引** | `loadsave.cpp:681` | **改采样构成=改旧存档里怪物的解释**；缓解靠既有 `MonsterConversionData`/`LevelConversionData`（`loadsave.cpp:258-266`） |
 | **玩家级新轴可零格式破坏** | `pack.h:73 reserved`、`:75 reserved2[2]`、`:81 reserved3[20]`（"For future use"）；全仓 `grep reserved` **零写入** | L1 玩家级成长轴有 21+ 字节空闲空间 |
 | **物品级新轴受四重约束** | ①`ItemPack` 19B 无保留位；②每件物品仅 1 前缀+1 后缀（`items.h:247-248`）；③**无插槽系统**（socket 全仓 0 命中）；④**存档物品是种子重生成**（`RecreateItem`→`SetupAllItems`），改词缀/谓词会静默改变旧存档物品（实证 gotcha `gotcha_vendor_predicate_seed_drift.md`） | D2 式物品化路线成本 **6-12 人月**且高危；L1 若不碰物品结构则便宜 |
@@ -90,7 +90,7 @@
 | **P0** | **编组层接通**（普通散布传 leader/leashed + 混合小队语义 + 编组可读性） | **1-3 人日**（纯调用点改造，零资产零新字段） | `monster.cpp:308/3780/3411`；E2/E5/E5a 三方一致 | 低（不碰存档） |
 | **P0** | **逐层配额（下限+上限）**：把 B1 的"同类上限"扩成配额 | **数人日**（同一处代码 + 同一套 harness） | `monster.cpp:3509-3551`、`test/sampling_behavior_test.cpp:36-50` | 低-中（改采样构成→**动到存档 `levelType` 语义**，需转换路径） |
 | **P0** | **地形主题可达性与层段语义**（主题选择语义化；同 tileset 4 层差异化） | 数人日-周 | `themes.cpp:839/844/851-853`；E2 指出 4 层生成参数几乎相同（`drlg_l1/l2/l3` 仅 5-6 处 `currlevel` 且全用于任务/楼梯） | 低（生成参数，不碰存档） |
-| **P0** | **预算常量**（4000 → 分级/提高） | **2-8 人时改一个常量**，但需先实测 | `monster.cpp:3516`；**前置**：用 `:3691 LogVerbose` 实测 KiB + 3DS/Vita/Amiga 内存 + 存档转换 | **中-高**（内存 + 存档语义 + 平台矩阵） |
+| **P0′** | **逐层名册 + 配额**（核心名册 + 轮换尾池 + 行为下限/上限），替代"提高预算常量" | 数人日-数周（同一处采样代码） | `monster.cpp:3509-3551` 已有 classCounts + 上限；P0 实测：后期一层仅 3.2 类、Σimage 顶格 3523-3762/4000、候选仍有 9-16 | 中：**存档 `levelType` 索引语义**（建议一次性刻意改）+ 层身份设计 |
 | **P0** | **Pepin 免费全疗**的预算补洞 | 数人日 | `stores.cpp:1018-1027` | 中（改变既有平衡行为） |
 | **P1** | A1/A3（已规划） | 计划在途 | — | 低（但**收益预期须下调**） |
 | **P2** | 终局层（E4 方案 C→A） | 数周 | `setmaps.cpp:100`、`_pSLvlVisited` | 中（`SL_LAST` 边界 + 多人协议） |
