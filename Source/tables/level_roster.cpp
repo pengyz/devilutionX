@@ -132,6 +132,21 @@ void LoadLevelRosterParamsFromFile(DataFile &dataFile, std::string_view filename
 
 std::optional<std::string> ValidateLevelRoster(std::span<const LevelRosterEntry> entries, std::span<const LevelRosterParams> params)
 {
+	if (gbIsSpawn) {
+		// Shareware (spawn) data ships a much smaller monster/unique set, so the full
+		// retail-style checks (per-row availability, unique-base whitelist, class floor
+		// satisfiability) are not meaningful here. Relaxed mode only requires that every
+		// level with roster params has at least one core member.
+		for (const LevelRosterParams &param : params) {
+			const bool hasCore = std::any_of(entries.begin(), entries.end(), [&param](const LevelRosterEntry &e) {
+				return e.level == param.level && e.role == LevelRosterRole::Core;
+			});
+			if (!hasCore)
+				return StrCat("level ", param.level, " has no core roster members (spawn mode)");
+		}
+		return std::nullopt;
+	}
+
 	for (const LevelRosterEntry &entry : entries) {
 		if (static_cast<size_t>(entry.type) >= MonstersData.size())
 			return StrCat("roster row names unknown monster id ", static_cast<int>(entry.type));

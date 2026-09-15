@@ -80,3 +80,33 @@ TEST_F(LevelRosterTest, ValidationRejectsAUniqueBaseWithoutTheWhitelist)
 	const std::vector<LevelRosterEntry> allowedEntries { { 4, MT_NGOATMC, LevelRosterRole::Core, true } };
 	EXPECT_FALSE(ValidateLevelRoster(allowedEntries, params).has_value());
 }
+
+TEST_F(LevelRosterTest, ValidationRelaxesInSpawnMode)
+{
+	// MT_DIABLO is Never-available in the full retail check (only unlocked via a dedicated
+	// path, not the normal availability window), so this table is rejected under retail.
+	const std::vector<LevelRosterEntry> entries { { 1, MT_DIABLO, LevelRosterRole::Core, false } };
+	const std::vector<LevelRosterParams> params { { 1, 6000, 2, {} } };
+
+	gbIsSpawn = true;
+	EXPECT_FALSE(ValidateLevelRoster(entries, params).has_value());
+
+	// Prove the branch is actually taken, not that retail checks were silently disabled:
+	// the same table must still be rejected once we switch back to retail.
+	gbIsSpawn = false;
+	EXPECT_TRUE(ValidateLevelRoster(entries, params).has_value());
+}
+
+TEST_F(LevelRosterTest, ValidationRejectsLevelWithNoCoreInSpawnMode)
+{
+	// Level 1 has roster params but only a tail member, no core member.
+	const std::vector<LevelRosterEntry> entries { { 1, MT_NZOMBIE, LevelRosterRole::Tail, false } };
+	const std::vector<LevelRosterParams> params { { 1, 6000, 2, {} } };
+
+	gbIsSpawn = true;
+	const auto error = ValidateLevelRoster(entries, params);
+	gbIsSpawn = false;
+
+	ASSERT_TRUE(error.has_value());
+	EXPECT_NE(error->find("core"), std::string::npos);
+}
