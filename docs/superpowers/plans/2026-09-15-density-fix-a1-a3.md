@@ -14,7 +14,7 @@
 
 - 分类已定：A1/A3 属**扩充层（Expansion）**，按各自规格第 2 节；harness 属 **Infra**（纯测试、玩家零感知）。
 - **零新美术**：只复用既有 16 帧 special / Attack 动画与 tint，不新增贴图。
-- **不改存档格式**：`Monster` 会被 `SaveMonster`/`LoadMonster`（`Source/loadsave.cpp`）与 MP 的 `TSyncMonster` 序列化，**禁止新增 `Monster` 字段**；冷却复用已持久化的 `goalVar3`（见事实 §D1）。
+- **存档格式可改，但必须有纪律（宪章决策 34，2026-09-15）**：本分支**不保证存档兼容性，甚至不保证存档格式兼容**——`Monster`/`Item` 等结构可新增字段并序列化。但必须：① 留**版本标记**；② 版本不匹配时**明确拒绝或明确忽略**该存档，**不得静默误读**（仓库已有两起静默损坏事故）；③ 多人要求同版本；④ 改动后**重新生成**硬编码夹具（`pack_test` 期望数组、`writehero` golden SHA、`timedemo` 参考存档与采样用例），不得手改数字。冲锋冷却因此用**显式字段**（见事实 §D1）。
 - **数据改动只允许**改 `assets/txtdata/monsters/monstdat.tsv` 与 `mods/hf/txtdata/monsters/monstdat.tsv` 的既有行；**不得新增怪物行**；两处必须同步（它们在这些行上逐字相同，实测见事实 §C）。
 - 行尾：C++ 与 `.tsv` 均为 **CRLF**；`.md/.yml/.yaml/.py` 为 **LF**。改动后逐文件自查。
 - 测试注册**两处都要**：`CMake/Tests.cmake`（`tests` 列表）**与** `tools/run_tests.py` 的 `TEST_TARGETS`。本轮上游同步刚修过这两处脱钩导致的覆盖缺口（`sampling_behavior_test`），不要再造同类问题。
@@ -69,7 +69,13 @@
 
 ### D. 计划对规格的两处偏离（已裁决）
 
-- **D1 — `chargeCooldown` 复用 `goalVar3`，不新增 `Monster` 字段。** 依据：`Source/loadsave.cpp` 的 `SaveMonster`/`LoadMonster` 会序列化 `goalVar1/2/3`（`goalVar1` 写成 int32 读回 int16、`goalVar2/3` 读回 int8）与 `var1/2/3`，`Monster` **不是**临时结构；新增字段要么改存档格式（红线：存档兼容）、要么不持久化（读档后冷却丢失）。而 `goalVar1` 被 A1 的狂乱倒计时占用、`goalVar2` 被 `AiRangedAvoidance` 的 `RoundWalk` 占用，**`goalVar3` 在这两类 AI 上无使用者**（`monster.h` 注明它只被 `ScavengerAi`/`MegaAi`/`GolemAi` 使用），且 A3 规格原文即写「复用 goalVar 模式」。故本计划统一用 `goalVar3` 作为冲锋冷却（int8 语义，范围 0-127 tick 足够）。**若错的代价**：低——冷却语义完全等价，且不碰存档格式；若日后需要独立字段，再单独立项改存档版本。
+- **D1（2026-09-15 修订）— 冲锋冷却用显式字段 `Monster::chargeCooldown`（int8_t）。** 原裁决「复用 `goalVar3`」的唯一理由是**避免改存档格式**；宪章决策 34 解除该约束后复用不再划算：①消除与 `ScavengerAi`/`MegaAi`/`GolemAi` 共用 `goalVar3` 的耦合风险；②冷却**可持久化**（读档后不丢）；③回归 A1 规格 §4.3 的字段命名。代价 = `Monster` 结构 + `SaveMonster`/`LoadMonster` 各一处序列化 + 受影响夹具重生成。**若错的代价**：低。
+
+<details><summary>原文（已作废，供对照）</summary>
+
+ 依据：`Source/loadsave.cpp` 的 `SaveMonster`/`LoadMonster` 会序列化 `goalVar1/2/3`（`goalVar1` 写成 int32 读回 int16、`goalVar2/3` 读回 int8）与 `var1/2/3`，`Monster` **不是**临时结构；新增字段要么改存档格式（红线：存档兼容）、要么不持久化（读档后冷却丢失）。而 `goalVar1` 被 A1 的狂乱倒计时占用、`goalVar2` 被 `AiRangedAvoidance` 的 `RoundWalk` 占用，**`goalVar3` 在这两类 AI 上无使用者**（`monster.h` 注明它只被 `ScavengerAi`/`MegaAi`/`GolemAi` 使用），且 A3 规格原文即写「复用 goalVar 模式」。故本计划统一用 `goalVar3` 作为冲锋冷却（int8 语义，范围 0-127 tick 足够）。（本文已作废）
+
+</details>
 - **D2 — A1 规格 §4.3 的伪代码只作意图说明，签名与门控一律以引擎现行调用点为准**（见事实 §B）。依据：规格 v4 已把「前摇」「攻速/移速加成」等虚构机制删除，但伪代码里的 `LineClear(...)`/`AddMissile(...)` 参数列表仍是示意；直接照抄可能编译不过或行为不等价。**若错的代价**：低——编译门禁立即暴露。
 - **D3 — Storm Lord 的冲锋伤害是「有意的口径例外」**：TSV 实测 `MT_STORML` 普通伤害 12-24、special 4-16，与「special = 普通伤害值」的 A1/A3 口径不符；规格 A3 §4.2 明文要求 Storm Lord 不改列，故保持 4-16 并在 Task 8 步骤 1 显式声明该例外（否则会被误判为漏改）。若规格作者本意是 12-24，**先改 A3 规格 §4.2 再改数据**。**若错的代价**：低——只是一个承载的冲锋伤害偏低，且与规格字面一致。
 
@@ -515,9 +521,18 @@ MSG
 - 依赖输入：Task 2 的枚举值与 `AiProc` 条目
 - 对外产出：`SkeletonChargeAi(Monster &)`、`SkeletonBerserkAi(Monster &)`；文件内常量 `A1ChargeMinDistance`、`A1ChargeCooldownTicks`、`A1ChargeMaxLevel`、`A1BerserkHpPercent`、`A1BerserkTicks`（供 Task 7 复用冷却常量）
 
-- [ ] **步骤 1：新增常量块（匿名命名空间，不新增头文件符号）**
+- [ ] **步骤 1：新增 `Monster::chargeCooldown` 字段（含序列化）与常量块**
 
-在 `Source/monster.cpp` 的 `SkeletonAi` 定义之后新增：
+1）在 `Source/monster.h` 的 `Monster` 结构中新增字段（紧邻 `var1/2/3`，风格一致）：
+
+```cpp
+	/** Ticks left before this monster may charge again (A1/A3). Persisted. */
+	int8_t chargeCooldown = 0;
+```
+
+2）在 `Source/loadsave.cpp` 的 `SaveMonster`/`LoadMonster` 中各加一处序列化（与相邻 `goalVar2/3` 同一次读写）；并按宪章决策 34 的纪律留**存档版本标记**，使不匹配的旧存档被**明确拒绝或忽略**而非静默误读。
+
+3）在 `Source/monster.cpp` 的 `SkeletonAi` 定义之后新增常量块：
 
 ```cpp
 namespace {
@@ -552,13 +567,13 @@ void SkeletonChargeAi(Monster &monster)
 		return;
 	}
 
-	if (monster.goalVar3 > 0)
-		monster.goalVar3--; // charge cooldown, persisted in goalVar3
+	if (monster.chargeCooldown > 0)
+		monster.chargeCooldown--; // persisted in Monster::chargeCooldown
 
 	const Direction md = GetDirection(monster.position.tile, monster.position.last);
 	const unsigned distanceToEnemy = monster.distanceToEnemy();
 	const int chargeRoll = GenerateRnd(100); // same draw order as RhinoAi
-	if (monster.goalVar3 == 0 && distanceToEnemy >= A1ChargeMinDistance
+	if (monster.chargeCooldown == 0 && distanceToEnemy >= A1ChargeMinDistance
 	    && chargeRoll < 2 * monster.intelligence + 43
 	    && LineClear([&monster](Point position) { return IsTileAvailable(monster, position); }, monster.position.tile, monster.enemyPosition)) {
 		if (AddMissile(monster.position.tile, monster.enemyPosition, md, MissileID::Rhino, TARGET_PLAYERS, monster, 0, 0) != nullptr) {
@@ -566,7 +581,7 @@ void SkeletonChargeAi(Monster &monster)
 				PlayEffect(monster, MonsterSound::Special);
 			monster.occupyTile(monster.position.tile, true);
 			monster.mode = MonsterMode::Charge;
-			monster.goalVar3 = A1ChargeCooldownTicks;
+			monster.chargeCooldown = A1ChargeCooldownTicks;
 			return;
 		}
 	}
@@ -638,11 +653,11 @@ SkeletonBerserkAi: latches goal=Attack below 50% HP and copies FallenAi's
 pursuit branch verbatim - SkeletonAi never reads goal, so setting the goal
 alone would be a no-op (this exact mistake was caught in spec review v4).
 
-The charge cooldown reuses goalVar3 rather than adding a Monster field:
-SaveMonster/LoadMonster serialise goalVar1/2/3 and var1/2/3, so a new field
-either changes the save format (red line) or is lost on load. goalVar3 is
-unused by SkeletonAi/AiRangedAvoidance (monster.h: ScavengerAi/MegaAi/
-GolemAi only) and A3's spec already expects the goalVar pattern.
+The charge cooldown is an explicit, persisted Monster::chargeCooldown.
+Charter decision 34 waived save (and save-format) compatibility, so there is no
+longer a reason to smuggle it into goalVar3 - which ScavengerAi/MegaAi/GolemAi
+still own. SaveMonster/LoadMonster gain one serialised field, guarded by a save
+version marker so mismatched saves are refused or ignored, never misread.
 
 Spec: docs/superpowers/specs/2026-08-10-cathedral-skeleton-differentiation-design.md
 MSG
@@ -747,7 +762,7 @@ git commit -m "feat(monster): re-assign A1 skeleton rows (charge/berserk/normal)
 |---|---|---|
 | 1 | 距离 ≥ 阈值 + 视线通 + 概率门通过 → 同 tick 冲锋 | `monster.mode == MonsterMode::Charge`（**无前摇**：同一 tick 内）。**概率门保留**（与 `RhinoAi` 一致）：实现时先用一条探针找出「首 tick 的 `GenerateRnd(100)` < `2*intelligence+43`」的种子并写死进用例（`SpawnAt(..., seed)`），从而使「同 tick」可断言——不要为了测试方便删掉门控 |
 | 2 | 冲锋弹道确实生成 | 行为层：`TickWorld()` 后 `Missiles` 非空且含 Rhino 类型 |
-| 3 | 冲锋冷却 | 冲锋后 `goalVar3 == A1ChargeCooldownTicks`；冷却期内再 tick 不再冲锋 |
+| 3 | 冲锋冷却 | 冲锋后 `chargeCooldown == A1ChargeCooldownTicks`；冷却期内再 tick 不再冲锋 |
 | 4 | 近距退回普通 | 距离 < 阈值 → 走 `SkeletonAi`（mode 不进入 Charge） |
 | 5 | 狂乱触发 | `hitPoints < maxHitPoints/2` → `goal == MonsterGoal::Attack` |
 | 6 | 狂乱追击 | 狂暴期远距 → `RandomWalk` 产生的位移/朝敌行为可观察（用快照比较：狂暴前后 30 tick 的位置变化不同） |
@@ -891,12 +906,12 @@ void KiteChargerAi(Monster &monster)
 		return;
 	}
 
-	if (monster.goalVar3 > 0)
-		monster.goalVar3--; // shared charge cooldown (defined with A1, Task 3)
+	if (monster.chargeCooldown > 0)
+		monster.chargeCooldown--; // shared cooldown field (declared with A1, Task 3)
 
 	const Direction md = GetDirection(monster.position.tile, monster.position.last);
 	const unsigned distanceToEnemy = monster.distanceToEnemy();
-	if (monster.goalVar3 == 0 && distanceToEnemy >= A3ChargeMinDistance
+	if (monster.chargeCooldown == 0 && distanceToEnemy >= A3ChargeMinDistance
 	    && LineClear([&monster](Point position) { return IsTileAvailable(monster, position); }, monster.position.tile, monster.enemyPosition)) {
 		const bool lastStand = monster.hitPoints * 100 < monster.maxHitPoints * A3LastStandHpPercent;
 		const bool cornered = CountOpenDirections(monster.enemyPosition) <= A3CorneredDirections;
@@ -906,7 +921,7 @@ void KiteChargerAi(Monster &monster)
 					PlayEffect(monster, MonsterSound::Special);
 				monster.occupyTile(monster.position.tile, true);
 				monster.mode = MonsterMode::Charge;
-				monster.goalVar3 = A1ChargeCooldownTicks; // reuse the A1 cooldown
+				monster.chargeCooldown = A1ChargeCooldownTicks; // reuse the A1 cooldown
 				return;
 			}
 		}
@@ -983,7 +998,7 @@ MSG
 | 1b | 冲锋伤害投递 | 承载的 special 列被 `MonsterAttackPlayer` 使用：断言 Hell Stone `2/20`、Storm Lord `4/16`（数据层；**Storm Lord 的 4-16 是有意例外，见步骤 1 的 D3**）+ 冲锋命中路径产出的伤害落在该区间（行为层） |
 | 2 | 垂死反击 | HP < 30% → 冲锋而非继续风筝 |
 | 3 | 正常仍风筝 | 开阔地 + HP 充足 → 走 `AiRangedAvoidance`（mode 不进入 Charge） |
-| 4 | 冷却 | 冲锋后 `goalVar3` 置位；冷却期内不冲锋 |
+| 4 | 冷却 | 冲锋后 `chargeCooldown` 置位；冷却期内不冲锋 |
 | 4b | 距离/视线门控 | 距离 < 3 或视线阻断 → 不冲锋 |
 | 5 | 墙角判定 | `CountOpenDirections`：开阔地 ≥4、走廊/死角 ≤3（**独立单测该助手**） |
 | 6 | 承载分配 | `MT_BMAGMA`/`MT_STORML` 的 ai 为 `KiteCharger`，其余风筝行（`MT_XACID` 等）不变 |
@@ -1135,8 +1150,8 @@ git commit -m "docs(spec): mark A1/A3 implemented with acceptance results"
 
 - `MonsterAIID::SkeletonCharge` / `SkeletonBerserk` / `KiteCharger` 在 Task 2 定义，Task 3/7 实现，Task 4/8 以**同名**写入 TSV 的 `ai` 列。
 - `SkeletonChargeAi` / `SkeletonBerserkAi` / `KiteChargerAi` 在 Task 2 前置声明，Task 3/7 定义，`AiProc` 表中引用一致。
-- 冷却统一走 `monster.goalVar3`（Task 3 定义常量 `A1ChargeCooldownTicks`，Task 7 复用同一常量——不重复定义）。
+- 冷却统一走 `Monster::chargeCooldown`（Task 3 定义字段与常量 `A1ChargeCooldownTicks`，Task 7 复用同一字段与常量——不重复定义）。
 - harness 产出的 `MonsterAiHarness`/`SpawnAt`/`SpawnAi`/`TickDecision`/`TickWorld`/`AllTilesVisible`/`UseLevel`/`ResetMonstersOnly`/`FindLevelType` 在 Task 1 定义，后续任务按同名调用。
 - eval case 的 `binary` 均为 `monster_behavior_test`，`filter` 与 Task 5/8 的测试套件名前缀一致（`SkeletonDifferentiation*` / `KiteCombination*`）。
 
-**4. 与规格的两处偏离已在事实 §D 显式裁决**（D1 复用 `goalVar3` 替代新增字段；D2 引擎调用点以现行代码为准而非规格伪代码）。
+**4. 与规格的偏离已在事实 §D 显式裁决**：D1 经 2026-09-15 修订为**用显式字段**（宪章决策 34 解除存档约束）；D2 引擎调用点以现行代码为准而非规格伪代码。
