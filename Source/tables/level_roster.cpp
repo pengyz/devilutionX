@@ -130,34 +130,76 @@ void LoadLevelRosterParamsFromFile(DataFile &dataFile, std::string_view filename
 
 } // namespace
 
+uint8_t BehaviorClassCapForLevel(uint8_t level, BehaviorClass cls)
+{
+	// Mirrors monster.cpp's B1 scatter-sampling cap (see :3513-3531): L9-12 caps the
+	// RangedKite class at 2, L13-16 caps any single class at 2, everything else is uncapped.
+	// The validator and the sampling loop share this single source of truth so they cannot drift.
+	if (level >= 13 && level <= 16)
+		return 2;
+	if (level >= 9 && level <= 12 && cls == BehaviorClass::RangedKite)
+		return 2;
+	return 0;
+}
+
 std::optional<std::string> ValidateLevelRoster(std::span<const LevelRosterEntry> entries, std::span<const LevelRosterParams> params)
 {
+	// Type existence/bounds is shared by both modes: a row naming an id outside
+	// MonstersData's range (e.g. a smuggled MT_INVALID) must be rejected before either
+	// mode's relaxed or full checks run, otherwise downstream code could index out of bounds.
+	for (const LevelRosterEntry &entry : entries) {
+		if (static_cast<size_t>(entry.type) >= MonstersData.size())
+			return StrCat("roster row names unknown monster id ", static_cast<int>(entry.type));
+	}
+
+	// Range/shape sanity checks apply in both modes; they are basic structural
+	// requirements, not retail-specific availability/unique semantics.
+	for (const LevelRosterParams &param : params) {
+		if (param.maxImage <= 0)
+			return StrCat("level ", param.level, " has a non-positive max_image (", param.maxImage, ")");
+		if (param.tailDraw < 0)
+			return StrCat("level ", param.level, " has a negative tail_draw (", param.tailDraw, ")");
+		for (const auto &[cls, floor] : param.classFloors) {
+			if (cls == BehaviorClass::Count)
+				return StrCat("level ", param.level, " class floor names the sentinel BehaviorClass::Count, which is not a real category");
+		}
+	}
+
+	// Core-non-empty check: every distinct level appearing in entries or params must have
+	// at least one core member. This is enforced in both modes.
+	std::vector<uint8_t> levels;
+	for (const LevelRosterEntry &entry : entries)
+		levels.push_back(entry.level);
+	for (const LevelRosterParams &param : params)
+		levels.push_back(param.level);
+	std::sort(levels.begin(), levels.end());
+	levels.erase(std::unique(levels.begin(), levels.end()), levels.end());
+	for (const uint8_t level : levels) {
+		const bool hasCore = std::any_of(entries.begin(), entries.end(), [level](const LevelRosterEntry &e) {
+			return e.level == level && e.role == LevelRosterRole::Core;
+		});
+		if (!hasCore)
+			return StrCat("level ", level, " has no core roster members");
+	}
+
 	if (gbIsSpawn) {
 		// Shareware (spawn) data ships a much smaller monster/unique set, so the full
 		// retail-style checks (per-row availability, unique-base whitelist, class floor
-		// satisfiability) are not meaningful here. Relaxed mode only requires that every
-		// level with roster params has at least one core member.
-		for (const LevelRosterParams &param : params) {
-			const bool hasCore = std::any_of(entries.begin(), entries.end(), [&param](const LevelRosterEntry &e) {
-				return e.level == param.level && e.role == LevelRosterRole::Core;
-			});
-			if (!hasCore)
-				return StrCat("level ", param.level, " has no core roster members (spawn mode)");
-		}
+		// satisfiability) are not meaningful here and are relaxed. Type existence and the
+		// core-non-empty check above are still shared with retail mode.
 		return std::nullopt;
 	}
 
 	for (const LevelRosterEntry &entry : entries) {
-		if (static_cast<size_t>(entry.type) >= MonstersData.size())
-			return StrCat("roster row names unknown monster id ", static_cast<int>(entry.type));
 		if (!IsAvailableAt(entry.level, entry.type))
 			return StrCat("monster ", static_cast<int>(entry.type), " is not available at level ", entry.level);
 		if (!entry.allowUniqueBoost && IsUniqueBaseForLevel(entry.level, entry.type))
 			return StrCat("monster ", static_cast<int>(entry.type), " is a unique's base at level ", entry.level, " and needs allow_unique_boost");
 	}
 	for (const LevelRosterParams &param : params) {
-		// Class floor satisfiability: the level's available candidate pool must contain at
-		// least `floor` monsters of that behavior class.
+		// Class floor satisfiability: the level's available candidate pool, after being
+		// truncated by the B1 sampling cap, must still contain at least `floor` monsters
+		// of that behavior class.
 		for (const auto &[cls, floor] : param.classFloors) {
 			size_t available = 0;
 			for (size_t i = 0; i < MonstersData.size(); i++) {
@@ -165,8 +207,10 @@ std::optional<std::string> ValidateLevelRoster(std::span<const LevelRosterEntry>
 				if (IsAvailableAt(param.level, type) && GetBehaviorClass(MonstersData[i].ai) == cls)
 					available++;
 			}
-			if (available < floor)
-				return StrCat("level ", param.level, " class floor ", static_cast<int>(cls), " needs ", floor, " but only ", available, " candidates exist");
+			const uint8_t cap = BehaviorClassCapForLevel(param.level, cls);
+			const size_t effective = cap == 0 ? available : std::min(available, static_cast<size_t>(cap));
+			if (effective < floor)
+				return StrCat("level ", param.level, " class floor ", static_cast<int>(cls), " needs ", floor, " but only ", effective, " candidates exist (", available, " raw, 被 caps 截断 to ", static_cast<int>(cap), ")");
 		}
 	}
 	return std::nullopt;
@@ -184,6 +228,13 @@ void LoadLevelRoster()
 	const std::string_view paramsFilename = "txtdata\\monsters\\level_roster_params.tsv";
 	DataFile paramsFile = DataFile::loadOrDie(paramsFilename);
 	LoadLevelRosterParamsFromFile(paramsFile, paramsFilename);
+
+	// GetLevelRoster() relies on same-level rows being physically contiguous. Nothing
+	// guarantees the TSV rows are grouped by level, so sort them here (stably, so rows
+	// sharing a level keep their file order, which matters for tail draw ordering).
+	std::stable_sort(Entries.begin(), Entries.end(), [](const LevelRosterEntry &a, const LevelRosterEntry &b) {
+		return a.level < b.level;
+	});
 
 	Entries.shrink_to_fit();
 	Params.shrink_to_fit();
