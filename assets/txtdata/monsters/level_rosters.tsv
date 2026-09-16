@@ -42,7 +42,7 @@ level	monster_id	role	allow_unique_boost
 11	MT_STORML	core	-
 11	MT_BMAGMA	core	-
 11	MT_MEGA	core	-
-11	MT_BACID	core	-
+11	MT_OBLORD	core	-
 12	MT_STORML	core	-
 12	MT_MEGA	core	-
 12	MT_NSNAKE	core	-
@@ -52,7 +52,7 @@ level	monster_id	role	allow_unique_boost
 13	MT_SUCCUBUS	core	-
 13	MT_GUARD	core	-
 14	MT_VTEXLRD	core	-
-14	MT_BALROG	core	-
+14	MT_SNOWWICH	core	-
 14	MT_SUCCUBUS	core	-
 14	MT_XACID	core	-
 15	MT_BALROG	core	-

@@ -81,6 +81,7 @@
 #include "sound_effect_enums.h"
 #include "storm/storm_net.hpp"
 #include "tables/itemdat.h"
+#include "tables/level_roster.h"
 #include "tables/misdat.h"
 #include "tables/monstdat.h"
 #include "tables/objdat.h"
@@ -3488,11 +3489,49 @@ std::expected<void, std::string> GetLevelMTypes()
 			RETURN_IF_ERROR(AddMonsterType(skeltypes[GenerateRnd(skeletonTypeCount)], PLACE_SCATTER));
 		}
 
+		// A-roster core pre-add (spec 4.2.2): every core member of the level is
+		// added unconditionally, so a level's identity no longer depends on the
+		// RNG. Core bypasses the behaviour-class caps - those live inside the
+		// sampling loop below - but it does count against the per-level sprite
+		// budget through AddMonsterType, and it is included in classCounts below,
+		// so the caps are computed against the full composition rather than being
+		// underestimated.
+		// GetLevelRoster() deliberately does not filter by availability (see
+		// level_roster.h), so filter here: under shareware data most L5-16 core
+		// rows are Retail-only, and pre-adding an unavailable type would spend the
+		// level's budget on a monster the data set cannot place.
+		for (const LevelRosterEntry &entry : GetLevelRoster(currlevel)) {
+			if (entry.role != LevelRosterRole::Core)
+				continue;
+			if (!IsMonsterAvailable(MonstersData[entry.type]))
+				continue;
+
+			RETURN_IF_ERROR(AddMonsterType(entry.type, PLACE_SCATTER));
+		}
+
+		// Levels without a params row keep the legacy sampling behaviour (R28):
+		// the historical global sprite budget and an unbounded tail draw, so the
+		// loop below is limited only by the budget / MaxLvlMTypes exactly as before.
+		// This currently covers L17-24 (Nest/Crypt), which get their own tables in
+		// phase A2. Falling back to tailDraw = 0 would make the loop condition
+		// tailAdded < tailDraw permanently false, leaving those levels with no
+		// PLACE_SCATTER type at all - i.e. no scattered monsters, a regression
+		// against the pre-roster behaviour.
+		const LevelRosterParams *rosterParams = GetLevelRosterParams(currlevel);
+		const int maxImage = rosterParams != nullptr ? rosterParams->maxImage : 4000;
+		const int tailDraw = rosterParams != nullptr ? rosterParams->tailDraw : std::numeric_limits<int>::max();
+
 		_monster_id typelist[MaxMonsters];
 
 		int nt = 0;
 		for (size_t i = 0; i < MonstersData.size(); i++) {
 			if (!IsMonsterAvailable(MonstersData[i]))
+				continue;
+			// Spec 4.2.3: the tail pool is the candidate pool minus the types the
+			// level already carries (core roster plus the unconditional/quest
+			// pre-adds), so a bounded tail draw is never spent re-picking a type
+			// that is already present.
+			if (GetMonsterTypeIndex(static_cast<_monster_id>(i)) != LevelMonsterTypeCount)
 				continue;
 
 			typelist[nt++] = (_monster_id)i;
@@ -3500,22 +3539,23 @@ std::expected<void, std::string> GetLevelMTypes()
 
 		// B1 sampling-anti-monopoly: cap the per-level behavior mix so random
 		// sampling cannot produce an all-kite Caves level or an all-same-class
-		// Hell level. Caves 9-12: at most 2 RangedKite types. Hell 13-15: at
-		// most 2 of any single class (L16 hardcodes its types and returns
-		// before the cap). Other level ranges are unconstrained.
-		// Counts start from the pre-added types (Golem + quest monsters), so
-		// the cap reflects the full LevelMonsterTypes composition a player
-		// faces, not just the random-sampled portion.
+		// Hell level. The caps themselves come from BehaviorClassCapForLevel
+		// (level_roster.h), which the roster validator uses as well, so the
+		// admissible mix cannot drift between load-time validation and sampling.
+		// Counts start from the pre-added types (Golem + quest monsters + the core
+		// roster), so the cap reflects the full LevelMonsterTypes composition a
+		// player faces, not just the random-sampled portion.
 		uint8_t classCounts[static_cast<size_t>(BehaviorClass::Count)] = {};
 		for (size_t i = 0; i < LevelMonsterTypeCount; i++) {
 			classCounts[static_cast<size_t>(GetBehaviorClass(MonstersData[LevelMonsterTypes[i].type].ai))]++;
 		}
-		const bool capKite = currlevel >= 9 && currlevel <= 12;
-		const bool capSameClass = currlevel >= 13 && currlevel <= 16;
 
-		while (nt > 0 && LevelMonsterTypeCount < MaxLvlMTypes && monstimgtot < 4000) {
+		// Spec 4.2.4: the tail is drawn at most tailDraw times, counting only
+		// draws that actually added a new type.
+		int tailAdded = 0;
+		while (nt > 0 && LevelMonsterTypeCount < MaxLvlMTypes && monstimgtot < maxImage && tailAdded < tailDraw) {
 			for (int i = 0; i < nt;) {
-				if (MonstersData[typelist[i]].image > 4000 - monstimgtot) {
+				if (MonstersData[typelist[i]].image > maxImage - monstimgtot) {
 					typelist[i] = typelist[--nt];
 					continue;
 				}
@@ -3524,22 +3564,39 @@ std::expected<void, std::string> GetLevelMTypes()
 			}
 
 			if (nt != 0) {
-				if (capKite || capSameClass) {
-					for (int i = 0; i < nt;) {
-						const BehaviorClass cls = GetBehaviorClass(MonstersData[typelist[i]].ai);
-						const uint8_t count = classCounts[static_cast<size_t>(cls)];
-						const bool overCap = capSameClass ? count >= 2 : (cls == BehaviorClass::RangedKite && count >= 2);
-						if (overCap) {
-							typelist[i] = typelist[--nt];
-							continue;
-						}
-
-						i++;
+				for (int i = 0; i < nt;) {
+					const BehaviorClass cls = GetBehaviorClass(MonstersData[typelist[i]].ai);
+					const uint8_t cap = BehaviorClassCapForLevel(currlevel, cls);
+					if (cap != 0 && classCounts[static_cast<size_t>(cls)] >= cap) {
+						typelist[i] = typelist[--nt];
+						continue;
 					}
+
+					i++;
 				}
 
 				if (nt != 0) {
-					const int i = GenerateRnd(nt);
+					// Class floors (spec 4.5): a class still below its floor is
+					// drawn before the random pick. This only tops an unmet minimum
+					// up; it never lifts a class above what the caps already allow,
+					// so it cannot be used to raise the ranged share.
+					int preferred = -1;
+					if (rosterParams != nullptr) {
+						for (const auto &[cls, floor] : rosterParams->classFloors) {
+							if (classCounts[static_cast<size_t>(cls)] >= floor)
+								continue;
+							for (int i = 0; i < nt; i++) {
+								if (GetBehaviorClass(MonstersData[typelist[i]].ai) == cls) {
+									preferred = i;
+									break;
+								}
+							}
+							if (preferred >= 0)
+								break;
+						}
+					}
+
+					const int i = preferred >= 0 ? preferred : GenerateRnd(nt);
 					const size_t countBefore = LevelMonsterTypeCount;
 					RETURN_IF_ERROR(AddMonsterType(typelist[i], PLACE_SCATTER));
 					// Only count newly added slots. A type that was already
@@ -3547,6 +3604,7 @@ std::expected<void, std::string> GetLevelMTypes()
 					// regular pool member) must not double-count its class.
 					if (LevelMonsterTypeCount != countBefore) {
 						classCounts[static_cast<size_t>(GetBehaviorClass(MonstersData[typelist[i]].ai))]++;
+						tailAdded++;
 					}
 					typelist[i] = typelist[--nt];
 				}

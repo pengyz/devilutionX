@@ -19,8 +19,10 @@
 #include <cstdlib>
 #include <fstream>
 #include <set>
+#include <span>
 #include <sstream>
 #include <string>
+#include <utility>
 #include <vector>
 
 #include "engine/assets.hpp"
@@ -30,6 +32,7 @@
 #include "monster.h"
 #include "multi.h"
 #include "quests.h"
+#include "tables/level_roster.h"
 #include "tables/monstdat.h"
 #include "utils/str_cat.hpp"
 
@@ -94,6 +97,10 @@ protected:
 		gbIsSpawn = false;
 		sgGameInitInfo.fullQuests = 1; // full quests -> UseMultiplayerQuests() == false
 		LoadMonsterData();
+		// GetLevelMTypes() now samples from the level rosters, which diablo.cpp loads
+		// right after LoadMonsterData(); mirror that order here (validation reads
+		// MonstersData, so it must come second).
+		LoadLevelRoster();
 	}
 
 	static bool missingMpqAssets_;
@@ -194,16 +201,29 @@ TEST_F(SamplingBaselineTest, CavesAnyClassTailBaseline)
 	const double l10 = SameClassTailPercent(10, kIterations, 9000);
 	const double l11 = SameClassTailPercent(11, kIterations, 10000);
 	const double l12 = SameClassTailPercent(12, kIterations, 11000);
-	// Caves cap constrains kite class only; the "any-class >=3" tail is NOT a
-	// cap target (a Melee-heavy Caves level is still possible). Baseline was
-	// L9 1.59% / L10 3.33% / L11 1.18% / L12 2.61%; post-cap measured
-	// L9 1.7% / L10 1.02% / L11 1.32% / L12 0% (kite cap removed the dominant
-	// kite driver, leaving residual Melee-driven tails). Pin post-cap values
-	// so a regression in the sampling loop is still caught.
-	EXPECT_NEAR(l9, 1.7, 0.6) << "Caves L9 any-class tail post-cap (~1.7%)";
-	EXPECT_NEAR(l10, 1.02, 0.6) << "Caves L10 any-class tail post-cap (~1.0%)";
-	EXPECT_NEAR(l11, 1.32, 0.6) << "Caves L11 any-class tail post-cap (~1.3%)";
-	EXPECT_NEAR(l12, 0.0, 0.5) << "Caves L12 any-class tail post-cap";
+	// Caves cap constrains the kite class only; the "any-class >=3" tail is NOT a
+	// cap target (a Melee-heavy Caves level is still possible). History:
+	// pre-cap L9 1.59% / L10 3.33% / L11 1.18% / L12 2.61%; post-cap (random
+	// 3-7 types) L9 1.7% / L10 1.02% / L11 1.32% / L12 0%.
+	//
+	// With the phase-A rosters this tail is no longer a distribution artefact but
+	// arithmetic: a Caves level now realises 1 (Golem) + 4 core + up to
+	// tail_draw(3) = 8 types, while the classes its candidate pool can offer,
+	// with every class held at <= 2, only have room for 8/7/6/6 types at
+	// L9/L10/L11/L12 (measured from the candidate pools). L10-L12 therefore
+	// CANNOT keep every class at 2 - some class must reach 3 - so the tail is
+	// 100% there by construction, and L9 sits at the boundary (59.93%, the only
+	// level with enough distinct classes to sometimes fit).
+	//
+	// This is not a relaxed threshold: the B1 guarantees are asserted by
+	// CavesKiteTailBaseline (kite <= 2, the actual monopoly symptom) and by
+	// RosterQuotasSatisfied (caps hold for everything the loop adds). What
+	// changed is the total type count per level, which is the roster feature's
+	// whole point. Pinned exactly so any further drift is caught.
+	EXPECT_NEAR(l9, 59.93, 0.6) << "Caves L9 any-class tail with rosters (~59.9%)";
+	EXPECT_EQ(l10, 100.0) << "Caves L10 cannot spread 8 types over its classes at <=2 each";
+	EXPECT_EQ(l11, 100.0) << "Caves L11 cannot spread 8 types over its classes at <=2 each";
+	EXPECT_EQ(l12, 100.0) << "Caves L12 cannot spread 8 types over its classes at <=2 each";
 }
 
 TEST_F(SamplingBaselineTest, Level16HardcodedTypes)
@@ -672,5 +692,236 @@ TEST_F(SamplingBaselineTest, MeasurementRosterIdentity)
 		EXPECT_LE(rosters[level].size(), MonstersData.size()) << "level " << static_cast<int>(level);
 	}
 }
+
+// ---------------------------------------------------------------------------
+// Phase A level rosters (task 3): the sampling loop now pre-adds each level's
+// core roster, bounds the tail draw by `tail_draw`, tops up unmet class floors
+// and budgets sprites per level via `max_image`.
+// ---------------------------------------------------------------------------
+
+// Availability filter for a roster row, mirroring the production core pre-add.
+// GetLevelRoster() deliberately does not filter by availability (see
+// level_roster.h), and IsMonsterAvailable() is file-local to monster.cpp, so the
+// same predicate is mirrored here against the currently loaded MonstersData
+// (identical to IsMeasuredCandidate() below, but level-parameterised).
+bool IsRosterEntryAvailableAt(uint8_t level, _monster_id type)
+{
+	const MonsterData &data = MonstersData[type];
+	if (data.availability == MonsterAvailability::Never)
+		return false;
+	if (gbIsSpawn && data.availability == MonsterAvailability::Retail)
+		return false;
+	return level >= data.minDunLvl && level <= data.maxDunLvl;
+}
+
+size_t AvailableCoreCount(uint8_t level)
+{
+	size_t count = 0;
+	for (const LevelRosterEntry &entry : GetLevelRoster(level)) {
+		if (entry.role == LevelRosterRole::Core && IsRosterEntryAvailableAt(level, entry.type))
+			count++;
+	}
+	return count;
+}
+
+// Types that the B1 cap cannot constrain: MT_GOLEM (unconditional PLACE_SPECIAL
+// pre-add) plus the level's core roster, which bypasses the cap by design
+// (spec 4.2.2 - the cap lives inside the sampling loop only).
+size_t CapExemptClassCount(uint8_t level, BehaviorClass cls)
+{
+	size_t count = 0;
+	if (GetBehaviorClass(MonstersData[MT_GOLEM].ai) == cls)
+		count++;
+	for (const LevelRosterEntry &entry : GetLevelRoster(level)) {
+		if (entry.role != LevelRosterRole::Core)
+			continue;
+		if (!IsRosterEntryAvailableAt(level, entry.type))
+			continue;
+		if (GetBehaviorClass(MonstersData[entry.type].ai) == cls)
+			count++;
+	}
+	return count;
+}
+
+bool LevelHasType(_monster_id type)
+{
+	return std::any_of(LevelMonsterTypes, LevelMonsterTypes + LevelMonsterTypeCount,
+	    [type](const CMonster &levelType) { return levelType.type == type; });
+}
+
+TEST_F(SamplingBaselineTest, RosterCoreAlwaysPresent)
+{
+	if (missingMpqAssets_)
+		GTEST_SKIP() << "MPQ assets not found - skipping test";
+
+	// AC1: every available core member of a level is realised on 100% of seeds,
+	// and every core member is a candidate of that level (i.e. the roster row
+	// itself is available there, so pre-adding it is not a smuggled monster).
+	for (uint8_t level = 1; level <= 16; level++) {
+		const std::span<const LevelRosterEntry> roster = GetLevelRoster(level);
+		ASSERT_FALSE(roster.empty()) << "level " << static_cast<int>(level) << " must have roster rows";
+		size_t assertedCores = 0;
+		for (const LevelRosterEntry &entry : roster) {
+			if (entry.role != LevelRosterRole::Core)
+				continue;
+			// Availability is the level-band check too, so this doubles as the
+			// "core must be a candidate of its level" half of AC1.
+			EXPECT_TRUE(IsRosterEntryAvailableAt(level, entry.type))
+			    << "core type " << static_cast<int>(entry.type) << " is not a candidate at level " << static_cast<int>(level);
+			assertedCores++;
+		}
+		EXPECT_GT(assertedCores, 0u) << "level " << static_cast<int>(level) << " must declare at least one core";
+
+		for (int seed = 0; seed < 200; seed++) {
+			currlevel = level;
+			InitLevelMonsters();
+			SetRndSeed(7000 + static_cast<uint32_t>(seed));
+			ASSERT_TRUE(GetLevelMTypes().has_value());
+			// L16 hardcodes its types and returns before the roster pre-add, so
+			// its roster rows are registration only (spec 4.2.7).
+			if (level == 16)
+				continue;
+			for (const LevelRosterEntry &entry : roster) {
+				if (entry.role != LevelRosterRole::Core)
+					continue;
+				EXPECT_TRUE(LevelHasType(entry.type))
+				    << "level " << static_cast<int>(level) << " seed " << seed
+				    << " is missing core type " << static_cast<int>(entry.type);
+			}
+		}
+	}
+}
+
+TEST_F(SamplingBaselineTest, RosterTailDrawBounded)
+{
+	if (missingMpqAssets_)
+		GTEST_SKIP() << "MPQ assets not found - skipping test";
+
+	// AC2: the tail draw is min(tail_draw, available candidates). Counting the
+	// tail as "types beyond the pre-adds" needs the pre-add count measured, not
+	// assumed: Golem is always pre-added and the roster's core count varies.
+	for (uint8_t level = 1; level <= 15; level++) {
+		const LevelRosterParams *params = GetLevelRosterParams(level);
+		ASSERT_NE(params, nullptr) << "level " << static_cast<int>(level) << " must have a params row";
+		for (int seed = 0; seed < 50; seed++) {
+			currlevel = level;
+			InitLevelMonsters();
+			SetRndSeed(8000 + static_cast<uint32_t>(seed));
+			// Measure the pre-add count by replaying only the pre-add phase:
+			// run the real sampling, then subtract the types that the roster and
+			// the unconditional pre-adds account for.
+			ASSERT_TRUE(GetLevelMTypes().has_value());
+			size_t preAdded = 1; // MT_GOLEM (PLACE_SPECIAL, always pre-added)
+			preAdded += AvailableCoreCount(level);
+			const size_t tail = LevelMonsterTypeCount > preAdded ? LevelMonsterTypeCount - preAdded : 0;
+			EXPECT_LE(tail, static_cast<size_t>(params->tailDraw))
+			    << "level " << static_cast<int>(level) << " seed " << seed << " drew more tail types than tail_draw";
+		}
+	}
+}
+
+TEST_F(SamplingBaselineTest, RosterQuotasSatisfied)
+{
+	if (missingMpqAssets_)
+		GTEST_SKIP() << "MPQ assets not found - skipping test";
+
+	// AC3: each level's class floors are met and the B1 caps are never broken.
+	// Caps come from BehaviorClassCapForLevel (the single source of truth the
+	// validator uses), so a drift between validator and sampling loop fails here.
+	for (uint8_t level = 1; level <= 15; level++) {
+		const LevelRosterParams *params = GetLevelRosterParams(level);
+		ASSERT_NE(params, nullptr) << "level " << static_cast<int>(level);
+		for (int seed = 0; seed < 200; seed++) {
+			currlevel = level;
+			InitLevelMonsters();
+			SetRndSeed(9000 + static_cast<uint32_t>(seed));
+			ASSERT_TRUE(GetLevelMTypes().has_value());
+
+			std::array<size_t, static_cast<size_t>(BehaviorClass::Count)> counts {};
+			for (size_t i = 0; i < LevelMonsterTypeCount; i++)
+				counts[static_cast<size_t>(GetBehaviorClass(MonstersData[LevelMonsterTypes[i].type].ai))]++;
+
+			for (const auto &[cls, floor] : params->classFloors) {
+				EXPECT_GE(counts[static_cast<size_t>(cls)], static_cast<size_t>(floor))
+				    << "level " << static_cast<int>(level) << " seed " << seed
+				    << " misses class floor " << static_cast<int>(cls);
+			}
+			for (size_t i = 0; i < counts.size(); i++) {
+				const uint8_t cap = BehaviorClassCapForLevel(level, static_cast<BehaviorClass>(i));
+				if (cap == 0)
+					continue;
+				// The cap constrains what the sampling loop may ADD; unconditional
+				// pre-adds (Golem, quest uniques) and the level's core roster are
+				// exempt by design, so compare against the core+preadd floor.
+				const size_t exempt = CapExemptClassCount(level, static_cast<BehaviorClass>(i));
+				EXPECT_LE(counts[i], std::max(static_cast<size_t>(cap), exempt))
+				    << "level " << static_cast<int>(level) << " seed " << seed
+				    << " breaks the B1 cap for class " << i;
+			}
+		}
+	}
+}
+
+TEST_F(SamplingBaselineTest, IdentityGuard)
+{
+	if (missingMpqAssets_)
+		GTEST_SKIP() << "MPQ assets not found - skipping test";
+
+	// AC9: adjacent levels must not be interchangeable. Reuses the P0-D metric
+	// (union of realised types over 200 seeds -> set -> Jaccard).
+	constexpr int kSeeds = 200;
+	std::vector<std::set<size_t>> rosters(17);
+	for (uint8_t level = 1; level <= 16; level++) {
+		for (int seed = 0; seed < kSeeds; seed++) {
+			currlevel = level;
+			InitLevelMonsters();
+			SetRndSeed(11000 + static_cast<uint32_t>(seed));
+			ASSERT_TRUE(GetLevelMTypes().has_value());
+			for (size_t i = 0; i < LevelMonsterTypeCount; i++)
+				rosters[level].insert(LevelMonsterTypes[i].type);
+		}
+	}
+	for (uint8_t level = 2; level <= 16; level++) {
+		const std::set<size_t> &a = rosters[level - 1];
+		const std::set<size_t> &b = rosters[level];
+		size_t intersection = 0;
+		for (const size_t type : a) {
+			if (b.count(type) != 0)
+				intersection++;
+		}
+		const size_t unionSize = a.size() + b.size() - intersection;
+		const double jaccard = unionSize == 0 ? 0.0 : static_cast<double>(intersection) / static_cast<double>(unionSize);
+		EXPECT_LT(jaccard, 0.9) << "levels " << static_cast<int>(level - 1) << " and " << static_cast<int>(level)
+		                        << " are interchangeable (Jaccard " << jaccard << ")";
+	}
+}
+
+TEST_F(SamplingBaselineTest, A1A3VariantsAreCore)
+{
+	if (missingMpqAssets_)
+		GTEST_SKIP() << "MPQ assets not found - skipping test";
+
+	// AC10: the A1/A3 behaviour carriers must be core on their level, otherwise
+	// those features can silently never appear.
+	const std::vector<std::pair<uint8_t, _monster_id>> carriers {
+		{ 3, MT_RSKELAX }, { 3, MT_XSKELAX }, { 9, MT_BMAGMA }, { 11, MT_STORML },
+	};
+	for (const auto &[level, type] : carriers) {
+		const std::span<const LevelRosterEntry> roster = GetLevelRoster(level);
+		const bool isCore = std::any_of(roster.begin(), roster.end(), [type](const LevelRosterEntry &entry) {
+			return entry.type == type && entry.role == LevelRosterRole::Core;
+		});
+		EXPECT_TRUE(isCore) << "carrier " << static_cast<int>(type) << " must be core at level " << static_cast<int>(level);
+
+		// And it must actually be realised by the engine, not merely listed.
+		currlevel = level;
+		InitLevelMonsters();
+		SetRndSeed(12345);
+		ASSERT_TRUE(GetLevelMTypes().has_value());
+		EXPECT_TRUE(LevelHasType(type))
+		    << "carrier " << static_cast<int>(type) << " must be realised at level " << static_cast<int>(level);
+	}
+}
+
 
 } // namespace
