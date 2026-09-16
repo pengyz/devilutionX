@@ -35,9 +35,9 @@
 #include "multi.h"
 #include "player.h"
 #include "quests.h"
-#include "tables/questdat.hpp"
 #include "tables/level_roster.h"
 #include "tables/monstdat.h"
+#include "tables/questdat.hpp"
 #include "utils/str_cat.hpp"
 
 using namespace devilution;
@@ -739,18 +739,54 @@ size_t AvailableCoreCount(uint8_t level)
 // core-vs-cap check) rejects a roster that would break it.
 //
 // What genuinely cannot be capped is what GetLevelMTypes() pre-adds regardless
-// of any table: MT_GOLEM (unconditional PLACE_SPECIAL) and the quest uniques of
-// this level, whose base type is chosen by UniqueMonstersData rather than by the
-// roster. Those are counted from engine data only.
+// of any table: MT_GOLEM (unconditional PLACE_SPECIAL) and the base types of the
+// six QUEST uniques (monster.cpp:3463-3475), which are chosen by
+// UniqueMonstersData rather than by the roster.
+//
+// O1 (task 3 review): the exemption used to include EVERY unique whose mlevel
+// matched, which made this allowance so wide that the grid cell could not fail
+// (L13 alone lists nine uniques spread over most classes). That is wrong about
+// the engine: only these six are added as monster TYPES by GetLevelMTypes. All
+// other uniques are placed by PlaceUniqueMonsters(), which picks from the types
+// the level ALREADY has (see monster.cpp's PlaceUniqueMonsters: it searches
+// LevelMonsterTypes for a matching base type and skips the unique when absent),
+// so they occupy no additional type slot and must not widen the cap.
+constexpr std::array<std::pair<quest_id, UniqueMonsterType>, 5> kQuestUniquePreAdds {
+	std::pair { Q_GARBUD, UniqueMonsterType::Garbud },
+	std::pair { Q_ZHAR, UniqueMonsterType::Zhar },
+	std::pair { Q_LTBANNER, UniqueMonsterType::SnotSpill },
+	std::pair { Q_VEIL, UniqueMonsterType::Lachdan },
+	std::pair { Q_WARLORD, UniqueMonsterType::WarlordOfBlood },
+};
+
+// Availability uses the engine's own predicate (Quest::IsAvailable, which checks
+// setlevel / currlevel / _qactive / single-player-only) instead of a re-derived
+// copy, so validator and harness cannot drift. Precondition: call with
+// currlevel == level, which every caller below satisfies because the sampling
+// pass it measures sets currlevel first.
+bool QuestPreAddAvailableAt(uint8_t level, quest_id quest)
+{
+	// Quest::IsAvailable() reads QuestsData[_qidx]; SetUpTestSuite deliberately
+	// does not LoadQuestData(), so a suite that never activates a quest must not
+	// index that empty vector. A quest cannot be available without its data.
+	if (QuestsData.empty())
+		return false;
+	return Quests[quest]._qlevel == level && Quests[quest].IsAvailable();
+}
+
 size_t EnginePreAddClassCount(uint8_t level, BehaviorClass cls)
 {
 	size_t count = 0;
 	if (GetBehaviorClass(MonstersData[MT_GOLEM].ai) == cls)
 		count++;
-	for (const UniqueMonsterData &unique : UniqueMonstersData) {
-		if (unique.mlevel != level)
+	// Q_BUTCHER pre-adds a plain monster type, not a unique's base type.
+	if (QuestPreAddAvailableAt(level, Q_BUTCHER) && GetBehaviorClass(MonstersData[MT_CLEAVER].ai) == cls)
+		count++;
+	for (const auto &[quest, unique] : kQuestUniquePreAdds) {
+		if (!QuestPreAddAvailableAt(level, quest))
 			continue;
-		if (GetBehaviorClass(MonstersData[unique.mtype].ai) == cls)
+		const _monster_id base = UniqueMonstersData[static_cast<size_t>(unique)].mtype;
+		if (GetBehaviorClass(MonstersData[base].ai) == cls)
 			count++;
 	}
 	return count;
@@ -894,6 +930,136 @@ TEST_F(SamplingBaselineTest, RosterQuotasSatisfied)
 	}
 }
 
+size_t AvailableCoreClassCount(uint8_t level, BehaviorClass cls)
+{
+	size_t count = 0;
+	for (const LevelRosterEntry &entry : GetLevelRoster(level)) {
+		if (entry.role != LevelRosterRole::Core)
+			continue;
+		if (!IsRosterEntryAvailableAt(level, entry.type))
+			continue;
+		if (GetBehaviorClass(MonstersData[entry.type].ai) == cls)
+			count++;
+	}
+	return count;
+}
+
+// O1 discriminating-power proof for RosterQuotasSatisfied's cap half.
+//
+// That case asserts `counts[cls] <= cap + EnginePreAddClassCount(level, cls)`.
+// An allowance can pass for the wrong reason: if it is wider than what the engine
+// actually pre-adds, no composition can ever reach it and the assertion is true
+// regardless of the sampling loop. This case proves the allowance is BINDING -
+// i.e. the sampling loop is already at the limit, so admitting one extra type of
+// that class would fail RosterQuotasSatisfied rather than slip through.
+//
+// The level is not hardcoded: it is discovered from the shipped roster (the level
+// whose available core rows exactly fill a capped class). L15 is that level today
+// (Balrog+Gsnake = 2 Melee, Snowwitch+Magistrate = 2 RangedTurret, cap 2), and if
+// the data moves the search follows it instead of silently testing nothing.
+TEST_F(SamplingBaselineTest, RosterQuotaAllowanceIsBinding)
+{
+	if (missingMpqAssets_)
+		GTEST_SKIP() << "MPQ assets not found - skipping test";
+
+	std::vector<std::pair<uint8_t, BehaviorClass>> saturated;
+	for (uint8_t level = 1; level <= 15; level++) {
+		for (size_t i = 0; i < static_cast<size_t>(BehaviorClass::Count); i++) {
+			const auto cls = static_cast<BehaviorClass>(i);
+			const uint8_t cap = BehaviorClassCapForLevel(level, cls);
+			if (cap == 0)
+				continue;
+			if (AvailableCoreClassCount(level, cls) == static_cast<size_t>(cap))
+				saturated.emplace_back(level, cls);
+		}
+	}
+	ASSERT_FALSE(saturated.empty())
+	    << "no level's core saturates a capped class, so RosterQuotasSatisfied's cap bound is never exercised at the limit";
+
+	for (const auto &[level, cls] : saturated) {
+		const uint8_t cap = BehaviorClassCapForLevel(level, cls);
+		// No quest is active in this suite, so the engine's only pre-add is
+		// MT_GOLEM (Boss). A capped non-Boss class therefore gets NO slack: the
+		// allowance equals the cap exactly. Before O1 the exemption counted every
+		// unique whose mlevel matched (nine of them on L13), which added slack the
+		// engine never grants and made the bound unreachable.
+		const size_t allowance = static_cast<size_t>(cap) + EnginePreAddClassCount(level, cls);
+		if (cls != BehaviorClass::Boss) {
+			EXPECT_EQ(allowance, static_cast<size_t>(cap))
+			    << "level " << static_cast<int>(level) << " class " << static_cast<int>(cls)
+			    << " must get no cap slack while no quest is active";
+		}
+
+		// And the real sampling loop reaches that allowance, so it is binding.
+		size_t maxRealised = 0;
+		for (int seed = 0; seed < 200; seed++) {
+			currlevel = level;
+			InitLevelMonsters();
+			SetRndSeed(21000 + static_cast<uint32_t>(seed));
+			ASSERT_TRUE(GetLevelMTypes().has_value());
+			size_t realised = 0;
+			for (size_t i = 0; i < LevelMonsterTypeCount; i++) {
+				if (GetBehaviorClass(MonstersData[LevelMonsterTypes[i].type].ai) == cls)
+					realised++;
+			}
+			maxRealised = std::max(maxRealised, realised);
+			// The bound RosterQuotasSatisfied asserts must still hold here.
+			EXPECT_LE(realised, allowance)
+			    << "level " << static_cast<int>(level) << " seed " << seed
+			    << " breaks the cap for class " << static_cast<int>(cls);
+		}
+		EXPECT_EQ(maxRealised, allowance)
+		    << "level " << static_cast<int>(level) << " class " << static_cast<int>(cls)
+		    << " never reaches its allowance, so the cap assertion cannot detect a one-type regression";
+	}
+}
+
+// The tightened exemption must TRACK quest availability, not be blanket: a quest
+// that is not available grants no slack, and activating exactly one quest widens
+// exactly its own class by exactly one.
+TEST_F(SamplingBaselineTest, EnginePreAddExemptionTracksQuestAvailability)
+{
+	if (missingMpqAssets_)
+		GTEST_SKIP() << "MPQ assets not found - skipping test";
+
+	LoadQuestData(); // Quest::IsAvailable() reads QuestsData; SetUpTestSuite omits it.
+	currlevel = 14;
+
+	// Lachdanan (Q_VEIL) is the L14 quest unique whose base type MT_RBLACK the
+	// engine pre-adds; MT_RBLACK is SkeletonMelee -> Melee.
+	const BehaviorClass questClass = GetBehaviorClass(MonstersData[MT_RBLACK].ai);
+	ASSERT_EQ(questClass, BehaviorClass::Melee);
+
+	std::array<size_t, static_cast<size_t>(BehaviorClass::Count)> inactive {};
+	for (size_t i = 0; i < inactive.size(); i++)
+		inactive[i] = EnginePreAddClassCount(14, static_cast<BehaviorClass>(i));
+
+	// With every quest NOTAVAIL only Golem (Boss) is exempt.
+	for (size_t i = 0; i < inactive.size(); i++) {
+		const size_t expected = static_cast<BehaviorClass>(i) == BehaviorClass::Boss ? 1u : 0u;
+		EXPECT_EQ(inactive[i], expected)
+		    << "no quest is active, so class " << i << " must not be exempt";
+	}
+
+	Quests[Q_VEIL]._qidx = Q_VEIL;
+	Quests[Q_VEIL]._qactive = QUEST_ACTIVE;
+	Quests[Q_VEIL]._qlevel = 14;
+
+	for (size_t i = 0; i < inactive.size(); i++) {
+		const size_t after = EnginePreAddClassCount(14, static_cast<BehaviorClass>(i));
+		const size_t expected = static_cast<BehaviorClass>(i) == questClass ? inactive[i] + 1 : inactive[i];
+		EXPECT_EQ(after, expected) << "activating Q_VEIL must widen only Melee, by one (class " << i << ")";
+	}
+
+	// The same quest on a different level grants this level nothing.
+	Quests[Q_VEIL]._qlevel = 13;
+	EXPECT_EQ(EnginePreAddClassCount(14, questClass), inactive[static_cast<size_t>(questClass)])
+	    << "a quest hosted on another level must not widen this level's cap";
+
+	Quests[Q_VEIL] = {};
+	QuestsData.clear(); // leave the suite's "no quest data" precondition intact.
+}
+
 TEST_F(SamplingBaselineTest, IdentityGuard)
 {
 	if (missingMpqAssets_)
@@ -936,7 +1102,10 @@ TEST_F(SamplingBaselineTest, A1A3VariantsAreCore)
 	// AC10: the A1/A3 behaviour carriers must be core on their level, otherwise
 	// those features can silently never appear.
 	const std::vector<std::pair<uint8_t, _monster_id>> carriers {
-		{ 3, MT_RSKELAX }, { 3, MT_XSKELAX }, { 9, MT_BMAGMA }, { 11, MT_STORML },
+		{ 3, MT_RSKELAX },
+		{ 3, MT_XSKELAX },
+		{ 9, MT_BMAGMA },
+		{ 11, MT_STORML },
 	};
 	for (const auto &[level, type] : carriers) {
 		const std::span<const LevelRosterEntry> roster = GetLevelRoster(level);
@@ -954,7 +1123,6 @@ TEST_F(SamplingBaselineTest, A1A3VariantsAreCore)
 		    << "carrier " << static_cast<int>(type) << " must be realised at level " << static_cast<int>(level);
 	}
 }
-
 
 // ---------------------------------------------------------------------------
 // R28: levels with no roster params row must keep the LEGACY sampling

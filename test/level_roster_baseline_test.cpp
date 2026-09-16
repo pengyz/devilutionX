@@ -5,6 +5,7 @@
 #include <cstdint>
 #include <cstdlib>
 #include <fstream>
+#include <iostream>
 #include <string>
 
 #include "drlg_test.hpp" // TestInitGame / GetTileCount（本仓既有测试夹具）
@@ -122,6 +123,50 @@ void CreateDungeonForMeasurement(uint8_t level, uint32_t seed)
 	ASSERT_TRUE(LoadLevelSOLData().has_value()) << "LoadLevelSOLData must succeed before InitMonsters";
 }
 
+// Placed class mix acceptance threshold (spec §4.5, plan task 4).
+//
+// The BASELINE is the pre-change measurement recorded in the plan's "A-baseline"
+// table (200 seeds per level, seed base 5000, placed-monster denominator), taken
+// with this same fixture before the roster sampling landed. The fractions are
+// written out as numerator/denominator exactly as that table reports them, so the
+// numbers stay auditable against their source instead of being rounded literals:
+//
+//   L13 (3249 RangedTurret + 2076 RangedKite) / 23405 placed = 22.8%
+//   L14 (9674 + 3425) / 23443                               = 55.9%
+//   L15 (13533 + 0)   / 23193                               = 58.3%
+//
+// The criterion is "ranged share <= baseline + 5 percentage points" (R4): the
+// roster may reshape a level's mix, but it must not turn Hell into a ranged
+// gallery. The 5-point band absorbs seed noise, not a design shift. If a level
+// exceeds it, the roster or its class_floors is what changes - never this ceiling.
+constexpr double kRangedShareTolerance = 0.05;
+
+constexpr std::array<double, 16> kRangedShareBaseline {
+	0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0,
+	(3249.0 + 2076.0) / 23405.0, // L13
+	(9674.0 + 3425.0) / 23443.0, // L14
+	(13533.0 + 0.0) / 23193.0,   // L15
+};
+
+constexpr std::array<double, 16> kRangedShareCeiling {
+	0.0,
+	0.0,
+	0.0,
+	0.0,
+	0.0,
+	0.0,
+	0.0,
+	0.0,
+	0.0,
+	0.0,
+	0.0,
+	0.0,
+	0.0,
+	kRangedShareBaseline[13] + kRangedShareTolerance,
+	kRangedShareBaseline[14] + kRangedShareTolerance,
+	kRangedShareBaseline[15] + kRangedShareTolerance,
+};
+
 std::array<size_t, static_cast<size_t>(BehaviorClass::Count)> MeasurePlacedClassMix()
 {
 	std::array<size_t, static_cast<size_t>(BehaviorClass::Count)> mix {};
@@ -232,4 +277,41 @@ TEST_F(LevelRosterBaselineTest, PlacedClassMixReport)
 	}
 	if (fullReport)
 		AppendMeasurementReport(report);
+}
+
+TEST_F(LevelRosterBaselineTest, PlacedClassMixWithinBaseline)
+{
+	if (missingMpqAssets_)
+		GTEST_SKIP() << "MPQ assets not found - skipping test";
+
+	// AC (spec §4.5): the roster must not push L13-15's ranged share more than 5
+	// points above the pre-change baseline. This drives the PRODUCTION fixture
+	// (CreateDungeonForMeasurement -> GetLevelMTypes -> InitMonsters) and counts
+	// the monsters the engine actually placed, so the measurement comes from real
+	// placement rather than a re-simulation of the sampling rules.
+	constexpr int kSeeds = 200;
+	for (uint8_t level = 13; level <= 15; level++) {
+		size_t total = 0;
+		size_t ranged = 0;
+		for (uint32_t seed = 0; seed < kSeeds; seed++) {
+			CreateDungeonForMeasurement(level, 9000 + seed);
+			ASSERT_TRUE(GetLevelMTypes().has_value());
+			ASSERT_TRUE(InitMonsters().has_value());
+			const auto mix = MeasurePlacedClassMix();
+			total += ActiveMonsterCount;
+			ranged += mix[static_cast<size_t>(BehaviorClass::RangedTurret)]
+			    + mix[static_cast<size_t>(BehaviorClass::RangedKite)];
+		}
+		ASSERT_GT(total, 0u) << "level " << static_cast<int>(level) << " placed nothing - the fixture is broken";
+		const double share = static_cast<double>(ranged) / static_cast<double>(total);
+		// Always report the measurement: a passing run must still show how much
+		// headroom is left, otherwise the next roster edit has no reference point.
+		std::cout << "[ MEASURED ] level " << static_cast<int>(level) << " ranged share " << share
+		          << " (" << ranged << "/" << total << "), baseline " << kRangedShareBaseline[level]
+		          << ", ceiling " << kRangedShareCeiling[level] << std::endl;
+		EXPECT_LE(share, kRangedShareCeiling[level])
+		    << "level " << static_cast<int>(level) << " ranged share " << share
+		    << " exceeds baseline " << kRangedShareBaseline[level] << " + 5pp"
+		    << " (" << ranged << "/" << total << ")";
+	}
 }
