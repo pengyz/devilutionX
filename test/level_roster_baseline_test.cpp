@@ -237,9 +237,23 @@ struct SquadObservation {
 	size_t minionsOutsideLeash = 0;
 	/** Squad minions whose leader is NOT a core roster member of this level (must be 0). */
 	size_t minionsUnderNonCoreLeader = 0;
+	/**
+	 * Squad minions whose own type EQUALS their leader's type (must be 0).
+	 *
+	 * Spec 4.3.3 requires a squad to mix two DIFFERENT core types: a same-type squad is just the
+	 * legacy same-type group with leash semantics bolted on, i.e. exactly the degenerate outcome
+	 * the feature exists to avoid. PickCorePartnerTypeIndex enforces it with a single
+	 * `entry.type == leaderType` skip, and review measured that deleting that skip left all eight
+	 * squad cases green - so the rule is recorded per minion here and asserted below.
+	 */
+	size_t minionsSharingLeaderType = 0;
 	/** Leashed minions under a UNIQUE leader: the pre-existing boss-pack path. */
 	size_t uniquePackMinions = 0;
 	size_t placed = 0;
+	/** Squad minions the loop placed for a leader this level, leashed or not (sample size). */
+	size_t partnersPlaced = 0;
+	/** Largest leader-to-minion Chebyshev distance the loop recorded this level. */
+	size_t maxPartnerLeaderDistance = 0;
 };
 
 bool IsCoreMemberOfLevel(uint8_t level, _monster_id type)
@@ -270,6 +284,13 @@ SquadObservation ObserveSquads(uint8_t level)
 {
 	SquadObservation obs;
 	obs.placed = ActiveMonsterCount;
+	// The leader<->minion pairing of an UNLEASHED squad is not recoverable from the placed
+	// monsters (spec 4.3.4 applies no setLeader, so those minions keep leaderRelation None and
+	// Monster::NoLeader), so the adjacency figures come from the loop's own per-level counters
+	// instead of being re-derived here. Read straight after the run, like the roll counters -
+	// InitLevelMonsters() resets them per level.
+	obs.partnersPlaced = GetSquadRollStats().partnersPlaced;
+	obs.maxPartnerLeaderDistance = GetSquadRollStats().maxPartnerLeaderDistance;
 
 	std::array<bool, MaxMonsters> counted {};
 	for (size_t i = 0; i < ActiveMonsterCount; i++) {
@@ -299,6 +320,8 @@ SquadObservation ObserveSquads(uint8_t level)
 			obs.minionsOutsideLeash++;
 		if (!IsCoreMemberOfLevel(level, leader->type().type))
 			obs.minionsUnderNonCoreLeader++;
+		if (monster.type().type == leader->type().type)
+			obs.minionsSharingLeaderType++;
 		if (leader->packSize == 0)
 			obs.leadersWithZeroPackSize++;
 
@@ -595,9 +618,14 @@ TEST_F(SquadPlacementTest, SquadFormsAroundACoreLeader)
 			EXPECT_EQ(obs.leadersWithZeroPackSize, 0u)
 			    << "level " << static_cast<int>(level) << " seed " << seed
 			    << ": a leader holding a leashed minion must report packSize >= 1";
+			// G2's own named case is SquadMinionsKeepOwnAi below (spec 6, acceptance
+			// row 6); kept here as well so a failure of this case reports it too.
 			EXPECT_EQ(obs.minionsWithOverwrittenAi, 0u)
 			    << "level " << static_cast<int>(level) << " seed " << seed
 			    << ": G2 requires squad minions to keep their own AI";
+			EXPECT_EQ(obs.minionsSharingLeaderType, 0u)
+			    << "level " << static_cast<int>(level) << " seed " << seed
+			    << ": spec 4.3.3 requires a squad to mix two DIFFERENT core types";
 			EXPECT_EQ(obs.minionsOutsideLeash, 0u)
 			    << "level " << static_cast<int>(level) << " seed " << seed
 			    << ": a leashed minion must sit within the engine's 4-tile leash";
@@ -621,7 +649,49 @@ TEST_F(SquadPlacementTest, SquadFormsAroundACoreLeader)
 	// bet on placement luck.
 	EXPECT_GT(totalLeadersWithMinions, 0u)
 	    << "L9-12 at squad_chance 100 produced no leader with a leashed minion";
-	EXPECT_GT(totalLeashedMinions, 0u);
+	// Also the sample size behind the per-sample "count of violations == 0" assertions above
+	// (own AI, distinct partner type, leash, core leadership): all of them are vacuous on a run
+	// that placed no squad minion.
+	EXPECT_GT(totalLeashedMinions, 0u)
+	    << "no squad minion was placed at all, so the per-sample violation counts above"
+	    << " measured nothing";
+}
+
+// Spec 6, acceptance row 6 names this case: G2 requires a squad minion to keep its OWN AI, so
+// PlaceGroup must restore the `ai` that setLeader() overwrites (MinionOptions::inheritAi false).
+// It lives as its own case rather than an inline assertion inside
+// SquadFormsAroundACoreLeader because the acceptance row points at a case name, and because a
+// failure of the AI rule should be reported on its own rather than mixed into a case that also
+// checks packSize, leashing, core leadership and the placement cap.
+//
+// The sample size is asserted too: this is a "count of violations == 0" shape, which a run that
+// placed no squad minion at all would satisfy while measuring nothing.
+TEST_F(SquadPlacementTest, SquadMinionsKeepOwnAi)
+{
+	if (missingMpqAssets_)
+		GTEST_SKIP() << "MPQ assets not found - skipping test";
+	if (missingRetailTrn_)
+		GTEST_SKIP() << "retail/HF TRN (monsters\\monsters\\genrl.trn) not available - skipping test";
+
+	LoadSquadParams("txtdata\\monsters\\level_roster_params_squads_always.tsv");
+
+	size_t minions = 0;
+	size_t overwritten = 0;
+	for (uint8_t level = 9; level <= 12; level++) {
+		for (uint32_t seed = 0; seed < 10; seed++) {
+			const SquadObservation obs = RunLevel(level, 21000 + seed);
+			minions += obs.leashedMinions;
+			overwritten += obs.minionsWithOverwrittenAi;
+			EXPECT_EQ(obs.minionsWithOverwrittenAi, 0u)
+			    << "level " << static_cast<int>(level) << " seed " << seed
+			    << ": G2 requires a squad minion to keep its own type's AI, but setLeader's"
+			    << " leader AI survived on " << obs.minionsWithOverwrittenAi << " minion(s)";
+		}
+	}
+	EXPECT_EQ(overwritten, 0u);
+	EXPECT_GT(minions, 0u)
+	    << "no squad minion was placed over L9-12 x 10 seeds, so the AI assertions above"
+	    << " measured nothing";
 }
 
 TEST_F(SquadPlacementTest, SquadsAreAbsentWhenTheTableDisablesThem)
@@ -671,16 +741,72 @@ TEST_F(SquadPlacementTest, UnleashedFallbackPlacesNeighboursWithoutLeashing)
 
 	// Spec 4.3.4 fallback: squad_leashed = 0 keeps passing the leader to
 	// PlaceGroup (so minions are still seeded from the leader's neighbourhood)
-	// but applies no leash, no setLeader and no packSize. The observable
-	// consequence is that this configuration produces NO leashed minion at all,
-	// while the leashed configuration (same seeds, same levels) does - a
-	// same-seed A/B on the one column that differs.
+	// but applies no leash, no setLeader and no packSize. BOTH halves of that are
+	// asserted, because only the first is a property of the fallback's own code:
+	//
+	//   (a) no leashed minion at all - a same-seed A/B on the one column that differs;
+	//   (b) the minions are still ADJACENT to their leader, i.e. the leader really is
+	//       still passed to PlaceGroup.
+	//
+	// (b) is the fallback's core guarantee and used to be unguarded: review changed
+	// the `&leader` argument to nullptr and every case stayed green, because an
+	// unleashed minion carries leaderRelation None and no back-pointer, so this
+	// suite could not even see it. That is why the pairing is measured inside the
+	// loop (SquadRollCounters::maxPartnerLeaderDistance) and read back here.
+	//
+	// Deriving the bound. PlaceGroup with a leader and NO leash gives:
+	//   * the anchor is leader->position.tile + Direction(GenerateRnd(8)), so the first
+	//     candidate tile is always a NEIGHBOUR of the leader - Chebyshev 1, since
+	//     Displacement::fromDirection has |dx| <= 1 and |dy| <= 1;
+	//   * each rejected candidate walks one Displacement(Direction(...)) step, moving x and y
+	//     by at most 1 each (the `yp += ...deltaX` bug in that loop does not widen this -
+	//     deltaX is also in [-1, 1]);
+	//   * the inner loop abandons a try after try2 == 100 rejections.
+	// So the analytic ceiling is 1 + 100 = 101, and that number is USELESS as a guard: the
+	// scatter area is [16, 96), so any two tiles on the map are within 80 of each other and 101
+	// can never fail - not even for a group placed with no leader at all, which is precisely the
+	// mutation this case has to catch. The bound must therefore sit below what the leaderless
+	// anchor (GenerateRnd(80) + 16, uniform over the whole map) produces.
+	//
+	// Both sides were measured (see the fix report):
+	//   * as shipped, over L1-15 x 40 seeds / 25204 placed minions: max 17;
+	//   * with `&leader` replaced by nullptr, same L9-12 x 10 seeds as below: 66.
+	// 32 is picked out of that gap: ~1.9x the widest real placement observed anywhere, and less
+	// than half the leaderless figure. It tolerates placement luck on levels this case does not
+	// sweep while still failing the moment the anchor stops being a neighbour of the leader. It
+	// is not a spec constant and means nothing beyond that separation.
+	//
+	// Nothing tighter is available honestly: the walk is 100 unbounded steps, so no smaller
+	// number is provable from the code alone, and the two measurements are what make 32 a
+	// defensible separator rather than a guess. The measured maximum is printed unconditionally
+	// so drift toward the bound is visible before it becomes a failure.
+	constexpr size_t kUnleashedAdjacencyBound = 32;
+
 	LoadSquadParams("txtdata\\monsters\\level_roster_params_squads_unleashed.tsv");
 	size_t unleashedLeashedMinions = 0;
+	size_t unleashedPartners = 0;
+	size_t unleashedMaxDistance = 0;
 	for (uint8_t level = 9; level <= 12; level++) {
-		for (uint32_t seed = 0; seed < 10; seed++)
-			unleashedLeashedMinions += RunLevel(level, 21000 + seed).leashedMinions;
+		for (uint32_t seed = 0; seed < 10; seed++) {
+			const SquadObservation obs = RunLevel(level, 21000 + seed);
+			unleashedLeashedMinions += obs.leashedMinions;
+			unleashedPartners += obs.partnersPlaced;
+			unleashedMaxDistance = std::max(unleashedMaxDistance, obs.maxPartnerLeaderDistance);
+			EXPECT_LE(obs.maxPartnerLeaderDistance, kUnleashedAdjacencyBound)
+			    << "level " << static_cast<int>(level) << " seed " << seed
+			    << ": spec 4.3.4 keeps passing the leader to PlaceGroup, so an unleashed"
+			    << " minion must still be seeded from the leader's neighbourhood";
+		}
 	}
+	std::cout << "[ SQUADFALLBACK ] unleashed partners " << unleashedPartners
+	          << " max leader distance " << unleashedMaxDistance
+	          << " bound " << kUnleashedAdjacencyBound << std::endl;
+	// Without a sample the distance assertion above is vacuous: an unleashed squad
+	// places no leashed minion by construction, so partnersPlaced is the only
+	// evidence that the fallback ran at all.
+	EXPECT_GT(unleashedPartners, 0u)
+	    << "the unleashed runs placed no squad minion at all, so the adjacency assertions"
+	    << " above measured nothing";
 
 	LoadSquadParams("txtdata\\monsters\\level_roster_params_squads_always.tsv");
 	size_t leashedLeashedMinions = 0;
@@ -823,6 +949,9 @@ TEST_F(SquadPlacementTest, ShippedSquadChanceRealisesSquadsOnEveryLevel)
 			    << "level " << static_cast<int>(level) << " seed " << seed;
 			EXPECT_EQ(obs.minionsUnderNonCoreLeader, 0u)
 			    << "level " << static_cast<int>(level) << " seed " << seed;
+			EXPECT_EQ(obs.minionsSharingLeaderType, 0u)
+			    << "level " << static_cast<int>(level) << " seed " << seed
+			    << ": spec 4.3.3 requires a squad to mix two DIFFERENT core types";
 		}
 		const double rollRate = eligible == 0 ? 0.0 : static_cast<double>(rolls) / static_cast<double>(eligible);
 		const double realisation = rolls == 0 ? 0.0 : static_cast<double>(realised) / static_cast<double>(rolls);
