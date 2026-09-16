@@ -75,8 +75,10 @@ TEST_F(SamplingBaselineTest, LeaderDeathReleasesMinions)
 	minion.setLeader(&leader);
 	ASSERT_EQ(minion.leaderRelation, LeaderRelation::Leashed);
 
-	// 走公共死亡路径，让引擎自己调用 M_UpdateRelations
-	KillMonster(leader, /*petrified=*/false);
+	// 走公共死亡路径，让引擎自己调用 M_UpdateRelations。
+	// RB7：本仓库没有 KillMonster；M_StartKill/StartMonsterDeath 都汇聚到
+	// MonsterDeath(monster, md, sendmsg)，直接调它可避开 GetDirection 对玩家位置的依赖。
+	MonsterDeath(leader, Direction::South, /*sendmsg=*/false);
 
 	EXPECT_NE(minion.leaderRelation, LeaderRelation::Leashed)
 	    << "an ordinary leader's death must not leave its minion leashed";
