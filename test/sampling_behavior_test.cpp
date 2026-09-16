@@ -739,14 +739,17 @@ size_t AvailableCoreCount(uint8_t level)
 // core-vs-cap check) rejects a roster that would break it.
 //
 // What genuinely cannot be capped is what GetLevelMTypes() pre-adds regardless
-// of any table: MT_GOLEM (unconditional PLACE_SPECIAL) and the base types of the
-// six QUEST uniques (monster.cpp:3463-3475), which are chosen by
-// UniqueMonstersData rather than by the roster.
+// of any table: MT_GOLEM (unconditional PLACE_SPECIAL) plus the SIX quest-gated
+// type pre-adds at monster.cpp:3464-3475. Those six are not six uniques: Q_BUTCHER
+// adds the plain monster type MT_CLEAVER, while the other five (Q_GARBUD, Q_ZHAR,
+// Q_LTBANNER, Q_VEIL, Q_WARLORD) add a UNIQUE's base type, chosen by
+// UniqueMonstersData rather than by the roster. That is why the table below has
+// five entries and MT_CLEAVER is counted separately in EnginePreAddClassCount.
 //
 // O1 (task 3 review): the exemption used to include EVERY unique whose mlevel
 // matched, which made this allowance so wide that the grid cell could not fail
 // (L13 alone lists nine uniques spread over most classes). That is wrong about
-// the engine: only these six are added as monster TYPES by GetLevelMTypes. All
+// the engine: only these six pre-adds take a monster TYPE slot. All
 // other uniques are placed by PlaceUniqueMonsters(), which picks from the types
 // the level ALREADY has (see monster.cpp's PlaceUniqueMonsters: it searches
 // LevelMonsterTypes for a matching base type and skips the unique when absent),
