@@ -12,6 +12,7 @@
 #include "levels/gendung.h"
 #include "levels/trigs.h" // InitL1Triggers 等 + Freeupstairs（CreateLevel 逻辑复刻用）
 #include "monster.h"
+#include "tables/level_roster.h"
 #include "tables/monstdat.h"
 #include "utils/paths.h"
 #include "utils/str_cat.hpp"
@@ -151,6 +152,11 @@ protected:
 		paths::SetPrefPath(paths::BasePath() + "test/fixtures/");
 		TestInitGame();
 		LoadMonsterData();
+		// GetLevelMTypes() 现在按逐层名册采样（core 预加 + 有界尾池），生产侧在
+		// diablo.cpp 里紧跟 LoadMonsterData() 调用；这里必须复刻该顺序，否则
+		// GetLevelRoster()/GetLevelRosterParams() 全空 → 无 PLACE_SCATTER 类型 →
+		// 该层放不出任何怪（本用例的 placed 基线会全零）。
+		LoadLevelRoster();
 	}
 
 	static bool missingMpqAssets_;
