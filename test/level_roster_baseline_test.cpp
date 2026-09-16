@@ -139,32 +139,58 @@ void CreateDungeonForMeasurement(uint8_t level, uint32_t seed)
 // roster may reshape a level's mix, but it must not turn Hell into a ranged
 // gallery. The 5-point band absorbs seed noise, not a design shift. If a level
 // exceeds it, the roster or its class_floors is what changes - never this ceiling.
+//
+// Indexing: both tables are indexed BY LEVEL NUMBER and sized 17 so level 16 is
+// a valid index rather than a buffer overrun. Only L13-15 have a baseline; every
+// other level is UNCONSTRAINED, which is spelled as the sentinel 1.0 (a share can
+// never exceed 1.0) rather than 0.0. 0.0 would read as "ceiling zero" and turn a
+// missing baseline into a silent misjudgement - a guaranteed failure, or worse, a
+// pass that means nothing - the moment someone widens the measured level range.
+// Widening that range therefore REQUIRES filling in the corresponding baseline
+// here first; the sentinel keeps the omission honest instead of hiding it.
 constexpr double kRangedShareTolerance = 0.05;
+constexpr double kRangedShareUnconstrained = 1.0;
 
-constexpr std::array<double, 16> kRangedShareBaseline {
-	0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0,
+constexpr std::array<double, 17> kRangedShareBaseline {
+	kRangedShareUnconstrained,   // L0 (unused)
+	kRangedShareUnconstrained,   // L1
+	kRangedShareUnconstrained,   // L2
+	kRangedShareUnconstrained,   // L3
+	kRangedShareUnconstrained,   // L4
+	kRangedShareUnconstrained,   // L5
+	kRangedShareUnconstrained,   // L6
+	kRangedShareUnconstrained,   // L7
+	kRangedShareUnconstrained,   // L8
+	kRangedShareUnconstrained,   // L9
+	kRangedShareUnconstrained,   // L10
+	kRangedShareUnconstrained,   // L11
+	kRangedShareUnconstrained,   // L12
 	(3249.0 + 2076.0) / 23405.0, // L13
 	(9674.0 + 3425.0) / 23443.0, // L14
 	(13533.0 + 0.0) / 23193.0,   // L15
+	kRangedShareUnconstrained,   // L16
 };
 
-constexpr std::array<double, 16> kRangedShareCeiling {
-	0.0,
-	0.0,
-	0.0,
-	0.0,
-	0.0,
-	0.0,
-	0.0,
-	0.0,
-	0.0,
-	0.0,
-	0.0,
-	0.0,
-	0.0,
+// A ceiling of exactly kRangedShareUnconstrained stays unconstrained: adding the
+// tolerance to the sentinel would push it above 1.0 and obscure that reading.
+constexpr std::array<double, 17> kRangedShareCeiling {
+	kRangedShareUnconstrained, // L0 (unused)
+	kRangedShareUnconstrained, // L1
+	kRangedShareUnconstrained, // L2
+	kRangedShareUnconstrained, // L3
+	kRangedShareUnconstrained, // L4
+	kRangedShareUnconstrained, // L5
+	kRangedShareUnconstrained, // L6
+	kRangedShareUnconstrained, // L7
+	kRangedShareUnconstrained, // L8
+	kRangedShareUnconstrained, // L9
+	kRangedShareUnconstrained, // L10
+	kRangedShareUnconstrained, // L11
+	kRangedShareUnconstrained, // L12
 	kRangedShareBaseline[13] + kRangedShareTolerance,
 	kRangedShareBaseline[14] + kRangedShareTolerance,
 	kRangedShareBaseline[15] + kRangedShareTolerance,
+	kRangedShareUnconstrained, // L16
 };
 
 std::array<size_t, static_cast<size_t>(BehaviorClass::Count)> MeasurePlacedClassMix()

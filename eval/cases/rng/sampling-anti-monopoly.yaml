@@ -1,3 +1,7 @@
+# 维护提醒（R35）：本 case 的 `expected.passed_min` 与 `output_contains` 里的
+# "[  PASSED  ] N tests." 是**硬编码的用例计数**。往 SamplingBaselineTest 里新增或删除用例后
+# 必须同步这两处数字，否则门禁会静默失效（N 偏小 → 少跑也算过）或误红
+# （N 偏大 → 全绿也判失败）。当前值对应 24 个用例（2026-09-16 核对）。
 id: "sampling-anti-monopoly-cap"
 name: "采样反垄断：B1 cap 后契约（真实引擎 GetLevelMTypes）"
 category: "rng"

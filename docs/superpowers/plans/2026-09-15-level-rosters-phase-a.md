@@ -658,7 +658,7 @@ git commit -m "test(roster): pin placed class mix to the measured baseline and a
 | L13-15 远程占比基线 | L13: (3249+2076)/23405=22.8%；L14: (9674+3425)/23443=55.9%；L15: 13533/23193=58.3% |
 | `kRangedShareCeiling` | 基线 + 5 个百分点（任务 4 落地）：L13 27.8% / L14 60.9% / L15 63.3%；落在 `test/level_roster_baseline_test.cpp` 的具名 constexpr `kRangedShareBaseline`/`kRangedShareCeiling`，分子分母照抄下方 A-baseline 表 |
 | 任务 4 阈值实测（改后） | L13 23.6%（5537/23413）/ L14 49.2%（11269/22915）/ L15 50.5%（11611/22978），三层均在带内 |
-| 任务 4 名册调整（R4） | 首跑 L13 53.5%、L14 65.8% 超标。根因：L13-16 对**任意** class 都是 cap 2，候选池只有 Melee/Turret/Kite，type 多样性超过 2 个 Melee 的部分必然是远程；而放置在 `scattertypes` 上均匀，占比≈type 占比。按 R4 只改数据：L13 core 去掉 `MT_STORML`(Kite)、`MT_SUCCUBUS`(Turret)，L14 core 去掉一个 `MT_SUCCUBUS`(Turret)；L13/L14 `tail_draw` 3→1（保留 1 次抽取 + `RangedKite=1` floor，层里仍有风筝存在感，但不会出现第二个远程 type）。L15 未改动 |
+| 任务 4 名册调整（R4） | 首跑 L13 53.5%、L14 65.8% 超标。根因：L13-16 对**任意** class 都是 cap 2，候选池只有 Melee/Turret/Kite，type 多样性超过 2 个 Melee 的部分必然是远程；而放置在 `scattertypes` 上均匀，占比≈type 占比。按 R4 只改数据：L13 core 去掉 `MT_STORML`(Kite)、`MT_SUCCUBUS`(Turret)，L14 core 去掉一个 `MT_SUCCUBUS`(Turret)；L13/L14 `tail_draw` 3→1（保留 1 次抽取 + `RangedKite=1` floor，层里仍有风筝存在感，但不会出现第二个远程 type）。L15 未改动。**准确表述**：这是「在我们接受的余量标准（≥5pp）下唯一」的数据解，不是绝对唯一——L13 侧确实无解（最小放松实测 0.3792 vs ceiling 0.2775，超 10pp）；但 L14 侧 `tail_draw` 1→2 是**可行的替代解**（实测 0.5964 < ceiling 0.60876，物种 4→5，零代码改动、全测试绿），本阶段因余量仅 1.2pp（现状 11.7pp）会让守卫变脆而**有意不采纳**（裁决 R34，多样性归阶段 B；取舍已记入规格附录 E）|
 | 小队形成率 | 阶段 B 才需要，本计划不测 |
 | 夹具重生成记录 | 无新增/重生成夹具；本任务复用 `test/fixtures/levels/` 既有夹具（rnd6.dun / skngdo.dun / banner2.dun / blood2.dun 等） |
 
