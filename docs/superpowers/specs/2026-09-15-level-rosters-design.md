@@ -208,7 +208,11 @@ level   max_image   tail_draw   class_floors          squad_chance   squad_size
 
 ## 7. 状态
 
-**草案 v3（待作者复核）** → 通过后置「已批准」，随后进入阶段 A 的实现计划（`superpower-writing-plans`）。
+**实施中**（2026-09-15 更新）。
+
+- **阶段 A（逐层名册）已交付**：计划 `plans/2026-09-15-level-rosters-phase-a.md` 的 4 个任务全部完成，本地门禁 749/0/100% + drift 5/5，远端 CI 绿（`better-d1-ci.yml`）；评审链：任务评审 ×5、范围化复审 ×7、最终全分支评审（裁决"修复后可合并"）。
+- **阶段 B（核心小队）实施中**：计划 `plans/2026-09-15-level-rosters-phase-b.md`；前置 G1、G2 已完成（G1 已过 CI；G2 已提交待评审），小队机制与形成率守卫待做。
+- **未完成部分（原草案遗留，均为既定范围）**：阶段 A2（HF overlay 的 L17-24 名册表——**红线 12「全层段定义」因此目前只对 L1-16 + L16 特例成立**，L17-24 仍走 R28 legacy）；附录 E 第 1/2 条的阶段 B 待决项（地狱段多样性与 O2 校验语义）。
 
 ---
 
