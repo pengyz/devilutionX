@@ -124,9 +124,9 @@ level   max_image   tail_draw   class_floors          squad_chance   squad_size
 1. 既有预加不变（`MT_GOLEM`、任务 unique、SKING 层骷髅）。
 2. **core 预加**：按 `currlevel` 查名册，对每个 core 成员 `AddMonsterType(type, PLACE_SCATTER)`；绕过 caps（caps 只在循环内）但**计入预算**。
 3. **尾池**：`typelist` = `IsMonsterAvailable` 候选 **减去已加入的 core**。
-4. **尾池抽取显式化**：最多成功抽取 `tail_draw` 次。
+4. **尾池抽取显式化**：最多成功抽取 `tail_draw` 次。**无名册参数行的层退回旧行为**（预算受限、尾池不设上限）——当前 L17-24（Nest/Crypt）属此类，阶段 A2 补 HF overlay 表后纳入；若退回 `tail_draw = 0`，这些层的采样循环将恒不执行、散布怪物消失（回归）。
 5. **配额**：B1 caps 保留；新增 floors，抽取时优先补足未满足的类别。
-6. **预算**：`monstimgtot < max_image(当前层)`。
+6. **预算**：`monstimgtot < max_image(当前层)`；无参数行时退回 4000（旧值）。
 7. **L16 特例**：保持硬编码分支不变；名册表只登记不改行为。
 
 ### 4.3 阶段 B：核心小队（`Source/monster.cpp:3773-3782`）

@@ -492,7 +492,10 @@ TEST_F(SamplingBaselineTest, RosterTailDrawBounded)
 
 	const LevelRosterParams *rosterParams = GetLevelRosterParams(currlevel);
 	const int maxImage = rosterParams != nullptr ? rosterParams->maxImage : 4000;
-	const int tailDraw = rosterParams != nullptr ? rosterParams->tailDraw : 0;
+	// R28: levels with no params row (currently L17-24) keep the legacy behaviour -
+	// budget-limited with no tail cap. Using 0 here would make the loop condition
+	// tailAdded < tailDraw permanently false and silently remove every scatter type.
+	const int tailDraw = rosterParams != nullptr ? rosterParams->tailDraw : std::numeric_limits<int>::max();
 ```
 
 并把循环条件与计数改为：
