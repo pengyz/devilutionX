@@ -1,8 +1,8 @@
 # 维护提醒（R35）：本 case 的 `expected.passed_min` 与 `output_contains` 里的
 # "[  PASSED  ] N tests." 是**硬编码的用例计数**。往 LevelRosterBaselineTest 里新增或删除用例后
 # 必须同步这两处数字，否则门禁会静默失效（N 偏小 → 少跑也算过）或误红
-# （N 偏大 → 全绿也判失败）。当前值对应 9 个用例（Phase B Task 3 追加 5 个 SquadPlacementTest 用例，
-# 修复轮次 1 再追加具名用例 SquadMinionsKeepOwnAi → 9）。
+# （N 偏大 → 全绿也判失败）。当前值对应 10 个用例（Phase B Task 3 追加 5 个 SquadPlacementTest 用例，
+# 修复轮次 1 再追加具名用例 SquadMinionsKeepOwnAi → 9；Task 4 追加 SquadFormationRate → 10）。
 id: "level-rosters"
 name: "逐层名册 Phase A：放置构成占比在基线带内（真实引擎放置路径）"
 category: "rng"
@@ -23,7 +23,7 @@ run:
 expected:
   exit_code: 0
   failed: 0
-  passed_min: 9
+  passed_min: 10
   skipped_max: 1
   output_contains:
     - "[ MEASURED ] level 13 ranged share"
@@ -32,7 +32,8 @@ expected:
     - "[ SQUADRATE ]"
     - "[ SHIPPEDSQUAD ]"
     - "[ SQUADFALLBACK ]"
-    - "[  PASSED  ] 9 tests."
+    - "[ SQUADFORM ]"
+    - "[  PASSED  ] 10 tests."
 
 description: >
   逐层名册 Phase A 的验收门禁：不看采样中间量，直接跑真实
@@ -85,3 +86,21 @@ description: >
   另加"随从类型 ≠ leader 类型"断言（此前删掉 PickCorePartnerTypeIndex 的同类型跳过后 8 条用例全绿）。
   四条反证均实跑"改坏→红→恢复→绿"。squad_leashed 解析器的拒绝拼写错误用例落在
   `level_roster_test`（LevelRosterFixtureLoadTest，2 条 EXPECT_EXIT），非本 case 计数。
+
+  Phase B Task 4（验收 7「小队形成率」量化守卫）：用例数 9 → 10，新增
+  `SquadPlacementTest.SquadFormationRate`，新增 `[ SQUADFORM ]` 输出行（output_contains 断言其存在）。
+  指标 = 「尝试成队的 roll 中真正放下 ≥1 只随从」的比例，分子是新加的
+  `SquadRollCounters::formed`（**与 leash 无关**）而非既有 `realised`：`realised` 判定含
+  `squadLeashed && packSize > 0`，而 PlaceGroup 只在 leashed 时写 packSize，所以用 `realised`
+  做分子会让任何走 §4.3.4 回退（squad_leashed=0）的层恒读 0% —— 守卫会因自己要求的补救被采用而变红。
+  分母沿用循环自己的 rolls（非由 squad_chance 反推），故 L14（chance=10）按实际 roll 数评判。
+  实测（**出厂表**、500 seed/层、seed base 51000）：逐层形成率 **99.890%-100%**，最差层 L10
+  （2718 roll 丢 3 次）。阈值取**统一 floor 0.95**，写进用例内具名数组 `kSquadFormationFloor`
+  并在注释里注明出处（本轮 500-seed 实测逐层数值 + 为何留 ~45 倍余量）：出厂配置不会产生
+  0.95-0.998 之间的值（放置一坏直接掉 0），故仍可失败；同时不把 squad_size/tail_draw/core 集的
+  合法数据调整变成红灯（计划自身建议的下限是 50%，0.95 远严于它）。**是实测分隔线，非紧界、非规格常量。**
+  两次反证实跑：(1) 仅 L10 的 PlaceGroup 随从数改 0 → 该层 rate 0.0 必红、邻层数值不动；
+  (2) `squadEligible` 加 `currlevel != 11` → 表仍写 chance=30 但分支失联 → 「rolls==0 跳过」豁免
+  同样判红（豁免只允许 squad_chance==0 即表自己关掉的层）。恢复后逐层数值与实测逐位一致。
+  处置：实测最低 99.890% 远高于计划下限 50%，**各层 squad_leashed 保持 1，本轮无任何层需要
+  §4.3.4 回退**，`level_roster_params.tsv` 零改动（RB17 L14 冻结、RB14 class_floors 均未触碰）。

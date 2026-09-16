@@ -983,3 +983,188 @@ TEST_F(SquadPlacementTest, ShippedSquadChanceRealisesSquadsOnEveryLevel)
 	}
 	AppendMeasurementReport(report);
 }
+
+// ---------------------------------------------------------------------------
+// Task 4 (spec 2026-09-15-level-rosters-design §6 acceptance 7, §4.3.4).
+//
+// The formation rate is "of the squad rolls that were ATTEMPTED, what share
+// really put down at least one minion". Its floors below are DERIVED FROM
+// MEASUREMENT, not chosen: see kSquadFormationFloor.
+//
+// Two things about the metric matter for the guard to mean anything:
+//
+//   * numerator = SquadRollCounters::formed, which counts a roll that placed
+//     >= 1 minion whether or not the squad is leashed. The older `realised`
+//     counter is gated on leader.packSize > 0, and PlaceGroup only writes
+//     packSize when leashed, so a `realised`-based guard would read 0% on any
+//     level that took the §4.3.4 fallback - i.e. it would fail precisely
+//     because the remedy it is supposed to trigger had been applied.
+//   * denominator = SquadRollCounters::rolls, the loop's OWN count of rolls
+//     that entered the squad branch. It is not re-derived from squad_chance,
+//     so a level whose chance is low (L14 at 10) is judged on the rolls it
+//     actually made rather than on the ones the table nominally promises.
+//
+// Counters are per level and reset by InitLevelMonsters(), so they are read
+// straight after each run (a before/after difference underflows across the
+// reset - the defect Task 3 hit).
+// ---------------------------------------------------------------------------
+
+// Per-level formation-rate floors (spec §6 acceptance 7: "threshold derived from
+// measurement").
+//
+// SOURCE: this task's own measurement, run on the SHIPPED tables through the
+// same production chain this case drives (CreateDungeonForMeasurement ->
+// GetLevelMTypes -> InitMonsters), 500 seeds per level, seed base 51000:
+//
+//   L1  6691/6694 = 0.99955   L6  3084/3084 = 1.00000   L11 2697/2698 = 0.99963
+//   L2  5140/5142 = 0.99961   L7  3276/3277 = 0.99970   L12 2587/2587 = 1.00000
+//   L3  3998/3999 = 0.99975   L8  3446/3447 = 0.99971   L13 3200/3201 = 0.99969
+//   L4  3702/3703 = 0.99973   L9  2658/2660 = 0.99925   L14 1364/1364 = 1.00000
+//   L5  3199/3199 = 1.00000   L10 2715/2718 = 0.99890   L15 4854/4854 = 1.00000
+//
+// So every level forms a squad on essentially every roll; the worst level is L10
+// at 99.89%, i.e. 3 losses in 2718 rolls. The three documented loss paths
+// (totalmonsters clamp, PlaceGroup's 10-attempt give-up, the 4-tile leash)
+// remove less than 0.11% of rolls at squad_size = 2, because a squad is SMALLER
+// than the plain group it replaces (`na` is 3-5), so it is easier to fit, not
+// harder. Task 3 measured the same picture at 50 seeds and found the
+// leader-placement and no-partner counters flat 0.
+//
+// WHY 0.95 AND NOT THE MEASURED VALUE: the floor is one uniform value, set
+// about 45x the worst measured loss below the worst measured rate. That margin
+// is deliberate and is what the floor buys:
+//
+//   * it is a real guard, not a tautology. The rate is a ratio of the loop's own
+//     counters; break the placement of minions and it goes to 0.0, break it
+//     partially and it falls off a cliff, because nothing in the shipped
+//     configuration produces a rate between 0.95 and 0.998. The falsification
+//     runs in the task-4 report show the L10-only mutation landing at 0.0.
+//   * it does not turn a data edit into a test failure. squad_size, tail_draw
+//     and the core sets are Task-5-and-later knobs; a level that legitimately
+//     moves from 0.9989 to 0.99 must not go red, since the spec's criterion is
+//     "squads form", not "squads form exactly this often". The plan's own
+//     suggested lower bound was 50%; 0.95 is far stricter than that while still
+//     leaving the data free.
+//
+// It is NOT a tight bound and NOT a spec constant: it is the separator between
+// "the squad path works" and "the squad path is broken", placed inside a gap the
+// measurements above show to be empty. The measured value is printed
+// unconditionally on every run ([ SQUADFORM ]), so a level drifting from 0.9989
+// toward 0.95 is visible long before it fails.
+//
+// Indexed BY LEVEL, sized 17 so level 16 is a valid index. L16 returns before
+// the roster path (spec 4.2.7) and has no params row, so it is unconstrained by
+// declaration rather than judged against a floor that cannot apply.
+constexpr double kSquadFormationUnconstrained = 0.0;
+constexpr std::array<double, 17> kSquadFormationFloor {
+	kSquadFormationUnconstrained, // L0 (unused)
+	0.95,                         // L1
+	0.95,                         // L2
+	0.95,                         // L3
+	0.95,                         // L4
+	0.95,                         // L5
+	0.95,                         // L6
+	0.95,                         // L7
+	0.95,                         // L8
+	0.95,                         // L9
+	0.95,                         // L10
+	0.95,                         // L11
+	0.95,                         // L12
+	0.95,                         // L13
+	0.95,                         // L14
+	0.95,                         // L15
+	kSquadFormationUnconstrained, // L16
+};
+
+TEST_F(SquadPlacementTest, SquadFormationRate)
+{
+	if (missingMpqAssets_)
+		GTEST_SKIP() << "MPQ assets not found - skipping test";
+	if (missingRetailTrn_)
+		GTEST_SKIP() << "retail/HF TRN (monsters\\monsters\\genrl.trn) not available - skipping test";
+
+	// The SHIPPED tables, deliberately: this case pins the formation rate of the
+	// configuration the game actually ships (squad_chance 30, L14 10), which is
+	// what acceptance 7 is about. The squads_always fixture would measure a
+	// different table and hide a shipped-data regression.
+	LoadLevelRoster();
+
+	constexpr uint32_t kSeeds = 500;
+	std::string report = "\n## Task 4: squad formation rate per level (SHIPPED table, 500 seeds)\n\n"
+	                     "| level | squad_leashed | rolls | formed | formation rate | floor |\n"
+	                     "|---|---|---|---|---|---|\n";
+	for (uint8_t level = 1; level <= 15; level++) {
+		size_t rolls = 0;
+		size_t formed = 0;
+		size_t leashedRealised = 0;
+		for (uint32_t seed = 0; seed < kSeeds; seed++) {
+			RunLevel(level, 51000 + seed);
+			const SquadRollCounters &counters = GetSquadRollStats();
+			rolls += counters.rolls;
+			formed += counters.formed;
+			leashedRealised += counters.realised;
+		}
+
+		const LevelRosterParams *params = GetLevelRosterParams(level);
+		ASSERT_NE(params, nullptr) << "level " << static_cast<int>(level) << " has no params row";
+
+		// A level with no rolls has no formation rate to judge, and reporting 0.0
+		// for it would fail the floor for the wrong reason. The plan allows
+		// skipping such a level - but it must be skipped because the TABLE
+		// disabled squads, not because the branch quietly stopped being reached:
+		// the latter is the regression this case exists to catch.
+		if (rolls == 0) {
+			EXPECT_EQ(params->squadChance, 0u)
+			    << "level " << static_cast<int>(level) << " has squad_chance "
+			    << static_cast<int>(params->squadChance) << " but made no squad roll in " << kSeeds
+			    << " seeds, so the squad branch is no longer reached on it";
+			std::cout << "[ SQUADFORM ] level " << static_cast<int>(level)
+			          << " squads disabled by the table (squad_chance 0)" << std::endl;
+			continue;
+		}
+
+		const double rate = static_cast<double>(formed) / static_cast<double>(rolls);
+		// Unconditional, pass or fail: the floor is loose on purpose, so drift has
+		// to be readable before it becomes a failure.
+		std::cout << "[ SQUADFORM ] level " << static_cast<int>(level)
+		          << " leashed " << (params->squadLeashed ? 1 : 0)
+		          << " rolls " << rolls << " formed " << formed << " rate " << rate
+		          << " floor " << kSquadFormationFloor[level] << std::endl;
+		report += StrCat("| ", level, " | ", params->squadLeashed ? 1 : 0, " | ", rolls, " | ", formed, " | ");
+		report += StrCat(static_cast<int>(rate * 10000.0 + 0.5), "/10000 | ");
+		report += StrCat(static_cast<int>(kSquadFormationFloor[level] * 10000.0 + 0.5), "/10000 |\n");
+
+		// Acceptance 7. A level below its floor is the trigger for the §4.3.4
+		// fallback (squad_leashed = 0) on THAT level, per the plan's step 2 - the
+		// floor is not a request to retune squad_chance.
+		EXPECT_GE(rate, kSquadFormationFloor[level])
+		    << "level " << static_cast<int>(level) << " formed only " << formed << " squads out of "
+		    << rolls << " rolls (" << rate << "), under its measured floor "
+		    << kSquadFormationFloor[level] << "; per spec 4.3.4 this level's squad_leashed goes to 0"
+		    << " and the measurement is recorded, rather than the floor being lowered";
+
+		// Premise guard: `formed` must never exceed the rolls it is counted from -
+		// one roll places at most one squad. This is the invariant that caught the
+		// underflowing before/after accounting in Task 3.
+		EXPECT_LE(formed, rolls)
+		    << "level " << static_cast<int>(level) << " reports more formed squads than rolls,"
+		    << " so the denominator is not the loop's";
+
+		// The two counters must agree while the level is leashed. This is what
+		// keeps `formed` honest: if it ever started counting something other than
+		// a real squad, it would drift away from the packSize-gated figure that
+		// Task 3's cases assert against. On an unleashed level they must NOT agree
+		// (realised stays 0 by construction), which is what makes the fallback
+		// observable here instead of silently reading as a formation collapse.
+		if (params->squadLeashed) {
+			EXPECT_EQ(leashedRealised, formed)
+			    << "level " << static_cast<int>(level) << " is leashed, so every formed squad must"
+			    << " also show up as a packSize-carrying leader";
+		} else {
+			EXPECT_EQ(leashedRealised, 0u)
+			    << "level " << static_cast<int>(level) << " runs the 4.3.4 fallback, so no roll may"
+			    << " report a leashed leader";
+		}
+	}
+	AppendMeasurementReport(report);
+}
