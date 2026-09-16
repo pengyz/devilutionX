@@ -718,16 +718,6 @@ bool IsRosterEntryAvailableAt(uint8_t level, _monster_id type)
 	return level >= data.minDunLvl && level <= data.maxDunLvl;
 }
 
-size_t AvailableCoreCount(uint8_t level)
-{
-	size_t count = 0;
-	for (const LevelRosterEntry &entry : GetLevelRoster(level)) {
-		if (entry.role == LevelRosterRole::Core && IsRosterEntryAvailableAt(level, entry.type))
-			count++;
-	}
-	return count;
-}
-
 // Cap exemptions that come from the ENGINE, not from the roster (R29).
 //
 // The roster must NOT be used to compute this. Deriving the allowance from the
@@ -775,6 +765,41 @@ bool QuestPreAddAvailableAt(uint8_t level, quest_id quest)
 	if (QuestsData.empty())
 		return false;
 	return Quests[quest]._qlevel == level && Quests[quest].IsAvailable();
+}
+
+// Every type GetLevelMTypes() registers BEFORE the tail loop, as a set of
+// distinct types (I2, task 5 review).
+//
+// Why a set rather than a count: AddMonsterType() dedupes by type
+// (monster.cpp:3299-3302 - an existing type only ORs in the place flag and does
+// not raise LevelMonsterTypeCount), so a quest base that is also a core row must
+// be counted once. Summing independent counts would over-count the overlap and
+// make the tail bound too tight.
+//
+// Why the quest pre-adds belong here: monster.cpp:3464-3475 registers a type for
+// each available quest (MT_CLEAVER for Q_BUTCHER, a unique's base for the other
+// five). Leaving them out understates the pre-add count, so the derived "tail"
+// absorbs a quest type and RosterTailDrawBounded's bound is wrong - either
+// spuriously red when a quest is active, or silently loose. This suite activates
+// Q_VEIL in two cases (QuestPreAddRePickDoesNotDoubleCount and
+// EnginePreAddExemptionTracksQuestAvailability); both reset it afterwards, so the
+// quest term is normally zero, but the bound must not depend on that reset
+// surviving future edits or --gtest_shuffle.
+std::set<_monster_id> PreAddedTypes(uint8_t level)
+{
+	std::set<_monster_id> types;
+	types.insert(MT_GOLEM); // unconditional PLACE_SPECIAL pre-add
+	if (QuestPreAddAvailableAt(level, Q_BUTCHER))
+		types.insert(MT_CLEAVER);
+	for (const auto &[quest, unique] : kQuestUniquePreAdds) {
+		if (QuestPreAddAvailableAt(level, quest))
+			types.insert(UniqueMonstersData[static_cast<size_t>(unique)].mtype);
+	}
+	for (const LevelRosterEntry &entry : GetLevelRoster(level)) {
+		if (entry.role == LevelRosterRole::Core && IsRosterEntryAvailableAt(level, entry.type))
+			types.insert(entry.type);
+	}
+	return types;
 }
 
 size_t EnginePreAddClassCount(uint8_t level, BehaviorClass cls)
@@ -875,13 +900,63 @@ TEST_F(SamplingBaselineTest, RosterTailDrawBounded)
 			// run the real sampling, then subtract the types that the roster and
 			// the unconditional pre-adds account for.
 			ASSERT_TRUE(GetLevelMTypes().has_value());
-			size_t preAdded = 1; // MT_GOLEM (PLACE_SPECIAL, always pre-added)
-			preAdded += AvailableCoreCount(level);
+			// I2 (task 5 review): the pre-add set is MT_GOLEM + the quest-gated
+			// pre-adds + the available cores, deduped by type - not just Golem and
+			// core. PreAddedTypes() documents why each term is there; the previous
+			// count omitted the quest term, so with a quest active on this level one
+			// quest type leaked into the derived tail and the bound was wrong.
+			// UseMultiplayerQuests() is false here (fullQuests = 1, set by
+			// SetUpTestSuite), so the Q_SKELKING branch registers nothing; assert it
+			// rather than assume, since that branch would add two more types.
+			ASSERT_FALSE(UseMultiplayerQuests())
+			    << "the MP Q_SKELKING branch pre-adds two more types; PreAddedTypes() would need to model them";
+			const size_t preAdded = PreAddedTypes(level).size();
 			const size_t tail = LevelMonsterTypeCount > preAdded ? LevelMonsterTypeCount - preAdded : 0;
 			EXPECT_LE(tail, static_cast<size_t>(params->tailDraw))
 			    << "level " << static_cast<int>(level) << " seed " << seed << " drew more tail types than tail_draw";
 		}
 	}
+
+	// I2, second half: exercise the term that was missing. With Q_VEIL active on
+	// L14 the engine pre-adds Lachdanan's base MT_RBLACK, so a pre-add count of
+	// "Golem + core" is one too low. Assert the correction concretely - the
+	// pre-add set must contain the quest base, and its size must exceed the old
+	// Golem+core formula - so this case fails if the quest term is dropped again
+	// instead of only passing because no quest happens to be active.
+	LoadQuestData(); // SetUpTestSuite deliberately does not load it
+	Quests[Q_VEIL]._qidx = Q_VEIL;
+	Quests[Q_VEIL]._qactive = QUEST_ACTIVE;
+	Quests[Q_VEIL]._qlevel = 14;
+	currlevel = 14;
+
+	const _monster_id lachdanBase = UniqueMonstersData[static_cast<size_t>(UniqueMonsterType::Lachdan)].mtype;
+	const std::set<_monster_id> withQuest = PreAddedTypes(14);
+	EXPECT_EQ(withQuest.count(lachdanBase), 1u)
+	    << "an active Q_VEIL pre-adds MT_RBLACK on L14; the pre-add set must include it";
+
+	size_t golemAndCore = 1; // MT_GOLEM
+	for (const LevelRosterEntry &entry : GetLevelRoster(14)) {
+		if (entry.role == LevelRosterRole::Core && IsRosterEntryAvailableAt(14, entry.type))
+			golemAndCore++;
+	}
+	// MT_RBLACK is not an L14 core row, so the quest genuinely widens the set.
+	EXPECT_GT(withQuest.size(), golemAndCore)
+	    << "the quest pre-add must widen the pre-add set beyond Golem + core, otherwise the tail bound"
+	    << " absorbs a quest type and is too loose";
+
+	// And the bound itself still holds under that condition.
+	for (int seed = 0; seed < 50; seed++) {
+		currlevel = 14;
+		InitLevelMonsters();
+		SetRndSeed(8500 + static_cast<uint32_t>(seed));
+		ASSERT_TRUE(GetLevelMTypes().has_value());
+		const size_t preAdded = PreAddedTypes(14).size();
+		const size_t tail = LevelMonsterTypeCount > preAdded ? LevelMonsterTypeCount - preAdded : 0;
+		EXPECT_LE(tail, static_cast<size_t>(GetLevelRosterParams(14)->tailDraw))
+		    << "L14 seed " << seed << " with Q_VEIL active drew more tail types than tail_draw";
+	}
+
+	Quests[Q_VEIL] = {};
 }
 
 TEST_F(SamplingBaselineTest, RosterQuotasSatisfied)
