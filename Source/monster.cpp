@@ -3987,9 +3987,23 @@ std::expected<void, std::string> InitMonsters()
 						SquadRollStats.noPartnerAvailable++;
 						continue;
 					}
+					const size_t beforePartners = ActiveMonsterCount;
 					PlaceGroup(partnerIndex, rosterParams->squadSize, &leader,
 					    rosterParams->squadLeashed,
 					    MinionOptions { .tough = false, .inheritAi = false, .inheritIntelligence = false });
+					// Record how far each minion this roll actually placed ended up from its
+					// leader. Done here because an unleashed squad leaves no leader link on the
+					// minion (spec 4.3.4 keeps passing the leader to PlaceGroup but applies no
+					// setLeader), so this is the only point where the pairing is still known -
+					// see SquadRollCounters::maxPartnerLeaderDistance.
+					for (size_t minionIndex = beforePartners; minionIndex < ActiveMonsterCount; minionIndex++) {
+						const Point &minionTile = Monsters[ActiveMonsters[minionIndex]].position.tile;
+						const int dx = std::abs(minionTile.x - leader.position.tile.x);
+						const int dy = std::abs(minionTile.y - leader.position.tile.y);
+						SquadRollStats.partnersPlaced++;
+						SquadRollStats.maxPartnerLeaderDistance = std::max(
+						    SquadRollStats.maxPartnerLeaderDistance, static_cast<size_t>(std::max(dx, dy)));
+					}
 					// PlaceGroup only writes packSize when leashed; an unleashed squad
 					// deliberately leaves the leader an ordinary monster (spec 4.3.4).
 					if (rosterParams->squadLeashed && leader.packSize > 0)

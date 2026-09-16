@@ -553,6 +553,24 @@ struct SquadRollCounters {
 	size_t noPartnerAvailable = 0;
 	/** Rolls that ended with a leashed leader actually holding >= 1 minion. */
 	size_t realised = 0;
+	/**
+	 * Minions the squad path actually placed for a leader, counted whether or not the squad is
+	 * leashed. This is the sample size the two figures below are measured over: an assertion on
+	 * them is vacuous while this is 0.
+	 */
+	size_t partnersPlaced = 0;
+	/**
+	 * Largest Chebyshev distance between a squad leader and one of its placed minions, over every
+	 * squad on the level.
+	 *
+	 * Recorded here rather than derived from the placed monsters because an UNLEASHED squad
+	 * (spec 4.3.4) leaves its minions with leaderRelation None and no back-pointer, so nothing
+	 * outside this loop can pair them with their leader again. The spec's guarantee for that
+	 * fallback is precisely that the leader is still passed to PlaceGroup, i.e. the minions are
+	 * still seeded from the leader's own neighbourhood; without this figure that guarantee has no
+	 * observable consequence and cannot be guarded.
+	 */
+	size_t maxPartnerLeaderDistance = 0;
 };
 
 /**
