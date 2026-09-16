@@ -497,6 +497,31 @@ extern size_t ActiveMonsterCount;
 extern int MonsterKillCounts[NUM_MAX_MTYPES];
 extern bool sgbSaveSoundOn;
 
+/**
+ * @brief Flags controlling which parts of PlaceGroup's minion buffing a caller wants.
+ *
+ * Each defaults to the engine's historical behaviour, so a caller that does not
+ * pass MinionOptions keeps that behaviour byte-for-byte (unique boss packs).
+ */
+struct MinionOptions {
+	/** Double the minion's max/current HP (existing behaviour). */
+	bool tough = true;
+	/** setLeader() overwrites the minion's `ai` with the leader's (existing behaviour). */
+	bool inheritAi = true;
+	/** Copy the leader's `intelligence` onto the minion (existing behaviour). */
+	bool inheritIntelligence = true;
+};
+
+/**
+ * @brief Places @p num monsters of @p typeIndex, optionally as a leader's minions.
+ *
+ * When @p leader is non-null, @p opts controls whether each placed minion is
+ * toughened (HP x2), inherits the leader's AI (setLeader() otherwise overwrites
+ * it), and inherits the leader's intelligence. All three default to the
+ * engine's historical behaviour.
+ */
+void PlaceGroup(size_t typeIndex, size_t num, Monster *leader = nullptr, bool leashed = false, MinionOptions opts = {});
+
 std::expected<void, std::string> PrepareUniqueMonst(Monster &monster, UniqueMonsterType monsterType, size_t miniontype, int bosspacksize, const UniqueMonsterData &uniqueMonsterData);
 void InitLevelMonsters();
 std::expected<void, std::string> GetLevelMTypes();

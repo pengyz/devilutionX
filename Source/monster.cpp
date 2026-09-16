@@ -306,80 +306,6 @@ void PlaceMonster(size_t i, size_t typeIndex, Point position)
 	InitMonster(monster, rd, typeIndex, position);
 }
 
-void PlaceGroup(size_t typeIndex, size_t num, Monster *leader = nullptr, bool leashed = false)
-{
-	uint8_t placed = 0;
-
-	for (int try1 = 0; try1 < 10; try1++) {
-		while (placed != 0) {
-			ActiveMonsterCount--;
-			placed--;
-			const Point &position = Monsters[ActiveMonsterCount].position.tile;
-			dMonster[position.x][position.y] = 0;
-		}
-
-		int xp;
-		int yp;
-		if (leader != nullptr) {
-			const int offset = GenerateRnd(8);
-			auto position = leader->position.tile + static_cast<Direction>(offset);
-			xp = position.x;
-			yp = position.y;
-		} else {
-			do {
-				xp = GenerateRnd(80) + 16;
-				yp = GenerateRnd(80) + 16;
-			} while (!CanPlaceMonster({ xp, yp }));
-		}
-		const int x1 = xp;
-		const int y1 = yp;
-
-		if (num + ActiveMonsterCount > totalmonsters) {
-			num = totalmonsters - ActiveMonsterCount;
-		}
-
-		unsigned j = 0;
-		for (unsigned try2 = 0; j < num && try2 < 100; xp += Displacement(static_cast<Direction>(GenerateRnd(8))).deltaX, yp += Displacement(static_cast<Direction>(GenerateRnd(8))).deltaX) { /// BUGFIX: `yp += Point.y`
-			if (!CanPlaceMonster({ xp, yp })
-			    || (dTransVal[xp][yp] != dTransVal[x1][y1])
-			    || (leashed && (std::abs(xp - x1) >= 4 || std::abs(yp - y1) >= 4))) {
-				try2++;
-				continue;
-			}
-
-			PlaceMonster(ActiveMonsterCount, typeIndex, { xp, yp });
-			if (leader != nullptr) {
-				Monster &minion = Monsters[ActiveMonsterCount];
-				minion.maxHitPoints *= 2;
-				minion.hitPoints = minion.maxHitPoints;
-				minion.intelligence = leader->intelligence;
-
-				if (leashed) {
-					minion.setLeader(leader);
-				}
-
-				if (minion.ai != MonsterAIID::Gargoyle) {
-					minion.changeAnimationData(MonsterGraphic::Stand);
-					minion.animInfo.currentFrame = GenerateRnd(minion.animInfo.numberOfFrames - 1);
-					minion.flags &= ~MFLAG_ALLOW_SPECIAL;
-					minion.mode = MonsterMode::Stand;
-				}
-			}
-			ActiveMonsterCount++;
-			placed++;
-			j++;
-		}
-
-		if (placed >= num) {
-			break;
-		}
-	}
-
-	if (leashed) {
-		leader->packSize = placed;
-	}
-}
-
 size_t GetMonsterTypeIndex(_monster_id type)
 {
 	for (size_t i = 0; i < LevelMonsterTypeCount; i++) {
@@ -3100,6 +3026,89 @@ void ActivateSpawn(Monster &monster, Point position, Direction dir)
 }
 
 } // namespace
+
+void PlaceGroup(size_t typeIndex, size_t num, Monster *leader, bool leashed, MinionOptions opts)
+{
+	uint8_t placed = 0;
+
+	for (int try1 = 0; try1 < 10; try1++) {
+		while (placed != 0) {
+			ActiveMonsterCount--;
+			placed--;
+			const Point &position = Monsters[ActiveMonsterCount].position.tile;
+			dMonster[position.x][position.y] = 0;
+		}
+
+		int xp;
+		int yp;
+		if (leader != nullptr) {
+			const int offset = GenerateRnd(8);
+			auto position = leader->position.tile + static_cast<Direction>(offset);
+			xp = position.x;
+			yp = position.y;
+		} else {
+			do {
+				xp = GenerateRnd(80) + 16;
+				yp = GenerateRnd(80) + 16;
+			} while (!CanPlaceMonster({ xp, yp }));
+		}
+		const int x1 = xp;
+		const int y1 = yp;
+
+		if (num + ActiveMonsterCount > totalmonsters) {
+			num = totalmonsters - ActiveMonsterCount;
+		}
+
+		unsigned j = 0;
+		for (unsigned try2 = 0; j < num && try2 < 100; xp += Displacement(static_cast<Direction>(GenerateRnd(8))).deltaX, yp += Displacement(static_cast<Direction>(GenerateRnd(8))).deltaX) { /// BUGFIX: `yp += Point.y`
+			if (!CanPlaceMonster({ xp, yp })
+			    || (dTransVal[xp][yp] != dTransVal[x1][y1])
+			    || (leashed && (std::abs(xp - x1) >= 4 || std::abs(yp - y1) >= 4))) {
+				try2++;
+				continue;
+			}
+
+			PlaceMonster(ActiveMonsterCount, typeIndex, { xp, yp });
+			if (leader != nullptr) {
+				Monster &minion = Monsters[ActiveMonsterCount];
+				if (opts.tough) {
+					minion.maxHitPoints *= 2;
+					minion.hitPoints = minion.maxHitPoints;
+				}
+				if (opts.inheritIntelligence)
+					minion.intelligence = leader->intelligence;
+
+				if (leashed) {
+					// setLeader() overwrites `ai` with the leader's; stash the
+					// minion's own AI first so we can restore it when the
+					// caller opted out of AI inheritance.
+					const MonsterAIID ownAi = minion.ai;
+					minion.setLeader(leader);
+					if (!opts.inheritAi)
+						minion.ai = ownAi;
+				}
+
+				if (minion.ai != MonsterAIID::Gargoyle) {
+					minion.changeAnimationData(MonsterGraphic::Stand);
+					minion.animInfo.currentFrame = GenerateRnd(minion.animInfo.numberOfFrames - 1);
+					minion.flags &= ~MFLAG_ALLOW_SPECIAL;
+					minion.mode = MonsterMode::Stand;
+				}
+			}
+			ActiveMonsterCount++;
+			placed++;
+			j++;
+		}
+
+		if (placed >= num) {
+			break;
+		}
+	}
+
+	if (leashed) {
+		leader->packSize = placed;
+	}
+}
 
 /** Maps from monster AI ID to monster AI function. */
 std::array<AiFunction, 128> AiProc = { {
