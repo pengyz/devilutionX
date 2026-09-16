@@ -532,6 +532,37 @@ TEST_F(LevelRosterFixtureLoadTest, ParamsCarrySquadColumns)
 	EXPECT_FALSE(params2->squadLeashed);
 }
 
+// The squad_leashed parser accepts true/false and 1/0 and REJECTS everything else, on the
+// grounds that an unrecognised spelling is a mis-typed column rather than a falsy value: a
+// silent default would turn a typo into "squads are unleashed on this level", i.e. a behaviour
+// change nothing reports. That claim had no case pinning it, so a later "just default it"
+// simplification would have gone unnoticed. Both cases below feed a table that is otherwise
+// completely valid, so the fatal can only come from this column.
+//
+// Death-test shape follows the ParseClassFloors cases above: the loader reaches the fatal path
+// through RecordReader::failOnError -> DataFile::reportFatalFieldError -> app_fatal, which exits
+// with status 1. The matched text is the parser's OWN message ("Invalid squad_leashed value"),
+// not just the generic "Invalid value ... for squad_leashed" that reportFatalFieldError prints
+// for any rejected field, so the case pins this parser rather than merely "the load failed".
+TEST_F(LevelRosterFixtureLoadTest, LoadingRejectsANonBooleanSquadLeashedSpelling)
+{
+	// "yes" is a plausible boolean spelling that the column deliberately does not accept.
+	EXPECT_EXIT(LoadLevelRosterFromFiles(
+	                "txtdata\\monsters\\level_rosters_interleaved.tsv",
+	                "txtdata\\monsters\\level_roster_params_squad_leashed_typo.tsv"),
+	    ::testing::ExitedWithCode(1), "Invalid squad_leashed value");
+}
+
+TEST_F(LevelRosterFixtureLoadTest, LoadingRejectsAnOutOfRangeNumericSquadLeashed)
+{
+	// 1/0 are accepted because the params table is numeric elsewhere; that must not slide into
+	// "any integer is truthy", which is how a mis-shifted column would read.
+	EXPECT_EXIT(LoadLevelRosterFromFiles(
+	                "txtdata\\monsters\\level_rosters_interleaved.tsv",
+	                "txtdata\\monsters\\level_roster_params_squad_leashed_outofrange.tsv"),
+	    ::testing::ExitedWithCode(1), "Invalid squad_leashed value");
+}
+
 TEST_F(LevelRosterShippedLoadTest, LoadsTheShippedRosterAndValidatesIt)
 {
 	LoadLevelRoster();
