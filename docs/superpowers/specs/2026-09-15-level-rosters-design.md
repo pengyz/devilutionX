@@ -261,7 +261,7 @@ level   max_image   tail_draw   class_floors          squad_chance   squad_size
 | L13-15 | `MT_GSNAKE` + `MT_BALROG` + `MT_HLSPWN`/`MT_SOLBRNR` + `MT_CABALIST`/`MT_MAGISTR` + **`MT_STORML`（A3@13）** | 地狱的数值压迫 + 远程齐射 |
 | L16 | 硬编码（Advocate/RBlack/Diablo）→ 只登记 | 保持终局 |
 
-**约束**：每层 4-5 只；必须含该层 A1/A3 承载；不得含 unique 的 base（除非白名单）；`Σimage` 远低于逐层上限（实测 2.2k-6.3k）。
+**约束**：每层 4-5 只为初稿目标；**实测最终值**（2026-09-15，`level_rosters.tsv`）：L1 4、**L2 7**、**L3 6**、L4 5、L5-L7 各 4、**L8 6**、L9-L12 各 4、**L13 2、L14 3、L15 3**、L16 4。L2/L3/L8 超过初稿是为把远程占比压回 R4 带内（见附录 E）；L13-15 低于初稿是"B1 cap ≤2/类 + L13 低基线"挤压的结果（见附录 E 第 1 条）。仍须满足：含该层 A1/A3 承载；不得含 unique 的 base（除非白名单）；`Σimage` 低于逐层 `max_image`。
 
 ## 附录 D：玩家可感预测（实现成败判据，来自 R2）
 
@@ -279,4 +279,6 @@ level   max_image   tail_draw   class_floors          squad_chance   squad_size
 2. **O2**：加载期校验目前只看 core 是否超 cap，未把"quest 无条件预加的 base"计入合计；L13 的实际组合仍可能破 cap。属 §4.2.2 预算语义问题，留阶段 B。
 3. **阶段 B 前置**：G1（非 unique leader 死亡不释放随从 → 悬挂索引）、G2（`setLeader` 覆写随从 AI）必须先修，见 §4.3。
 4. **阶段 A2**：HF overlay 的 L17-24 名册表；L17-24 现走 R28 legacy fallback（保持旧行为，无身份）。
+5. **`tail_draw` 存在隐式上界 ≈4（跨任务耦合，2026-09-15 合并前复审记录）**：`test/sampling_behavior_test.cpp` 的 `HellfireNoParamsSamplingTest.NoParamsTailExceedsTheParameterisedCap` 以"无参数层的散布类型数 > 表内最大 `tail_draw`"来量化"不设上限"，因此把某层的 `tail_draw` 提到 ≥5 会让该守卫失败。将来确有需要时，应**重新论证该守卫的表述**（例如改成比较"是否达到候选上限"），而不是放宽它。
+6. **既存缺陷（非本规格引入，建议单独开单）**：`Source/levels/drlg_l2.cpp:2072`（`FixTilesPatterns` 一带）存在未加边界的 `dungeon[i][j+1]`/`dungeon[i+1][j]` 访问，在 `j+1 == DMAXY` 时越界；最后一次改动 `53b91fd7a`。合并前复审的全量日志中有 1 条 UBSan 记录，是在**抬高 L8 的 `max_image` 后曝光**（非本功能引入）。
 5. **L14 `tail_draw` 1 → 2 的替代解（任务 4 评审实测，裁决 R34 暂不采纳）**：把 L14 的 `tail_draw` 从 1 提到 2，远程占比实测 **0.5964**，仍低于 ceiling **0.60876**，物种数 **4 → 5**，零代码改动、全部测试绿——即阶段 A 的"L14 只有一个数据解"并非绝对，只是"在 ≥5pp 余量标准下唯一"。控制器裁决 R34 **本阶段不采纳**，理由：① 该解余量仅 **1.2pp**（现状 11.7pp），会让 `PlacedClassMixWithinBaseline` 这道守卫变脆，一次无关的采样微调就可能把它推翻；② 与阶段 A 内部一致性冲突——任务 4 曾以"太贴边"为由否掉过同等余量的 `MT_BALROG` 方案，采纳这个会自相矛盾；③ R32 精神是"阶段 A 守卫优先，多样性归阶段 B"。**阶段 B 需要决的取舍**：是否值得用 1.2pp 的守卫余量换 L14 一个物种？若阶段 B 按第 1 条的出路①/②放宽了 cap 或占比上限，本项自然消解（余量重新变宽后 `tail_draw=2` 不再贴边）；若阶段 B 决定守卫余量必须 ≥5pp，则本项应正式关闭为"不采纳"。
