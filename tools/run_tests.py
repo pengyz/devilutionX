@@ -111,6 +111,37 @@ def build_tests(build_dir: Path, n: int) -> tuple[bool, str]:
     return ok, "build ok" if ok else "build failed (see output)"
 
 
+def build_target(build_dir: Path, target: str, n: int) -> tuple[bool, str]:
+    """Build a single test target so `--test` can never run a stale binary.
+
+    Mirrors build_tests()' generator handling, but builds exactly one target:
+    the documented `test_impact.py --diff | xargs -n1 run_tests.py --test` flow
+    must not rebuild every target on every invocation.
+    """
+    gen = "ninja"
+    cache = build_dir / "CMakeCache.txt"
+    if cache.exists():
+        text = cache.read_text(errors="replace")
+        m = re.search(r"CMAKE_GENERATOR:INTERNAL=(\S+)", text)
+        if m and "Unix Makefiles" in m.group(1):
+            gen = "make"
+    if not build_dir.exists():
+        print(f"Build directory {build_dir} missing; run cmake first.", file=sys.stderr)
+        return False, "build dir missing"
+    if gen == "ninja":
+        known = set()
+        ninja = build_dir / "build.ninja"
+        if ninja.exists():
+            for m in re.finditer(r'^build ([^:]+):', ninja.read_text(errors='ignore'), re.M):
+                for tt in m.group(1).split():
+                    known.add(tt)
+        if target not in known:
+            return False, f"target {target!r} is not part of this build configuration"
+    result = run(["cmake", "--build", str(build_dir), "--target", target, "-j", str(n)], build_dir)
+    ok = result.returncode == 0
+    return ok, "build ok" if ok else "build failed (see output)"
+
+
 def parse_ctest_output(text: str) -> dict:
     """Parse ctest text output into a structured summary."""
     summary = {"passed": 0, "failed": 0, "skipped": 0, "not_run": 0, "total": 0, "failures": []}
@@ -213,6 +244,14 @@ def main() -> int:
             return 1
 
     if args.test:
+        # Build this target first: running a stale binary silently produces results
+        # that do not match the working tree (see docs/knowledge/gotcha_run_tests_test_flag_does_not_build.md).
+        if not args.no_build:
+            ok, msg = build_target(build_dir, args.test, args.j)
+            report["steps"]["build"] = {"ok": ok, "message": msg}
+            if not ok:
+                print(json.dumps(report, indent=2))
+                return 1
         report["steps"]["single"] = run_single(build_dir, args.test, args.filter)
     elif args.filter:
         # Filter across the whole suite: run every test binary with the filter.
