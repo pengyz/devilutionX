@@ -129,6 +129,20 @@ void LoadLevelRosterParamsFromFile(DataFile &dataFile, std::string_view filename
 		std::string classFloorsStr;
 		reader.readString("class_floors", classFloorsStr);
 		params.classFloors = ParseClassFloors(classFloorsStr);
+		reader.readInt("squad_chance", params.squadChance);
+		reader.readInt("squad_size", params.squadSize);
+		reader.read("squad_leashed", params.squadLeashed, [](std::string_view value) -> std::expected<bool, std::string> {
+			// The roster tables spell booleans as true/false (see allow_unique_boost in
+			// LoadLevelRosterEntriesFromFile); 1/0 is accepted too because the shipped
+			// params table is a numeric table everywhere else and reviewers write 1/0
+			// there by habit. Anything else is a typo, not a falsy value: reject it
+			// rather than silently defaulting, which would hide a mis-typed column.
+			if (value == "true" || value == "1")
+				return true;
+			if (value == "false" || value == "0")
+				return false;
+			return std::unexpected(StrCat("Invalid squad_leashed value \"", value, "\""));
+		});
 		Params.push_back(params);
 	}
 }
@@ -184,6 +198,18 @@ std::optional<std::string> ValidateLevelRoster(std::span<const LevelRosterEntry>
 			if (cls == BehaviorClass::Count)
 				return StrCat("level ", param.level, " class floor names the sentinel BehaviorClass::Count, which is not a real category");
 		}
+		// Squad columns (spec 4.3.3). squadChance is a percentage; squadSize feeds
+		// PlaceGroup's `num` and the spec caps a core squad at leader + <=3 minions.
+		if (param.squadChance > 100)
+			return StrCat("level ", param.level, " has a squad_chance above 100 (", static_cast<int>(param.squadChance), ")");
+		if (param.squadSize > 3)
+			return StrCat("level ", param.level, " has a squad_size above 3 (", static_cast<int>(param.squadSize), ")");
+		// squad_size 0 is the correct spelling for a level with squads switched off
+		// (squad_chance 0 never enters the squad branch), so it is only a defect when
+		// the level really does roll squads: such a roll would place a leader and then
+		// request zero minions, leaving a leader whose packSize is 0.
+		if (param.squadChance > 0 && param.squadSize == 0)
+			return StrCat("level ", param.level, " enables squads (squad_chance ", static_cast<int>(param.squadChance), ") but has squad_size 0");
 	}
 
 	// Uniqueness checks (R21 + 2a rulings): a duplicate params row for the same level would

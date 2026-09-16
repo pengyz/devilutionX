@@ -34,6 +34,24 @@ struct LevelRosterParams {
 	int maxImage;
 	int tailDraw;
 	std::vector<std::pair<BehaviorClass, uint8_t>> classFloors;
+	/**
+	 * Percent chance (0-100) that a core type drawn by the scatter loop is placed as a
+	 * squad (one leader plus `squadSize` minions of another core type) instead of as a
+	 * plain same-type group. 0 disables squads for the level entirely.
+	 */
+	uint8_t squadChance = 0;
+	/**
+	 * Number of minions requested for a squad, 1-3. Only meaningful when squadChance > 0;
+	 * validation rejects 0 in that case, because a squad roll that can place no minion
+	 * would leave a leader with packSize 0.
+	 */
+	uint8_t squadSize = 0;
+	/**
+	 * true: minions are leashed to the leader (setLeader + packSize + the 4-tile leash).
+	 * false (spec 4.3.4 fallback): the leader is still passed to PlaceGroup, so minions
+	 * are still seeded next to it, but no leash/packSize/regroup semantics are applied.
+	 */
+	bool squadLeashed = true;
 };
 
 /**

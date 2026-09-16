@@ -293,6 +293,71 @@ TEST_F(LevelRosterTest, ValidationRejectsTheClassFloorCountSentinel)
 	EXPECT_NE(error->find("Count"), std::string::npos);
 }
 
+// ---------------------------------------------------------------------------
+// Task 3 (spec 2026-09-15-level-rosters-design 4.3.3): the squad columns.
+//
+// Validation rules, and why they are shaped this way rather than "all three
+// fields always in range":
+//   - squad_chance is a percentage, so > 100 is meaningless -> reject.
+//   - squad_size feeds PlaceGroup's `num`, and the spec caps a core squad at a
+//     leader plus at most 3 minions -> > 3 is rejected unconditionally.
+//   - squad_size == 0 is only a defect on a level that actually rolls squads.
+//     With squad_chance == 0 the level never enters the squad branch, so 0 is
+//     the correct "squads off" spelling and must stay legal; rejecting it
+//     unconditionally would outlaw every squad-free level (and every
+//     LevelRosterParams built without squad columns, e.g. the pre-Task-3 rows
+//     the other cases in this file construct). So the rejection is conditional:
+//     squad_chance > 0 with squad_size == 0 would roll a squad it can never
+//     populate, leaving a leader whose packSize is 0.
+// ---------------------------------------------------------------------------
+
+TEST_F(LevelRosterTest, ValidationRejectsAnOutOfRangeSquadChance)
+{
+	const std::vector<LevelRosterEntry> entries { { 1, MT_WSKELAX, LevelRosterRole::Core, false } };
+	std::vector<LevelRosterParams> params { { 1, 6000, 2, {} } };
+	params[0].squadChance = 101;
+	params[0].squadSize = 2;
+	const auto error = ValidateLevelRoster(entries, params);
+	ASSERT_TRUE(error.has_value());
+	EXPECT_NE(error->find("squad_chance"), std::string::npos);
+}
+
+TEST_F(LevelRosterTest, ValidationRejectsAnOutOfRangeSquadSize)
+{
+	const std::vector<LevelRosterEntry> entries { { 1, MT_WSKELAX, LevelRosterRole::Core, false } };
+	std::vector<LevelRosterParams> params { { 1, 6000, 2, {} } };
+	params[0].squadChance = 30;
+	params[0].squadSize = 4;
+	const auto error = ValidateLevelRoster(entries, params);
+	ASSERT_TRUE(error.has_value());
+	EXPECT_NE(error->find("squad_size"), std::string::npos);
+}
+
+TEST_F(LevelRosterTest, ValidationRejectsAZeroSquadSizeWhenSquadsAreEnabled)
+{
+	const std::vector<LevelRosterEntry> entries { { 1, MT_WSKELAX, LevelRosterRole::Core, false } };
+	std::vector<LevelRosterParams> params { { 1, 6000, 2, {} } };
+	params[0].squadChance = 30;
+	params[0].squadSize = 0;
+	const auto error = ValidateLevelRoster(entries, params);
+	ASSERT_TRUE(error.has_value());
+	EXPECT_NE(error->find("squad_size"), std::string::npos);
+}
+
+TEST_F(LevelRosterTest, ValidationAcceptsAZeroSquadSizeWhenSquadsAreDisabled)
+{
+	// squad_chance = 0 is the "squads off" spelling: the sampling loop never
+	// enters the squad branch, so squad_size carries no meaning and 0 is valid.
+	// This is the complement of the case above; without it, nothing pins the
+	// rejection as CONDITIONAL and an unconditional "squad_size >= 1" check
+	// would pass the test above while breaking every squad-free level.
+	const std::vector<LevelRosterEntry> entries { { 1, MT_WSKELAX, LevelRosterRole::Core, false } };
+	std::vector<LevelRosterParams> params { { 1, 6000, 2, {} } };
+	params[0].squadChance = 0;
+	params[0].squadSize = 0;
+	EXPECT_FALSE(ValidateLevelRoster(entries, params).has_value());
+}
+
 TEST_F(LevelRosterTest, ValidationRejectsADuplicateParamsLevel)
 {
 	const std::vector<LevelRosterEntry> entries { { 1, MT_WSKELAX, LevelRosterRole::Core, false } };
@@ -434,6 +499,39 @@ TEST_F(LevelRosterFixtureLoadTest, LoadingAnInterleavedFixtureGathersAllMembersO
 	EXPECT_FALSE(nzombie->allowUniqueBoost);
 }
 
+TEST_F(LevelRosterFixtureLoadTest, ParamsCarrySquadColumns)
+{
+	// The three squad columns are read positionally by RecordReader, so this
+	// drives the real loader against the fixture table rather than constructing
+	// LevelRosterParams by hand: a column swap or an off-by-one in the read
+	// order would be invisible to a hand-built struct.
+	//
+	// The fixture's two rows deliberately differ in every squad column
+	// (L1 "40 3 true", L2 "0 0 false") so no assertion below can be satisfied
+	// by a loader that writes the same value into both rows, and squad_leashed
+	// is pinned in BOTH polarities - a parser that ignored the column and left
+	// the field at its default would pass one row and fail the other.
+	LoadLevelRosterFromFiles(
+	    "txtdata\\monsters\\level_rosters_interleaved.tsv",
+	    "txtdata\\monsters\\level_roster_params_interleaved.tsv");
+
+	const LevelRosterParams *params1 = GetLevelRosterParams(1);
+	ASSERT_NE(params1, nullptr);
+	EXPECT_EQ(params1->squadChance, 40);
+	EXPECT_EQ(params1->squadSize, 3);
+	EXPECT_TRUE(params1->squadLeashed);
+	// The pre-existing columns must still land in their own fields: reading three
+	// more columns shifts nothing if the order is right, and this catches it if not.
+	EXPECT_EQ(params1->maxImage, 6000);
+	EXPECT_EQ(params1->tailDraw, 2);
+
+	const LevelRosterParams *params2 = GetLevelRosterParams(2);
+	ASSERT_NE(params2, nullptr);
+	EXPECT_EQ(params2->squadChance, 0);
+	EXPECT_EQ(params2->squadSize, 0);
+	EXPECT_FALSE(params2->squadLeashed);
+}
+
 TEST_F(LevelRosterShippedLoadTest, LoadsTheShippedRosterAndValidatesIt)
 {
 	LoadLevelRoster();
@@ -455,4 +553,24 @@ TEST_F(LevelRosterShippedLoadTest, LoadsTheShippedRosterAndValidatesIt)
 	ASSERT_NE(bmagma, level9.end());
 	EXPECT_EQ(bmagma->role, LevelRosterRole::Core);
 	EXPECT_FALSE(bmagma->allowUniqueBoost);
+}
+
+TEST_F(LevelRosterShippedLoadTest, ShippedParamsEnableSquadsOnEveryParameterisedLevel)
+{
+	// Task 3 ships squad columns for L1-15 (the params table has no L16 row by
+	// design - see level_roster.h). The scatter loop's squad branch is gated on
+	// squadChance > 0 && squadSize > 0, so a level shipping 0 in either column
+	// would silently never form a squad; that is the failure this pins.
+	LoadLevelRoster();
+
+	for (uint8_t level = 1; level <= 15; level++) {
+		const LevelRosterParams *params = GetLevelRosterParams(level);
+		ASSERT_NE(params, nullptr) << "level " << static_cast<int>(level) << " must have a params row";
+		EXPECT_GT(params->squadChance, 0)
+		    << "level " << static_cast<int>(level) << " ships squad_chance 0, so its squad branch is dead";
+		EXPECT_LE(params->squadChance, 100) << "level " << static_cast<int>(level);
+		EXPECT_GE(params->squadSize, 1)
+		    << "level " << static_cast<int>(level) << " ships squad_size 0 with squads enabled";
+		EXPECT_LE(params->squadSize, 3) << "level " << static_cast<int>(level);
+	}
 }
