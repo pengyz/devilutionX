@@ -1,7 +1,7 @@
 # 维护提醒（R35）：本 case 的 `expected.passed_min` 与 `output_contains` 里的
 # "[  PASSED  ] N tests." 是**硬编码的用例计数**。往 LevelRosterBaselineTest 里新增或删除用例后
 # 必须同步这两处数字，否则门禁会静默失效（N 偏小 → 少跑也算过）或误红
-# （N 偏大 → 全绿也判失败）。当前值对应 3 个用例（2026-09-16 核对）。
+# （N 偏大 → 全绿也判失败）。当前值对应 8 个用例（Phase B Task 3 追加 5 个 SquadPlacementTest 用例后核对）。
 id: "level-rosters"
 name: "逐层名册 Phase A：放置构成占比在基线带内（真实引擎放置路径）"
 category: "rng"
@@ -12,23 +12,25 @@ setup:
   mpq_required: true
   # U1（同类）：PlacedClassMix* 走真实建关放置，需 unique 怪染色 TRN（零售或 HF 提供）。
   retail_or_hf_required: true
-  timeout: 300
+  timeout: 900
 
 run:
   backend: "gtest"
   binary: "level_roster_baseline_test"
-  filter: "LevelRosterBaselineTest.*"
+  filter: "LevelRosterBaselineTest.*:SquadPlacementTest.*"
 
 expected:
   exit_code: 0
   failed: 0
-  passed_min: 3
+  passed_min: 8
   skipped_max: 1
   output_contains:
     - "[ MEASURED ] level 13 ranged share"
     - "[ MEASURED ] level 14 ranged share"
     - "[ MEASURED ] level 15 ranged share"
-    - "[  PASSED  ] 3 tests."
+    - "[ SQUADRATE ]"
+    - "[ SHIPPEDSQUAD ]"
+    - "[  PASSED  ] 8 tests."
 
 description: >
   逐层名册 Phase A 的验收门禁：不看采样中间量，直接跑真实
@@ -57,3 +59,16 @@ description: >
   同时复核了组合数（500 seed）以确认没有为压占比而把某层压成固定组合：
   L2 117→360、L3 184→439、L4 147→448、L8 66→116，均显著上升。
   实测：L13 23.6% / L14 60.5% / L15 50.1%，三层同样在带内。
+
+  Phase B Task 3 追加：filter 覆盖同一二进制里的 SquadPlacementTest（5 个用例，
+  故计数 3 → 8，filter 同步扩为 LevelRosterBaselineTest.*:SquadPlacementTest.*，timeout 300 → 900s），跑的仍是真实 CreateDungeon -> GetLevelMTypes -> InitMonsters 链路。
+  用例无条件打印 [ SQUADRATE ]（squad_chance=100 下逐层实测成队率）与
+  [ SHIPPEDSQUAD ]（出厂表 squad_chance=30 下逐层实测成队率），output_contains
+  断言两行存在，因此小队一旦不成形，门禁不仅会红，还能直接读到逐层数字。
+  实测（出厂表、50 seed/层）：逐层 roll 率 26.8%-31.1%（名义 30%），
+  realisation 99.6%-100%，leader 放置失败与无 partner 计数全为 0。
+  同时记录：均匀 squad_chance=30 会把 L14 远程占比从 60.49% 推到 61.51%、越过
+  60.88% 阈值。按 R4 只改数据、不动阈值：先试 class_floors Melee=1 → Melee=2（占比
+  60.45% 达标），但全量门禁判红——该改动使 L14 的 unique base 可达性从 6/6 掉到 2/6，
+  违反验收 9c（HellUniqueBasesRemainReachable），故回退。最终采用 **L14 squad_chance
+  30 → 10**（占比 60.51% 达标，9c 恢复 6/6），其余各层保持 30。
