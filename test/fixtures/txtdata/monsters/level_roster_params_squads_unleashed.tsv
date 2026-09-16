@@ -1,0 +1,16 @@
+level	max_image	tail_draw	class_floors	squad_chance	squad_size	squad_leashed
+1	6000	2	Melee=2	100	2	0
+2	9000	4	Melee=2	100	2	0
+3	6000	4	Melee=2	100	2	0
+4	9000	4	RangedTurret=1	100	2	0
+5	9000	2	Melee=1	100	2	0
+6	9000	2	Sneak=1	100	2	0
+7	9000	2	Melee=1	100	2	0
+8	12000	3	RangedKite=1	100	2	0
+9	16000	3	RangedKite=1	100	2	0
+10	16000	3	RangedKite=2	100	2	0
+11	16000	3	RangedKite=2	100	2	0
+12	16000	3	RangedKite=2,Melee=2	100	2	0
+13	18000	1	Melee=2	100	2	0
+14	18000	2	Melee=1	100	2	0
+15	18000	3	Melee=2,RangedTurret=1	100	2	0

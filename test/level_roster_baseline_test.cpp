@@ -12,6 +12,7 @@
 #include "drlg_test.hpp" // TestInitGame / GetTileCount（本仓既有测试夹具）
 #include "engine/assets.hpp"
 #include "engine/load_file.hpp"
+#include "engine/random.hpp"
 #include "levels/gendung.h"
 #include "levels/trigs.h" // InitL1Triggers 等 + Freeupstairs（CreateLevel 逻辑复刻用）
 #include "monster.h"
@@ -212,6 +213,104 @@ std::array<size_t, static_cast<size_t>(BehaviorClass::Count)> MeasurePlacedClass
 	return mix;
 }
 
+// ---------------------------------------------------------------------------
+// Task 3 squad measurement helpers (spec 2026-09-15-level-rosters-design 4.3.3).
+//
+// A "realised squad" is what the level actually got, not what the table asked
+// for: a squad roll can still end up with zero minions because PlaceGroup
+// clamps `num` against totalmonsters, gives up after 10 placement attempts, and
+// (when leashed) additionally requires every minion within 4 tiles of the
+// leader. So the acceptance figure the brief asks for is measured from the
+// placed monsters, never inferred from squad_chance.
+// ---------------------------------------------------------------------------
+
+struct SquadObservation {
+	/** Squad minions: leashed minions under an ORDINARY (non-unique) leader. */
+	size_t leashedMinions = 0;
+	/** Distinct ordinary leaders that ended up with >= 1 leashed minion. */
+	size_t leadersWithMinions = 0;
+	/** Squad leaders holding a leashed minion while reporting packSize == 0 (must be 0). */
+	size_t leadersWithZeroPackSize = 0;
+	/** Squad minions whose ai differs from their own type's ai (G2 violation; must be 0). */
+	size_t minionsWithOverwrittenAi = 0;
+	/** Squad minions further from their leader than the engine leash allows. */
+	size_t minionsOutsideLeash = 0;
+	/** Squad minions whose leader is NOT a core roster member of this level (must be 0). */
+	size_t minionsUnderNonCoreLeader = 0;
+	/** Leashed minions under a UNIQUE leader: the pre-existing boss-pack path. */
+	size_t uniquePackMinions = 0;
+	size_t placed = 0;
+};
+
+bool IsCoreMemberOfLevel(uint8_t level, _monster_id type)
+{
+	const std::span<const LevelRosterEntry> roster = GetLevelRoster(level);
+	return std::any_of(roster.begin(), roster.end(), [type](const LevelRosterEntry &e) {
+		return e.type == type && e.role == LevelRosterRole::Core;
+	});
+}
+
+// Squad minions are separated from unique boss-pack minions by their LEADER's
+// uniqueness, not by any squad-specific marker.
+//
+// This is required, not cosmetic: PlaceUniqueMonsters() runs BEFORE the scatter
+// loop and already leashes minions to unique leaders with the default
+// MinionOptions{} (AI inherited, leader's base type not necessarily a core
+// roster member). Counting every leashed minion therefore mixes the two
+// populations - the first run of these cases failed exactly that way, reporting
+// 8 "non-core leaders" and 50 "squads" on a table with squad_chance 0.
+//
+// The scatter loop's squad path is the only producer of leashed minions under an
+// ORDINARY leader (G1's fix, task 1, changed how such a leader's death is
+// handled precisely because nothing else creates one), so leader->isUnique() is
+// the exact discriminator. SquadsAreAbsentWhenTheTableDisablesThem pins that
+// claim: with squads off, the ordinary-leader count must be 0 while the unique
+// count stays non-zero.
+SquadObservation ObserveSquads(uint8_t level)
+{
+	SquadObservation obs;
+	obs.placed = ActiveMonsterCount;
+
+	std::array<bool, MaxMonsters> counted {};
+	for (size_t i = 0; i < ActiveMonsterCount; i++) {
+		const Monster &monster = Monsters[ActiveMonsters[i]];
+		if (monster.leaderRelation != LeaderRelation::Leashed)
+			continue;
+		const Monster *leader = monster.getLeader();
+		if (leader == nullptr)
+			continue;
+		if (leader->isUnique()) {
+			obs.uniquePackMinions++;
+			continue;
+		}
+		obs.leashedMinions++;
+
+		if (monster.ai != monster.data().ai)
+			obs.minionsWithOverwrittenAi++;
+		// PlaceGroup measures its 4-tile leash from the FIRST candidate tile,
+		// which is a NEIGHBOUR of the leader (leader->position.tile +
+		// Direction(GenerateRnd(8))), not from the leader itself: the check is
+		// |xp - x1| < 4 with x1 = leader +/- 1. So a leashed minion may sit up to
+		// 4 tiles from the leader, and asserting < 4 here would fail on legitimate
+		// placements - the first run of this case failed that way on L9 seed 2.
+		const int dx = std::abs(monster.position.tile.x - leader->position.tile.x);
+		const int dy = std::abs(monster.position.tile.y - leader->position.tile.y);
+		if (dx > 4 || dy > 4)
+			obs.minionsOutsideLeash++;
+		if (!IsCoreMemberOfLevel(level, leader->type().type))
+			obs.minionsUnderNonCoreLeader++;
+		if (leader->packSize == 0)
+			obs.leadersWithZeroPackSize++;
+
+		const size_t leaderId = leader->getId();
+		if (leaderId < counted.size() && !counted[leaderId]) {
+			counted[leaderId] = true;
+			obs.leadersWithMinions++;
+		}
+	}
+	return obs;
+}
+
 } // namespace
 
 class LevelRosterBaselineTest : public ::testing::Test {
@@ -410,4 +509,348 @@ TEST_F(LevelRosterBaselineTest, PlacedClassMixWithinBaseline)
 		    << " exceeds baseline " << kRangedShareBaseline[level] << " + 5pp"
 		    << " (" << ranged << "/" << total << ")";
 	}
+}
+
+// ---------------------------------------------------------------------------
+// Task 3: core squads in the scatter loop (spec 4.3.3).
+//
+// These cases drive the REAL placement chain (CreateDungeonForMeasurement ->
+// GetLevelMTypes -> InitMonsters) and read the squads off the placed monsters,
+// so they measure what the level actually got rather than re-simulating the
+// rules.
+//
+// Every squad assertion below is an A/B against a same-seed, same-level run of
+// the SAME production code with only the params table swapped, never an
+// absolute band. That matters here specifically: a squad's realised minion
+// count is bounded by totalmonsters clamping, PlaceGroup's 10-attempt give-up
+// and the 4-tile leash, so any absolute "at least N squads" figure would be a
+// guess about placement luck. The A/B pins the DIFFERENCE the feature makes.
+//
+// The two override tables are full copies of the shipped params table with only
+// the squad columns changed (test/fixtures/txtdata/monsters/
+// level_roster_params_squads_{off,always,unleashed}.tsv), so max_image,
+// tail_draw and class_floors - everything else that shapes a level - are held
+// identical across the A and B runs.
+class SquadPlacementTest : public LevelRosterBaselineTest {
+protected:
+	void SetUp() override
+	{
+		savedAssetsPath_ = paths::AssetsPath();
+	}
+
+	void TearDown() override
+	{
+		paths::SetAssetsPath(savedAssetsPath_);
+		// Leave the process holding the SHIPPED tables: this fixture mutates
+		// process-global roster storage, and the other suites in this binary
+		// (and any later test in this one) expect the shipped rows.
+		if (!missingMpqAssets_)
+			LoadLevelRoster();
+	}
+
+	// Load one of the squad override tables from test/fixtures/. The roster table
+	// itself is never overridden - only the params table's squad columns differ.
+	static void LoadSquadParams(std::string_view paramsFile)
+	{
+		paths::SetAssetsPath(paths::BasePath() + "test/fixtures/");
+		LoadLevelRosterFromFiles("txtdata\\monsters\\level_rosters.tsv", paramsFile);
+		paths::SetAssetsPath(paths::BasePath() + "assets/");
+	}
+
+	static SquadObservation RunLevel(uint8_t level, uint32_t seed)
+	{
+		CreateDungeonForMeasurement(level, seed);
+		const auto getTypesResult = GetLevelMTypes();
+		EXPECT_TRUE(getTypesResult.has_value()) << getTypesResult.error();
+		const auto initResult = InitMonsters();
+		EXPECT_TRUE(initResult.has_value()) << initResult.error();
+		return ObserveSquads(level);
+	}
+
+private:
+	std::string savedAssetsPath_;
+};
+
+TEST_F(SquadPlacementTest, SquadFormsAroundACoreLeader)
+{
+	if (missingMpqAssets_)
+		GTEST_SKIP() << "MPQ assets not found - skipping test";
+	if (missingRetailTrn_)
+		GTEST_SKIP() << "retail/HF TRN (monsters\\monsters\\genrl.trn) not available - skipping test";
+
+	// squad_chance = 100 makes the branch deterministic-by-table; the realised
+	// minion count still depends on placement, which is exactly what is measured.
+	LoadSquadParams("txtdata\\monsters\\level_roster_params_squads_always.tsv");
+
+	size_t totalLeadersWithMinions = 0;
+	size_t totalLeashedMinions = 0;
+	for (uint8_t level = 9; level <= 12; level++) {
+		for (uint32_t seed = 0; seed < 10; seed++) {
+			const SquadObservation obs = RunLevel(level, 21000 + seed);
+			totalLeadersWithMinions += obs.leadersWithMinions;
+			totalLeashedMinions += obs.leashedMinions;
+
+			// (2)/(3) and the review's checks 1-2, asserted per sample so a
+			// violation names the level and seed rather than a global total.
+			EXPECT_EQ(obs.leadersWithZeroPackSize, 0u)
+			    << "level " << static_cast<int>(level) << " seed " << seed
+			    << ": a leader holding a leashed minion must report packSize >= 1";
+			EXPECT_EQ(obs.minionsWithOverwrittenAi, 0u)
+			    << "level " << static_cast<int>(level) << " seed " << seed
+			    << ": G2 requires squad minions to keep their own AI";
+			EXPECT_EQ(obs.minionsOutsideLeash, 0u)
+			    << "level " << static_cast<int>(level) << " seed " << seed
+			    << ": a leashed minion must sit within the engine's 4-tile leash";
+			EXPECT_EQ(obs.minionsUnderNonCoreLeader, 0u)
+			    << "level " << static_cast<int>(level) << " seed " << seed
+			    << ": squads may only form around a CORE roster member of that level";
+			// totalmonsters is a monster.cpp internal (not exported), so this
+			// asserts the engine-wide cap InitMonsters itself clamps
+			// totalmonsters to. Placing past totalmonsters would normally
+			// also breach this bound, since totalmonsters <= MaxMonsters - 10.
+			EXPECT_LE(obs.placed, MaxMonsters - 10)
+			    << "level " << static_cast<int>(level) << " seed " << seed
+			    << ": the squad path must not place past the engine placement cap";
+		}
+	}
+
+	// (1) squads must actually happen. This is the only non-A/B floor in the
+	// case and it is deliberately the weakest possible one (> 0 over 40 runs at
+	// squad_chance 100): the quantitative per-level rate lives in
+	// SquadRateIsMeasuredPerLevel, and a stronger absolute floor here would be a
+	// bet on placement luck.
+	EXPECT_GT(totalLeadersWithMinions, 0u)
+	    << "L9-12 at squad_chance 100 produced no leader with a leashed minion";
+	EXPECT_GT(totalLeashedMinions, 0u);
+}
+
+TEST_F(SquadPlacementTest, SquadsAreAbsentWhenTheTableDisablesThem)
+{
+	if (missingMpqAssets_)
+		GTEST_SKIP() << "MPQ assets not found - skipping test";
+	if (missingRetailTrn_)
+		GTEST_SKIP() << "retail/HF TRN (monsters\\monsters\\genrl.trn) not available - skipping test";
+
+	// The A side of the A/B: identical levels and seeds to
+	// SquadFormsAroundACoreLeader, only squad_chance = 0. Everything the squad
+	// branch produces must vanish here, which is what makes the B side's
+	// non-zero count attributable to the FEATURE rather than to unique boss
+	// packs - the pre-existing leashed-minion source that runs on these levels
+	// either way (PlaceUniqueMonsters, before the scatter loop).
+	//
+	// The unique-pack count is asserted NON-zero on purpose. Without it, a
+	// discriminator bug that classified every leashed minion as "unique" would
+	// satisfy the squad assertion below while measuring nothing at all, and the
+	// whole A/B would silently become vacuous.
+	LoadSquadParams("txtdata\\monsters\\level_roster_params_squads_off.tsv");
+
+	size_t leadersWithMinions = 0;
+	size_t uniquePackMinions = 0;
+	for (uint8_t level = 9; level <= 12; level++) {
+		for (uint32_t seed = 0; seed < 10; seed++) {
+			const SquadObservation obs = RunLevel(level, 21000 + seed);
+			leadersWithMinions += obs.leadersWithMinions;
+			uniquePackMinions += obs.uniquePackMinions;
+			EXPECT_EQ(obs.leadersWithZeroPackSize, 0u)
+			    << "level " << static_cast<int>(level) << " seed " << seed;
+		}
+	}
+	EXPECT_EQ(leadersWithMinions, 0u)
+	    << "squad_chance 0 must not produce any leashed squad under an ordinary leader on L9-12";
+	EXPECT_GT(uniquePackMinions, 0u)
+	    << "these levels place unique boss packs either way; a zero here means the"
+	    << " squad/unique discriminator is misclassifying, making the assertion above vacuous";
+}
+
+TEST_F(SquadPlacementTest, UnleashedFallbackPlacesNeighboursWithoutLeashing)
+{
+	if (missingMpqAssets_)
+		GTEST_SKIP() << "MPQ assets not found - skipping test";
+	if (missingRetailTrn_)
+		GTEST_SKIP() << "retail/HF TRN (monsters\\monsters\\genrl.trn) not available - skipping test";
+
+	// Spec 4.3.4 fallback: squad_leashed = 0 keeps passing the leader to
+	// PlaceGroup (so minions are still seeded from the leader's neighbourhood)
+	// but applies no leash, no setLeader and no packSize. The observable
+	// consequence is that this configuration produces NO leashed minion at all,
+	// while the leashed configuration (same seeds, same levels) does - a
+	// same-seed A/B on the one column that differs.
+	LoadSquadParams("txtdata\\monsters\\level_roster_params_squads_unleashed.tsv");
+	size_t unleashedLeashedMinions = 0;
+	for (uint8_t level = 9; level <= 12; level++) {
+		for (uint32_t seed = 0; seed < 10; seed++)
+			unleashedLeashedMinions += RunLevel(level, 21000 + seed).leashedMinions;
+	}
+
+	LoadSquadParams("txtdata\\monsters\\level_roster_params_squads_always.tsv");
+	size_t leashedLeashedMinions = 0;
+	for (uint8_t level = 9; level <= 12; level++) {
+		for (uint32_t seed = 0; seed < 10; seed++)
+			leashedLeashedMinions += RunLevel(level, 21000 + seed).leashedMinions;
+	}
+
+	EXPECT_EQ(unleashedLeashedMinions, 0u)
+	    << "squad_leashed 0 must not leash minions (no setLeader / packSize / regroup)";
+	EXPECT_GT(leashedLeashedMinions, 0u)
+	    << "the leashed reference run produced nothing, so the comparison above proves nothing";
+}
+
+TEST_F(SquadPlacementTest, SquadRateIsMeasuredPerLevel)
+{
+	if (missingMpqAssets_)
+		GTEST_SKIP() << "MPQ assets not found - skipping test";
+	if (missingRetailTrn_)
+		GTEST_SKIP() << "retail/HF TRN (monsters\\monsters\\genrl.trn) not available - skipping test";
+
+	// The brief's acceptance figure: for each level, the share of squad ROLLS
+	// that produced a real squad (>= 1 leashed minion). Measured at
+	// squad_chance = 100 so every core draw rolls a squad and the denominator is
+	// the number of rolls the loop actually made - the loss is then attributable
+	// purely to placement (totalmonsters clamp, 10-attempt give-up, 4-tile
+	// leash), which is what the brief asks to report.
+	//
+	// GetSquadRollStats() exposes the loop's own counters, so the denominator is
+	// the production code's, not a re-derivation. The counters are PER LEVEL -
+	// InitLevelMonsters() (which CreateDungeonForMeasurement calls) resets them -
+	// so each run's totals are read straight after that run. Taking a
+	// before/after difference would underflow across the reset, which is how the
+	// first version of this measurement produced rolls = 2^64-1.
+	LoadSquadParams("txtdata\\monsters\\level_roster_params_squads_always.tsv");
+
+	constexpr uint32_t kSeeds = 50;
+	std::string report = "\n## Task 3: realised squad rate per level (squad_chance = 100, 50 seeds)\n\n"
+	                     "| level | squad rolls | realised squads | rate | leashed minions | minions/squad"
+	                     " | lost: leader / no partner |\n"
+	                     "|---|---|---|---|---|---|---|\n";
+	for (uint8_t level = 1; level <= 15; level++) {
+		size_t eligible = 0;
+		size_t rolls = 0;
+		size_t realised = 0;
+		size_t minions = 0;
+		size_t leaderFailures = 0;
+		size_t noPartner = 0;
+		for (uint32_t seed = 0; seed < kSeeds; seed++) {
+			const SquadObservation obs = RunLevel(level, 31000 + seed);
+			const SquadRollCounters &counters = GetSquadRollStats();
+			eligible += counters.eligibleCoreDraws;
+			rolls += counters.rolls;
+			leaderFailures += counters.leaderPlacementFailed;
+			noPartner += counters.noPartnerAvailable;
+			realised += obs.leadersWithMinions;
+			minions += obs.leashedMinions;
+		}
+		const double rate = rolls == 0 ? 0.0 : static_cast<double>(realised) / static_cast<double>(rolls);
+		const double perSquad = realised == 0 ? 0.0 : static_cast<double>(minions) / static_cast<double>(realised);
+		std::cout << "[ SQUADRATE ] level " << static_cast<int>(level) << " rolls " << rolls
+		          << " realised " << realised << " rate " << rate << " minions " << minions
+		          << " per-squad " << perSquad << " lost(leader/partner) "
+		          << leaderFailures << "/" << noPartner << std::endl;
+		report += StrCat("| ", level, " | ", rolls, " | ", realised, " | ");
+		report += StrCat(static_cast<int>(rate * 1000.0 + 0.5), "/1000 | ", minions, " | ");
+		report += StrCat(static_cast<int>(perSquad * 100.0 + 0.5), "/100 | ");
+		report += StrCat(leaderFailures, " / ", noPartner, " |\n");
+
+		// The realised count can never exceed the number of rolls that entered the
+		// branch: a roll places at most one leader. This is the invariant that
+		// caught the underflowing before/after accounting the first run used.
+		EXPECT_LE(realised, rolls)
+		    << "level " << static_cast<int>(level) << " reports more realised squads than rolls,"
+		    << " so the roll denominator is not the loop's";
+
+		// Every level must actually roll squads: a level whose core is never
+		// drawn by the scatter loop would silently report rate 0 and look
+		// "measured" while being unreachable.
+		EXPECT_GT(rolls, 0u)
+		    << "level " << static_cast<int>(level) << " never entered the squad branch at squad_chance 100";
+		// At squad_chance 100 every eligible core draw must roll: a gap here would
+		// mean the branch is gated on something beyond the documented conditions.
+		EXPECT_EQ(rolls, eligible)
+		    << "level " << static_cast<int>(level) << " skipped eligible core draws at squad_chance 100";
+	}
+	AppendMeasurementReport(report);
+}
+
+TEST_F(SquadPlacementTest, ShippedSquadChanceRealisesSquadsOnEveryLevel)
+{
+	if (missingMpqAssets_)
+		GTEST_SKIP() << "MPQ assets not found - skipping test";
+	if (missingRetailTrn_)
+		GTEST_SKIP() << "retail/HF TRN (monsters\\monsters\\genrl.trn) not available - skipping test";
+
+	// The figure the task brief asks to REPORT: with the table the game actually
+	// ships (squad_chance 30), what share of squad-eligible core draws ends up as
+	// a real squad on each level? Two rates are reported because they answer
+	// different questions and only the second is a property of the code:
+	//
+	//   roll rate      = rolls / eligible core draws  -> tracks squad_chance
+	//   realisation    = realised / rolls             -> tracks placement loss
+	//                                                    (totalmonsters clamp,
+	//                                                    PlaceGroup's 10 attempts,
+	//                                                    the 4-tile leash)
+	//
+	// No absolute band is asserted on either: both are placement- and
+	// roster-dependent, and pinning a literal here would turn a table tweak
+	// (task 4's job) into a test failure. What IS asserted is the structural
+	// part - every level realises squads, no level loses ALL of its rolls, and
+	// realised never exceeds rolls.
+	LoadLevelRoster(); // shipped tables (squad_chance 30)
+
+	constexpr uint32_t kSeeds = 50;
+	std::string report = "\n## Task 3: realised squad rate per level (SHIPPED table, squad_chance 30, 50 seeds)\n\n"
+	                     "| level | eligible core draws | rolls | roll rate | realised | realisation rate"
+	                     " | leashed minions | lost: leader / no partner |\n"
+	                     "|---|---|---|---|---|---|---|\n";
+	for (uint8_t level = 1; level <= 15; level++) {
+		size_t eligible = 0;
+		size_t rolls = 0;
+		size_t realised = 0;
+		size_t minions = 0;
+		size_t leaderFailures = 0;
+		size_t noPartner = 0;
+		for (uint32_t seed = 0; seed < kSeeds; seed++) {
+			const SquadObservation obs = RunLevel(level, 41000 + seed);
+			const SquadRollCounters &counters = GetSquadRollStats();
+			eligible += counters.eligibleCoreDraws;
+			rolls += counters.rolls;
+			leaderFailures += counters.leaderPlacementFailed;
+			noPartner += counters.noPartnerAvailable;
+			realised += obs.leadersWithMinions;
+			minions += obs.leashedMinions;
+
+			EXPECT_EQ(obs.leadersWithZeroPackSize, 0u)
+			    << "level " << static_cast<int>(level) << " seed " << seed;
+			EXPECT_EQ(obs.minionsWithOverwrittenAi, 0u)
+			    << "level " << static_cast<int>(level) << " seed " << seed;
+			EXPECT_EQ(obs.minionsUnderNonCoreLeader, 0u)
+			    << "level " << static_cast<int>(level) << " seed " << seed;
+		}
+		const double rollRate = eligible == 0 ? 0.0 : static_cast<double>(rolls) / static_cast<double>(eligible);
+		const double realisation = rolls == 0 ? 0.0 : static_cast<double>(realised) / static_cast<double>(rolls);
+		std::cout << "[ SHIPPEDSQUAD ] level " << static_cast<int>(level) << " eligible " << eligible
+		          << " rolls " << rolls << " rollRate " << rollRate << " realised " << realised
+		          << " realisation " << realisation << " minions " << minions
+		          << " lost(leader/partner) " << leaderFailures << "/" << noPartner << std::endl;
+		report += StrCat("| ", level, " | ", eligible, " | ", rolls, " | ");
+		report += StrCat(static_cast<int>(rollRate * 1000.0 + 0.5), "/1000 | ", realised, " | ");
+		report += StrCat(static_cast<int>(realisation * 1000.0 + 0.5), "/1000 | ", minions, " | ");
+		report += StrCat(leaderFailures, " / ", noPartner, " |\n");
+
+		// Tripwire for the squad path's defensive leader-placement fallback in
+		// monster.cpp, which is unreachable today (PlaceGroup always places a
+		// leaderless group of 1 on its first candidate tile, and squadEligible
+		// guarantees room). If that ever stops holding, this says so rather than
+		// letting the fallback become live and untested.
+		EXPECT_EQ(leaderFailures, 0u)
+		    << "level " << static_cast<int>(level) << ": squad leader placement started failing,"
+		    << " so monster.cpp's defensive fallback is now a live path and needs its own coverage";
+		EXPECT_GT(eligible, 0u)
+		    << "level " << static_cast<int>(level) << " never draws a core type in the scatter loop,"
+		    << " so its squad columns can never do anything";
+		EXPECT_GT(realised, 0u)
+		    << "level " << static_cast<int>(level) << " realised no squad at all over " << kSeeds
+		    << " seeds despite " << rolls << " rolls";
+		EXPECT_LE(realised, rolls)
+		    << "level " << static_cast<int>(level) << " reports more realised squads than rolls";
+	}
+	AppendMeasurementReport(report);
 }

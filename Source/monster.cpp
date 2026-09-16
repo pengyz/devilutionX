@@ -3313,7 +3313,79 @@ bool PosOkMovingMissile(Point position)
 	return !IsMissileBlockedByTile(position);
 }
 
+// --- Core squads (spec 2026-09-15-level-rosters-design 4.3.3) --------------
+//
+// Both helpers are file-static on purpose: they are scatter-loop internals, not
+// a new exported roster API. GetLevelRoster() already gives the loop the level's
+// rows, and IsMonsterAvailable() (same TU) applies the availability filter that
+// roster row alone does not imply - see the note in level_roster.h.
+
+bool IsCoreRosterMember(uint8_t level, _monster_id type)
+{
+	const std::span<const LevelRosterEntry> roster = GetLevelRoster(level);
+	return std::any_of(roster.begin(), roster.end(), [type](const LevelRosterEntry &entry) {
+		return entry.type == type && entry.role == LevelRosterRole::Core;
+	});
+}
+
+/**
+ * @brief Picks a random registered core member of `level` other than `leaderType` to serve as a
+ * squad's minion type, and returns its LevelMonsterTypes index.
+ *
+ * Returns LevelMonsterTypeCount - the same "not found" answer GetMonsterTypeIndex gives, and
+ * never a usable index - when the level has no other core member that is both available and
+ * registered. Callers must treat that as "no squad this roll".
+ *
+ * The index (rather than the _monster_id) is what comes back on purpose. A roster row is not a
+ * guarantee that the type is REGISTERED on the level: GetLevelRoster() applies no availability
+ * filter at all (see level_roster.h), and GetLevelMTypes' pre-add skips unavailable rows. An
+ * earlier version of this returned MT_INVALID for "none" and left the caller to call
+ * GetMonsterTypeIndex, which meant the caller carried a second, separate failure branch for an
+ * unregistered partner - a branch the shipped roster can never reach, so nothing could ever
+ * exercise it. Resolving the index here collapses both failures into this one reachable answer.
+ *
+ * A squad deliberately mixes two core types rather than doubling the leader's own type: a
+ * same-type squad would just be the legacy group with extra leash semantics, whereas the spec's
+ * intent is that squads reshape a level's composition.
+ */
+size_t PickCorePartnerTypeIndex(uint8_t level, _monster_id leaderType)
+{
+	const std::span<const LevelRosterEntry> roster = GetLevelRoster(level);
+	StaticVector<size_t, MaxLvlMTypes> candidates;
+	for (const LevelRosterEntry &entry : roster) {
+		if (entry.role != LevelRosterRole::Core || entry.type == leaderType)
+			continue;
+		if (!IsMonsterAvailable(MonstersData[static_cast<size_t>(entry.type)]))
+			continue;
+		const size_t typeIndex = GetMonsterTypeIndex(entry.type);
+		if (typeIndex >= LevelMonsterTypeCount)
+			continue; // core row that this level did not register
+		// A level's roster can in principle list more core rows than MaxLvlMTypes; the
+		// level could never register them all anyway, and StaticVector asserts on
+		// overflow, so stop at capacity.
+		if (candidates.size() == MaxLvlMTypes)
+			break;
+		candidates.emplace_back(typeIndex);
+	}
+	if (candidates.empty())
+		return LevelMonsterTypeCount;
+	return candidates[GenerateRnd(static_cast<int32_t>(candidates.size()))];
+}
+
+/**
+ * Squad roll bookkeeping for the current level. Reset by InitLevelMonsters() together with the
+ * rest of the per-level monster state, reported by the verbose load-time diagnostic below, and
+ * read by the squad-rate measurement so the acceptance figure uses the loop's OWN denominator
+ * instead of re-deriving how many rolls the loop made.
+ */
+SquadRollCounters SquadRollStats;
+
 } // namespace
+
+const SquadRollCounters &GetSquadRollStats()
+{
+	return SquadRollStats;
+}
 
 std::expected<size_t, std::string> AddMonsterType(_monster_id type, placeflag placeflag)
 {
@@ -3456,6 +3528,7 @@ void InitLevelMonsters()
 
 	std::iota(std::begin(ActiveMonsters), std::end(ActiveMonsters), 0U);
 	uniquetrans = 0;
+	SquadRollStats = {};
 }
 
 std::expected<void, std::string> GetLevelMTypes()
@@ -3849,15 +3922,81 @@ std::expected<void, std::string> InitMonsters()
 			}
 		}
 		if (numscattypes > 0) {
+			const LevelRosterParams *rosterParams = GetLevelRosterParams(currlevel);
 			while (ActiveMonsterCount < totalmonsters) {
 				const size_t typeIndex = scattertypes[GenerateRnd(numscattypes)];
+				// The legacy same-type group size. Computed for every iteration
+				// regardless of which branch runs below, so the squad branch does not
+				// change how many RNG draws a scatter iteration consumes before the
+				// squad roll itself.
 				if (currlevel == 1 || FlipCoin())
 					na = 1;
 				else if (currlevel == 2 || leveltype == DTYPE_CRYPT)
 					na = GenerateRnd(2) + 2;
 				else
 					na = GenerateRnd(3) + 3;
-				PlaceGroup(typeIndex, na);
+
+				// Spec 4.3.3: a core type may be placed as a squad - one leader plus
+				// squadSize minions of a DIFFERENT core type of the same level. Requires
+				// room for the leader plus at least one minion, otherwise the roll would
+				// produce a lone leader with packSize 0.
+				const bool squadEligible = rosterParams != nullptr
+				    && rosterParams->squadChance > 0 && rosterParams->squadSize > 0
+				    && IsCoreRosterMember(currlevel, LevelMonsterTypes[typeIndex].type)
+				    && totalmonsters - ActiveMonsterCount >= 2;
+				if (squadEligible)
+					SquadRollStats.eligibleCoreDraws++;
+				if (squadEligible && GenerateRnd(100) < static_cast<int>(rosterParams->squadChance)) {
+					SquadRollStats.rolls++;
+					const size_t before = ActiveMonsterCount;
+					PlaceGroup(typeIndex, 1, nullptr, false, {});
+					if (ActiveMonsterCount == before) {
+						// Defensive, and currently UNREACHABLE - deliberately kept.
+						//
+						// Unreachable because of how PlaceGroup places a leaderless
+						// group of 1: it picks its anchor tile through
+						// `do { ... } while (!CanPlaceMonster(...))`, so the anchor is
+						// always placeable; the first inner candidate IS that anchor,
+						// its dTransVal trivially equals its own, and leashed is false,
+						// so the first attempt always succeeds. squadEligible also
+						// guarantees room for 2 more monsters, so the totalmonsters
+						// clamp cannot reduce num to 0 either.
+						//
+						// Kept anyway because the alternative is a memory-safety bug
+						// rather than a missing squad: without it,
+						// &Monsters[ActiveMonsterCount - 1] would alias an unrelated
+						// monster placed by an EARLIER loop iteration and this roll
+						// would leash minions to a stranger. If PlaceGroup's placement
+						// strategy ever changes, this stays correct.
+						//
+						// Because it cannot fire today, the squad measurements assert
+						// leaderPlacementFailed == 0 as a tripwire: should placement
+						// ever start failing here, that assertion goes red and says so,
+						// instead of this branch silently becoming live and untested.
+						SquadRollStats.leaderPlacementFailed++;
+						PlaceGroup(typeIndex, na);
+						continue;
+					}
+					Monster &leader = Monsters[ActiveMonsters[ActiveMonsterCount - 1]];
+					const size_t partnerIndex = PickCorePartnerTypeIndex(currlevel, LevelMonsterTypes[typeIndex].type);
+					if (partnerIndex >= LevelMonsterTypeCount) {
+						// No other available, registered core member on this level, so
+						// there is nothing to build a mixed squad from. The leader stays
+						// as an ordinary lone monster (never leashed, so its packSize is
+						// untouched) and the loop continues.
+						SquadRollStats.noPartnerAvailable++;
+						continue;
+					}
+					PlaceGroup(partnerIndex, rosterParams->squadSize, &leader,
+					    rosterParams->squadLeashed,
+					    MinionOptions { .tough = false, .inheritAi = false, .inheritIntelligence = false });
+					// PlaceGroup only writes packSize when leashed; an unleashed squad
+					// deliberately leaves the leader an ordinary monster (spec 4.3.4).
+					if (rosterParams->squadLeashed && leader.packSize > 0)
+						SquadRollStats.realised++;
+				} else {
+					PlaceGroup(typeIndex, na);
+				}
 			}
 		}
 	}
@@ -3865,6 +4004,20 @@ std::expected<void, std::string> InitMonsters()
 		for (int s = -2; s < 2; s++) {
 			for (int t = -2; t < 2; t++)
 				DoUnVision(trigs[i].position + Displacement { s, t }, 15);
+		}
+	}
+
+	// Verbose-only diagnostic: a level whose squad rolls all dissolve into placement
+	// failures looks identical to a level with squads switched off unless the breakdown is
+	// visible somewhere. Squads are placement-bounded (see SquadRollCounters), so this is
+	// the cheapest way to tell "the table says 30%" from "the level realises 4%".
+	{
+		const SquadRollCounters &squads = GetSquadRollStats();
+		if (squads.rolls > 0) {
+			LogVerbose("Core squads: level {} had {} eligible core draws, rolled {} squads, {} realised "
+			           "({} leader placement failures, {} without an available partner)",
+			    currlevel, squads.eligibleCoreDraws, squads.rolls, squads.realised,
+			    squads.leaderPlacementFailed, squads.noPartnerAvailable);
 		}
 	}
 

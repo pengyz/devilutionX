@@ -522,6 +522,48 @@ struct MinionOptions {
  */
 void PlaceGroup(size_t typeIndex, size_t num, Monster *leader = nullptr, bool leashed = false, MinionOptions opts = {});
 
+/**
+ * @brief Per-level bookkeeping for the scatter loop's core-squad rolls (spec 4.3.3).
+ *
+ * A squad roll can fail to produce a squad for reasons that are entirely about placement rather
+ * than about the table's squad_chance: the leader can be clamped away by totalmonsters, the level
+ * can have no second available core member, and the minion group can lose every one of
+ * PlaceGroup's 10 attempts (leashed minions additionally have to land within 4 tiles of the
+ * leader). These counters record where the rolls went, so the realised squad rate is
+ * attributable instead of being a single unexplained number.
+ *
+ * Reset by InitLevelMonsters() along with the rest of the per-level monster state.
+ */
+struct SquadRollCounters {
+	/**
+	 * Scatter-loop iterations that drew a CORE type and had room for a leader plus at least one
+	 * minion, i.e. every iteration eligible to become a squad. This is the denominator the
+	 * per-level squad rate is reported against: squad_chance only decides how many of these
+	 * eligible draws actually roll.
+	 */
+	size_t eligibleCoreDraws = 0;
+	/** Rolls that passed squad_chance and entered the squad path. */
+	size_t rolls = 0;
+	/** Rolls whose leader could not be placed at all (fell back to a legacy group). */
+	size_t leaderPlacementFailed = 0;
+	/**
+	 * Rolls where the level had no other core member that is both available and registered, so
+	 * no mixed squad could be built.
+	 */
+	size_t noPartnerAvailable = 0;
+	/** Rolls that ended with a leashed leader actually holding >= 1 minion. */
+	size_t realised = 0;
+};
+
+/**
+ * @brief Returns the current level's squad roll counters.
+ *
+ * Read by the load-time verbose diagnostic (so a level whose squads never materialise shows up
+ * in a verbose log) and by the squad-rate measurement, which needs the loop's own roll
+ * denominator rather than a re-derivation of it.
+ */
+const SquadRollCounters &GetSquadRollStats();
+
 std::expected<void, std::string> PrepareUniqueMonst(Monster &monster, UniqueMonsterType monsterType, size_t miniontype, int bosspacksize, const UniqueMonsterData &uniqueMonsterData);
 void InitLevelMonsters();
 std::expected<void, std::string> GetLevelMTypes();
