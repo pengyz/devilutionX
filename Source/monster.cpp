@@ -3996,6 +3996,11 @@ std::expected<void, std::string> InitMonsters()
 					// minion (spec 4.3.4 keeps passing the leader to PlaceGroup but applies no
 					// setLeader), so this is the only point where the pairing is still known -
 					// see SquadRollCounters::maxPartnerLeaderDistance.
+					if (ActiveMonsterCount > beforePartners) {
+						// Spec §6 acceptance 7's numerator: this roll really put down at least one
+						// minion. Kept leash-agnostic on purpose - see SquadRollCounters::formed.
+						SquadRollStats.formed++;
+					}
 					for (size_t minionIndex = beforePartners; minionIndex < ActiveMonsterCount; minionIndex++) {
 						const Point &minionTile = Monsters[ActiveMonsters[minionIndex]].position.tile;
 						const int dx = std::abs(minionTile.x - leader.position.tile.x);

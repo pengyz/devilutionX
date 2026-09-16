@@ -554,6 +554,19 @@ struct SquadRollCounters {
 	/** Rolls that ended with a leashed leader actually holding >= 1 minion. */
 	size_t realised = 0;
 	/**
+	 * Rolls that placed at least one minion for their leader, WHETHER OR NOT the squad is leashed.
+	 *
+	 * This is the "squad formation rate" numerator of spec §6 acceptance 7 ("attempted squads that
+	 * really put down >= 1 minion"), and it is deliberately separate from `realised`: `realised` is
+	 * gated on `leader.packSize > 0`, which PlaceGroup only ever writes when `leashed` is true. On a
+	 * level that took the §4.3.4 fallback (`squad_leashed = 0`) `realised` is therefore 0 by
+	 * construction even when every roll formed a full squad, so a formation-rate guard built on
+	 * `realised` would collapse to "0%" the moment the fallback it is supposed to inform gets used -
+	 * it would forbid its own remedy. Counted per ROLL (not per minion) so the ratio against `rolls`
+	 * is a probability.
+	 */
+	size_t formed = 0;
+	/**
 	 * Minions the squad path actually placed for a leader, counted whether or not the squad is
 	 * leashed. This is the sample size the two figures below are measured over: an assertion on
 	 * them is vacuous while this is 0.
