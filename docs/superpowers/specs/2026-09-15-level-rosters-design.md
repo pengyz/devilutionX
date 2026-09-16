@@ -201,6 +201,8 @@ level   max_image   tail_draw   class_floors          squad_chance   squad_size
 | 7 | **小队形成率**：T1 先实测各层段"尝试成队中至少放下 1 只随从"的比例，**阈值由实测导出**并写入实现计划；低于阈值者改用 §4.3.4 回退 | `SquadFormationRate`（阈值参数化） |
 | 8 | placed class mix（按类别的怪物数）相对改动前基线：远程类 ≤ 基线 +5 个百分点 | `PlacedClassMixWithinBaseline`（基线由 T1 产出，记录在计划与提交信息） |
 | 9 | 身份守卫：相邻层名册 Jaccard < 0.9 | `IdentityGuard`（P0-D 度量） |
+| 9b | **多样性守卫（2026-09-15 最终评审新增，R38）**：L2-15 每层的**每 seed 组合数 ≥ 2**（500 seeds 实测；L1 因候选池仅 6 个允许例外，须在用例内注释说明） | `RosterPerSeedVariety` |
+| 9c | **unique 可达性守卫（R38）**：`mlevel ∈ 13-15` 的每个 unique，其 base 类型必须在至少一个 seed 的 realized 集合中出现（地狱段强制；本条是 S1 回归的直接守卫） | `HellUniqueBasesRemainReachable` |
 | 10 | A1/A3 的变体出现在其所属层的 core 中 | `A1A3VariantsAreCore` |
 | 11 | eval + 全量门禁 + 夹具 + 台账 + 协议声明 | `eval/cases/rng/level-rosters.yaml`、`python3 -m tools.eval.backend --smoke`、`python3 tools/run_tests.py --json /tmp/ci.json`（100%/0/drift ok）、`timedemo` 等按决策 35 重生成、`docs/knowledge/decision_save_format_policy.md` 记账；**明确声明：名册改变 `DSpawnedMonster.typeIndex` 的含义 → 不同版本不可互联（不提供跨版本兼容）** |
 
@@ -273,7 +275,7 @@ level   max_image   tail_draw   class_floors          squad_chance   squad_size
 
 ## 附录 E：阶段 B / A2 待决问题（本规格记录，不在阶段 A 范围）
 
-1. **地狱段名册被双重挤压（本次实测）**：L13-16 的 B1 `cap ≤ 2/类` 与 L13 偏低的远程占比基线（22.8%）共同把核心名册压到"2 core + 1 尾抽"，实现出的物种数（≈4-5）低于设计目标（7-9）。可选出路：① 放宽 `cap ≤ 2/类`（需论证"名册已保证类别多样性，故 cap 可放宽"）；② 提高远程占比上限（+5pp）；③ 扩充 Melee 候选池；④ **由阶段 B 的编组层提供多样性**（推荐在 B 中权衡）。控制器裁决 R32 选择"阶段 A 不动守卫"，本项留待 B。
+1. **地狱段名册曾退化为"零随机性"（最终评审核正后的严重度，2026-09-15）**：为压住远程占比 ceiling，任务 4 的 R4 数据调整把 L13/L14/L15 压成**每 seed 完全相同的固定组合**（500 seeds 实测各 1 种组合；改动前 20-175 种），并因 `PlaceUniqueMonsters` 要求 base 已在池中而使 **12 只 unique 永久不可达**（L13 5/9→0、L14 6/6→0、L15 2/3→0）。根因：L15 四个 core 把两个类别双双顶到 cap 2（尾池被清空）、L13/L14 `tail_draw=1` 且 floors 在 RNG 之前取第一个匹配项。**裁决更正（R37）**：原文"物种数 4-5 低于目标"低估了严重度；R32/R34 据此撤销/调整——采纳 L14 `tail_draw=2`（实测 0.5964 < ceiling 0.60876，余量 1.2pp 值得为恢复随机性支付），并新增 §6 的多样性守卫（9b）与 unique 可达性守卫（9c）。可选出路仍是：① 放宽 cap；② 提高占比上限；③ 扩充 Melee 池；④ 阶段 B 编组层。
 2. **O2**：加载期校验目前只看 core 是否超 cap，未把"quest 无条件预加的 base"计入合计；L13 的实际组合仍可能破 cap。属 §4.2.2 预算语义问题，留阶段 B。
 3. **阶段 B 前置**：G1（非 unique leader 死亡不释放随从 → 悬挂索引）、G2（`setLeader` 覆写随从 AI）必须先修，见 §4.3。
 4. **阶段 A2**：HF overlay 的 L17-24 名册表；L17-24 现走 R28 legacy fallback（保持旧行为，无身份）。
