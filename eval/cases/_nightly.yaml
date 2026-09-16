@@ -30,6 +30,7 @@ cases:
   - dungeon-drlg_l4
   - flow-diablo
   - flow-timedemo-warrior
+  - level-rosters
   - mechanics-char_panel
   - mechanics-game_menu
   - mechanics-inventory
@@ -49,6 +50,7 @@ cases:
   - render-text_render_integration
   - render-tiles-view
   - rng-dungeon-seeded
+  - sampling-anti-monopoly-cap
   - save-hero-write
   - save-pack-roundtrip
   - utility-codec

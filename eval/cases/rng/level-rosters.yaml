@@ -1,0 +1,39 @@
+id: "level-rosters"
+name: "逐层名册 Phase A：放置构成占比在基线带内（真实引擎放置路径）"
+category: "rng"
+difficulty: "medium"
+tags: ["sampling", "monster-generation", "level-roster", "baseline"]
+
+setup:
+  mpq_required: true
+  timeout: 300
+
+run:
+  backend: "gtest"
+  binary: "level_roster_baseline_test"
+  filter: "LevelRosterBaselineTest.*"
+
+expected:
+  exit_code: 0
+  failed: 0
+  passed_min: 3
+  skipped_max: 1
+  output_contains:
+    - "[ MEASURED ] level 13 ranged share"
+    - "[ MEASURED ] level 14 ranged share"
+    - "[ MEASURED ] level 15 ranged share"
+    - "[  PASSED  ] 3 tests."
+
+description: >
+  逐层名册 Phase A 的验收门禁：不看采样中间量，直接跑真实
+  CreateDungeon -> GetLevelMTypes -> InitMonsters 放置链路，统计 L13-15
+  每层 200 seed 的**已放置**怪物构成，断言远程占比（RangedTurret +
+  RangedKite / 放置怪总数）不超过「改动前基线 + 5 个百分点」。
+  基线取自计划 A-baseline 表（200 seed、同一 fixture、放置怪分母）：
+  L13 (3249+2076)/23405 = 22.8%、L14 (9674+3425)/23443 = 55.9%、
+  L15 13533/23193 = 58.3%；阈值即 27.8% / 60.9% / 63.3%，以具名
+  constexpr 数组落在 test/level_roster_baseline_test.cpp 中，出处写在注释里。
+  用例无条件打印实测值（[ MEASURED ] 行，output_contains 断言其存在），
+  所以一旦名册数据改动把某层推向远程画廊，门禁不仅会红，还能直接读到数字。
+  R4：超标只允许改名册 / class_floors，不允许放宽这里的阈值。
+  实测（本次改动后）：L13 23.6% / L14 49.2% / L15 50.5%，三层均在带内。

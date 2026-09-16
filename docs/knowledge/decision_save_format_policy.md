@@ -27,6 +27,7 @@ sources:
 | 2026-07（决策 25） | 抽象金币计数器改变英雄状态表示 | 玩家状态/存档 | 已接受：与上游对照基准改为"与本分支一致"（timedemo 参考存档重生成） |
 | 2026-09-15（计划中） | `Monster::chargeCooldown`（`int8_t`）新增并序列化 | `Source/monster.h`、`Source/loadsave.cpp` | **不做兼容**（决策 35）；需重生成夹具。用于 A1/A3 冲锋冷却 |
 | 2026-09-15（计划中） | 采样/名册/配额改造 → `monster.levelType`（`LevelMonsterTypes` 索引）语义变化 | `Source/monster.cpp`、`Source/loadsave.cpp` | **不做兼容**（决策 35）；旧档怪物种类会被重新解释 |
+| 2026-09-16（**已落地**，Phase A） | 逐层名册改变采样顺序 → `monster.levelType`（`LevelMonsterTypes` 索引）语义变化：core 预加先入表，尾部抽取受 B1 cap 与 `class_floors` 约束，同层同 seed 的索引与旧档不再对应 | `Source/monster.cpp`、`assets/txtdata/monsters/level_rosters.tsv`、`assets/txtdata/monsters/level_roster_params.tsv` | **不做兼容**（宪章决策 35）；旧档 `levelType` 会被重新解释成另一种怪，需重开新档 |
 | 2026-06-29（**未合入主线**） | `_iProcFlags`/`_iProcChance` 字段与序列化、`StashVersion` bump | `engine-mod-infra` 分支 | 仅作参考：该分支未合入，主线 `StashVersion` 仍为 0，**不要直接套用其版本号** |
 
 ## 将来做兼容层时需要什么
