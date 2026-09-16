@@ -1,8 +1,9 @@
 # 维护提醒（R35）：本 case 的 `expected.passed_min` 与 `output_contains` 里的
 # "[  PASSED  ] N tests." 是**硬编码的用例计数**。往 SamplingBaselineTest 里新增或删除用例后
 # 必须同步这两处数字，否则门禁会静默失效（N 偏小 → 少跑也算过）或误红
-# （N 偏大 → 全绿也判失败）。当前值对应 26 个用例（2026-09-16 核对；R38 两个结构守卫 RosterPerSeedVariety /
-# HellUniqueBasesRemainReachable 后 24 -> 26）。
+# （N 偏大 → 全绿也判失败）。当前值对应 28 个用例（2026-09-16 核对；R38 两个结构守卫 RosterPerSeedVariety /
+# HellUniqueBasesRemainReachable 后 24 -> 26；阶段 B Task 1 的两个 G1 用例
+# LeaderDeathReleasesMinions / UniqueLeaderDeathBehaviourUnchanged 后 26 -> 28）。
 id: "sampling-anti-monopoly-cap"
 name: "采样反垄断：B1 cap 后契约（真实引擎 GetLevelMTypes）"
 category: "rng"
@@ -21,9 +22,9 @@ run:
 expected:
   exit_code: 0
   failed: 0
-  passed_min: 26
+  passed_min: 28
   skipped_max: 1
-  output_contains: ["[  PASSED  ] 26 tests."]
+  output_contains: ["[  PASSED  ] 28 tests."]
 
 description: >
   B1 采样反垄断 harness（纯测试 + cap 实施后）：直接驱动真实 GetLevelMTypes
@@ -45,3 +46,10 @@ description: >
   可用」的唯一怪 base 至少在一个种子的实现集合里出现，L13 三个近战 base（受 Melee cap
   结构性排除）以 EXPECT_FALSE 精确记账。两者是 S1 回归（L13/14/15 各塌缩为 1 种组合、
   地狱唯一怪 base 全不可达）的直接守卫，已在回归数据上验证会红。
+  阶段 B Task 1 追加（G1，spec 2026-09-15-level-rosters-design §4.3.1）：
+  LeaderDeathReleasesMinions 走引擎真实死亡路径（MonsterDeath -> 推进死亡动画到末帧 ->
+  M_UpdateRelations）断言**普通**（非 unique）leader 死亡后随从不再是 Leashed 且 `leader`
+  索引被清为 Monster::NoLeader（旧实现以 hasLeashedMinions() 为门槛，对普通怪恒 false，
+  随从永远不被释放且留下悬挂索引，槽位复用后会指向一只活着的无关怪）；
+  UniqueLeaderDeathBehaviourUnchanged 是 unique 路径回归——relation 置 None、
+  索引**仍保留**（monhealthbar 蓝色随从着色依赖它）。已验证前者在修复前红、后者在修复前后皆绿。
