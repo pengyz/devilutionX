@@ -5,6 +5,13 @@
 # HellUniqueBasesRemainReachable 后 24 -> 26；阶段 B Task 1 的两个 G1 用例
 # LeaderDeathReleasesMinions / UniqueLeaderDeathBehaviourUnchanged 后 26 -> 28；阶段 B Task 2 的
 # 两个 G2 用例 SquadMinionsUnbuffed / UniqueMinionsBehaviourUnchanged 后 28 -> 30）。
+#
+# 口径说明（2026-09-17）：30 是**有素材环境**（DIABDAT.MPQ / Hellfire 在位）的计数。
+# UniqueMinionsBehaviourUnchanged 会探测所选 Leashed unique 的 `monsters\monsters\<mTrnName>.trn`，
+# 该素材只随零售/HF 数据发布；在 spawn-only 环境下它 GTEST_SKIP，计数变成 29 + skipped=1
+# （`skipped_max: 1` 已能容纳）。**不要为迁就 spawn-only 下调 passed_min 或放宽断言**：
+# 本 case 的 `setup.mpq_required: true` 就是有素材口径。若 CI 只有 spawn.mpq，
+# 应由 CI 侧决定是否跑该 case，而不是把门禁数字改弱。
 id: "sampling-anti-monopoly-cap"
 name: "采样反垄断：B1 cap 后契约（真实引擎 GetLevelMTypes）"
 category: "rng"
