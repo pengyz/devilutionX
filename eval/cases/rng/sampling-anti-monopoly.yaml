@@ -1,7 +1,8 @@
 # 维护提醒（R35）：本 case 的 `expected.passed_min` 与 `output_contains` 里的
 # "[  PASSED  ] N tests." 是**硬编码的用例计数**。往 SamplingBaselineTest 里新增或删除用例后
 # 必须同步这两处数字，否则门禁会静默失效（N 偏小 → 少跑也算过）或误红
-# （N 偏大 → 全绿也判失败）。当前值对应 24 个用例（2026-09-16 核对）。
+# （N 偏大 → 全绿也判失败）。当前值对应 26 个用例（2026-09-16 核对；R38 两个结构守卫 RosterPerSeedVariety /
+# HellUniqueBasesRemainReachable 后 24 -> 26）。
 id: "sampling-anti-monopoly-cap"
 name: "采样反垄断：B1 cap 后契约（真实引擎 GetLevelMTypes）"
 category: "rng"
@@ -20,9 +21,9 @@ run:
 expected:
   exit_code: 0
   failed: 0
-  passed_min: 24
+  passed_min: 26
   skipped_max: 1
-  output_contains: ["[  PASSED  ] 24 tests."]
+  output_contains: ["[  PASSED  ] 26 tests."]
 
 description: >
   B1 采样反垄断 harness（纯测试 + cap 实施后）：直接驱动真实 GetLevelMTypes
@@ -38,3 +39,9 @@ description: >
   (level, 受限 class) 组合并断言配额是紧的；EnginePreAddExemptionTracksQuestAvailability
   断言引擎预加豁免只覆盖 Golem 与「该层真实可用」的任务唯一怪 base，
   quest 挂到别的层不产生额度。
+  Task 5 追加（final review R38，AC9b/9c）：RosterPerSeedVariety 断言 L2-15 每层
+  500 种子下实现构成的组合数 >= 2（L1 候选池仅 6 型、构成按算术固定，以 EXPECT_EQ 1
+  显式豁免并注明原因）；HellUniqueBasesRemainReachable 断言 L13-15 每个「base 在本层
+  可用」的唯一怪 base 至少在一个种子的实现集合里出现，L13 三个近战 base（受 Melee cap
+  结构性排除）以 EXPECT_FALSE 精确记账。两者是 S1 回归（L13/14/15 各塌缩为 1 种组合、
+  地狱唯一怪 base 全不可达）的直接守卫，已在回归数据上验证会红。

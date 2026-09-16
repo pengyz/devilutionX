@@ -1097,6 +1097,182 @@ TEST_F(SamplingBaselineTest, IdentityGuard)
 	}
 }
 
+// Realised type set for one sampling pass, sorted so it can be used as a set key.
+std::vector<_monster_id> RealisedTypeKey()
+{
+	std::vector<_monster_id> types;
+	types.reserve(LevelMonsterTypeCount);
+	for (size_t i = 0; i < LevelMonsterTypeCount; i++)
+		types.push_back(LevelMonsterTypes[i].type);
+	std::sort(types.begin(), types.end());
+	return types;
+}
+
+// AC9b (spec §6, R38): per-seed VARIETY, the dimension the other five guards
+// structurally cannot see.
+//
+// Why this is needed: RosterCoreAlwaysPresent / RosterTailDrawBounded /
+// RosterQuotasSatisfied / IdentityGuard / A1A3VariantsAreCore are all satisfied by
+// a level that realises the SAME fixed composition on every seed - core is present,
+// the tail is within bounds, floors and caps hold, and the union still differs from
+// the neighbouring level. That is exactly the S1 regression: L13/L14/L15 each
+// collapsed to ONE combination across 500 seeds, which also made 12 hell uniques
+// unreachable (see HellUniqueBasesRemainReachable below). P0-D's
+// MeasurementRosterIdentity already computed the per-level union on every run but
+// asserted nothing about variety, so the collapse was measured and ignored.
+//
+// The threshold is deliberately the weakest non-trivial one (>= 2 distinct
+// combinations): it is not a distribution-quality bar, it is the "sampling still
+// depends on the seed at all" bar. A level that fails it is not random.
+TEST_F(SamplingBaselineTest, RosterPerSeedVariety)
+{
+	if (missingMpqAssets_)
+		GTEST_SKIP() << "MPQ assets not found - skipping test";
+
+	constexpr int kSeeds = 500;
+	for (uint8_t level = 1; level <= 15; level++) {
+		std::set<std::vector<_monster_id>> combinations;
+		for (int seed = 0; seed < kSeeds; seed++) {
+			currlevel = level;
+			InitLevelMonsters();
+			SetRndSeed(41000 + static_cast<uint32_t>(seed));
+			ASSERT_TRUE(GetLevelMTypes().has_value());
+			combinations.insert(RealisedTypeKey());
+		}
+		std::cout << "[ MEASURED ] level " << static_cast<int>(level) << " per-seed combinations "
+		          << combinations.size() << " (" << kSeeds << " seeds)" << std::endl;
+
+		// L1 is the documented exception. Its candidate pool is only six types
+		// (MT_NZOMBIE / MT_RFALLSP / MT_NSCAV / MT_WSKELAX / MT_ZOMBIE / MT_FALLSP
+		// under the L1 band), of which the roster pre-adds four as core and Golem
+		// takes a fifth slot; with tail_draw = 2 and the level's max_image budget the
+		// realised set is the same every seed by arithmetic, not by a broken RNG.
+		// Asserting >= 2 there would demand a data change (a wider L1 pool) that this
+		// fix wave is not chartered to make, so L1 is skipped explicitly rather than
+		// silently folded into a looser global threshold. Its composition is still
+		// guarded by RosterCoreAlwaysPresent and PlacedClassMixWithinBaseline.
+		if (level == 1) {
+			EXPECT_EQ(combinations.size(), 1u)
+			    << "L1's fixed composition is a documented arithmetic consequence of its 6-type pool;"
+			    << " if it now varies, remove this exception instead of widening it";
+			continue;
+		}
+
+		EXPECT_GE(combinations.size(), 2u)
+		    << "level " << static_cast<int>(level) << " realises the same composition on all "
+		    << kSeeds << " seeds: sampling there does not depend on the seed at all (S1 regression)";
+	}
+}
+
+// AC9c (spec §6, R38): every hell unique whose base type the level can actually
+// sample must be reachable on at least one seed.
+//
+// PlaceUniqueMonsters() (monster.cpp:505-528) only places a unique whose base type
+// is ALREADY in LevelMonsterTypes - it searches for the base and skips the unique
+// when absent. So a base type that sampling never realises makes its unique
+// permanently unreachable, which is the player-visible half of the S1 regression
+// (12 uniques lost across L13-15). This is the direct regression guard for it.
+//
+// Scope note 1: the denominator is "uniques whose base is a CANDIDATE at their own
+// mlevel", not every unique with that mlevel. Five hell uniques fail that premise
+// in the shipped data regardless of any roster - Warlord of Blood (MT_BTBLACK,
+// band 14-16) and Lord of the Pit (MT_GSNAKE, band 15-16) name a base their own
+// mlevel cannot sample, and Howlingire (MT_HOLOWONE) / Bloodmoon Soulfire
+// (MT_PAINMSTR) / Zamphir (MT_REALWEAV) name availability=Never bases. Those are
+// pre-existing data facts, not roster regressions (Warlord is placed anyway because
+// Q_WARLORD pre-adds its base as a quest type), so counting them would make this
+// guard unsatisfiable and therefore useless. The denominator is asserted to be
+// positive so an empty one cannot make the guard vacuously true.
+//
+// Scope note 2 - the L13 Melee exception, and why it is a bound rather than a
+// loophole. L13's candidate pool is 9 Melee / 3 RangedKite / 3 RangedTurret and the
+// B1 cap is 2 per class, so if M Melee and R ranged scatter types are realised the
+// placed ranged share is ~R/(M+R) (verified against the real placement path). L13's
+// R4 ceiling is 0.2775, which admits only M=2, R=1 (measured 0.2362); M=1 already
+// measures 0.3036 and breaks the ceiling. M=2 means BOTH Melee slots are core, so
+// the Melee class sits at its cap and the tail can never draw a Melee type - which
+// makes L13's three Melee unique bases (Blackskull/Rustweaver/Gorefeast) reachable
+// only by coring them, and coring a unique's base needs allow_unique_boost, whose
+// entire purpose (spec 4.4.3) is to gate the spawn-rate increase that would cause.
+// Raising the ceiling is forbidden by R4, and relaxing the cap or granting
+// allow_unique_boost are design decisions, so L13's Melee bases are expected
+// unreachable here and the level is asserted at its ACHIEVABLE count instead of
+// being skipped. The expectation is exact (EXPECT_EQ, not >=), so if a later change
+// frees a Melee slot this case fails and forces the number to be re-derived rather
+// than letting a silent regression hide under a loose bound.
+TEST_F(SamplingBaselineTest, HellUniqueBasesRemainReachable)
+{
+	if (missingMpqAssets_)
+		GTEST_SKIP() << "MPQ assets not found - skipping test";
+
+	// Bases that L13's Melee cap structurally excludes (see scope note 2). Every
+	// OTHER candidate base on L13-15 must be reachable.
+	const std::set<std::pair<uint8_t, _monster_id>> kCapBlocked {
+		{ 13, MT_BALROG },  // Blackskull
+		{ 13, MT_RTBLACK }, // Rustweaver
+		{ 13, MT_VTEXLRD }, // Gorefeast
+	};
+
+	constexpr int kSeeds = 500;
+	size_t checkedUniques = 0;
+	size_t blockedSeen = 0;
+	for (uint8_t level = 13; level <= 15; level++) {
+		std::set<_monster_id> realised;
+		for (int seed = 0; seed < kSeeds; seed++) {
+			currlevel = level;
+			InitLevelMonsters();
+			SetRndSeed(42000 + static_cast<uint32_t>(seed));
+			ASSERT_TRUE(GetLevelMTypes().has_value());
+			for (size_t i = 0; i < LevelMonsterTypeCount; i++)
+				realised.insert(LevelMonsterTypes[i].type);
+		}
+
+		size_t reachable = 0;
+		size_t candidateBases = 0;
+		for (size_t u = 0; u < UniqueMonstersData.size(); u++) {
+			if (UniqueMonstersData[u].mlevel != level)
+				continue;
+			const _monster_id base = UniqueMonstersData[u].mtype;
+			// Availability check mirrors the production candidate filter.
+			if (!IsRosterEntryAvailableAt(level, base))
+				continue;
+			candidateBases++;
+			const bool isRealised = realised.count(base) != 0;
+			if (isRealised)
+				reachable++;
+
+			if (kCapBlocked.count({ level, base }) != 0) {
+				blockedSeen++;
+				// Asserted, not skipped: this documents the cap consequence and
+				// fails loudly if the constraint is ever lifted silently.
+				EXPECT_FALSE(isRealised)
+				    << "level " << static_cast<int>(level) << ": '" << UniqueMonstersData[u].mName
+				    << "' is now reachable - a Melee slot was freed, so re-derive the L13 exception"
+				    << " in this case instead of leaving a stale entry";
+				continue;
+			}
+
+			checkedUniques++;
+			EXPECT_TRUE(isRealised)
+			    << "level " << static_cast<int>(level) << ": unique '" << UniqueMonstersData[u].mName
+			    << "' has base type " << static_cast<int>(base)
+			    << " which no seed realises, so PlaceUniqueMonsters() can never place it";
+		}
+		std::cout << "[ MEASURED ] level " << static_cast<int>(level) << " unique bases reachable "
+		          << reachable << "/" << candidateBases << std::endl;
+		EXPECT_GT(candidateBases, 0u)
+		    << "level " << static_cast<int>(level) << " declares no unique with a samplable base;"
+		    << " with an empty denominator this guard would assert nothing";
+	}
+	// Premise guards: the loop must really have examined the uniques it claims to.
+	// L13 contributes 2 (Doomcloud, Witchmoon), L14 6, L15 2 in the shipped data.
+	EXPECT_EQ(checkedUniques, 10u)
+	    << "expected exactly 10 hell uniques whose base must be reachable; a different number means"
+	    << " the data moved and the exception list / this bound need re-deriving";
+	EXPECT_EQ(blockedSeen, kCapBlocked.size())
+	    << "every entry in the L13 cap-blocked list must correspond to a real unique on that level";
+}
+
 TEST_F(SamplingBaselineTest, A1A3VariantsAreCore)
 {
 	if (missingMpqAssets_)
