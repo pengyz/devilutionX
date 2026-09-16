@@ -1,7 +1,8 @@
 # 维护提醒（R35）：本 case 的 `expected.passed_min` 与 `output_contains` 里的
 # "[  PASSED  ] N tests." 是**硬编码的用例计数**。往 LevelRosterBaselineTest 里新增或删除用例后
 # 必须同步这两处数字，否则门禁会静默失效（N 偏小 → 少跑也算过）或误红
-# （N 偏大 → 全绿也判失败）。当前值对应 8 个用例（Phase B Task 3 追加 5 个 SquadPlacementTest 用例后核对）。
+# （N 偏大 → 全绿也判失败）。当前值对应 9 个用例（Phase B Task 3 追加 5 个 SquadPlacementTest 用例，
+# 修复轮次 1 再追加具名用例 SquadMinionsKeepOwnAi → 9）。
 id: "level-rosters"
 name: "逐层名册 Phase A：放置构成占比在基线带内（真实引擎放置路径）"
 category: "rng"
@@ -22,7 +23,7 @@ run:
 expected:
   exit_code: 0
   failed: 0
-  passed_min: 8
+  passed_min: 9
   skipped_max: 1
   output_contains:
     - "[ MEASURED ] level 13 ranged share"
@@ -30,7 +31,8 @@ expected:
     - "[ MEASURED ] level 15 ranged share"
     - "[ SQUADRATE ]"
     - "[ SHIPPEDSQUAD ]"
-    - "[  PASSED  ] 8 tests."
+    - "[ SQUADFALLBACK ]"
+    - "[  PASSED  ] 9 tests."
 
 description: >
   逐层名册 Phase A 的验收门禁：不看采样中间量，直接跑真实
@@ -72,3 +74,14 @@ description: >
   60.45% 达标），但全量门禁判红——该改动使 L14 的 unique base 可达性从 6/6 掉到 2/6，
   违反验收 9c（HellUniqueBasesRemainReachable），故回退。最终采用 **L14 squad_chance
   30 → 10**（占比 60.51% 达标，9c 恢复 6/6），其余各层保持 30。
+
+  Phase B Task 3 修复轮次 1（评审必须修项）：为两条此前**无守卫**的规格要求补上可失败断言，
+  用例数 8 → 9（新增具名用例 `SquadMinionsKeepOwnAi`，规格 §6 验收第 6 行点名）。
+  同时 `UnleashedFallbackPlacesNeighboursWithoutLeashing` 从"只测拴系数为 0"改为**真正断言邻近性**：
+  §4.3.4 回退的核心保证是"仍把 leader 传给 PlaceGroup"，此前把 `&leader` 改成 `nullptr` 全部用例仍绿。
+  unleashed 随从的 leaderRelation 是 None、无 leader 反向指针，放置后无法重新配对，
+  因此邻近性在**放置那一刻**由 `SquadRollCounters::{partnersPlaced,maxPartnerLeaderDistance}` 记录。
+  新增 `[ SQUADFALLBACK ]` 输出行（output_contains 断言其存在）报告实测最大距离与界。
+  另加"随从类型 ≠ leader 类型"断言（此前删掉 PickCorePartnerTypeIndex 的同类型跳过后 8 条用例全绿）。
+  四条反证均实跑"改坏→红→恢复→绿"。squad_leashed 解析器的拒绝拼写错误用例落在
+  `level_roster_test`（LevelRosterFixtureLoadTest，2 条 EXPECT_EXIT），非本 case 计数。
