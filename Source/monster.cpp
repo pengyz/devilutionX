@@ -1479,12 +1479,24 @@ bool MonsterGotHit(Monster &monster)
 	return false;
 }
 
-void ReleaseMinions(const Monster &leader)
+/**
+ * @brief Breaks the leashed relation between @p leader and every minion following it.
+ *
+ * @param clearReference also reset the minion's `leader` index to Monster::NoLeader.
+ *        setLeader(nullptr) deliberately keeps that index so monhealthbar can colour a
+ *        unique's buffed minions, which is safe only because a unique's slot is never
+ *        recycled while the level lives. An ORDINARY leader's slot IS recycled
+ *        (DeleteMonster's swap + a later AddMonster), so keeping its index would leave
+ *        the minion pointing at an unrelated live monster (G1, spec 4.3.1).
+ */
+void ReleaseMinions(const Monster &leader, bool clearReference = false)
 {
 	for (size_t i = 0; i < ActiveMonsterCount; i++) {
 		Monster &minion = Monsters[ActiveMonsters[i]];
 		if (minion.leaderRelation == LeaderRelation::Leashed && minion.getLeader() == &leader) {
 			minion.setLeader(nullptr);
+			if (clearReference)
+				minion.leader = Monster::NoLeader;
 		}
 	}
 }
@@ -4169,9 +4181,13 @@ void M_SyncStartKill(Monster &monster, Point position, const Player &player)
 
 void M_UpdateRelations(const Monster &monster)
 {
-	if (monster.hasLeashedMinions())
-		ReleaseMinions(monster);
-
+	// G1 (spec 2026-09-15-level-rosters-design 4.3.1): this used to be gated on
+	// monster.hasLeashedMinions(), which is `isUnique() && monsterPack == Leashed`
+	// and therefore permanently false for an ordinary monster - so an ordinary
+	// leader's death left its minions Leashed with a dangling `leader` index.
+	// ReleaseMinions already filters on `getLeader() == &leader`, so dropping the
+	// gate is a no-op loop for a monster without minions.
+	ReleaseMinions(monster, /*clearReference=*/!monster.isUnique());
 	ShrinkLeaderPacksize(monster);
 }
 
