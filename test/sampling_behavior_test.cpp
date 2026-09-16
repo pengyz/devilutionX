@@ -25,9 +25,11 @@
 #include <utility>
 #include <vector>
 
+#include "drlg_test.hpp" // TestInitGame (mounts the hf overlay for the R28 fixture)
 #include "engine/assets.hpp"
 #include "engine/load_cl2.hpp"
 #include "engine/random.hpp"
+#include "game_mode.hpp"
 #include "levels/gendung.h"
 #include "monster.h"
 #include "multi.h"
@@ -923,5 +925,155 @@ TEST_F(SamplingBaselineTest, A1A3VariantsAreCore)
 	}
 }
 
+
+// ---------------------------------------------------------------------------
+// R28: levels with no roster params row must keep the LEGACY sampling
+// behaviour (budget-limited, tail draw unbounded), not "tail_draw = 0".
+//
+// Under the phase-A tables that is L17-24 (Hellfire Nest/Crypt), whose own
+// tables land in phase A2. A `tailDraw = 0` fallback makes the sampling loop
+// condition `tailAdded < tailDraw` permanently false, so the loop never runs,
+// no PLACE_SCATTER type is registered, and InitMonsters()'s scatter block
+// (entered only when numscattypes > 0) is skipped entirely - i.e. those levels
+// would ship with no scattered monsters at all, a regression against the
+// pre-roster engine.
+//
+// The check needs Hellfire monster data: under the base monstdat.tsv every
+// L17-24 monster is availability=Never, so the candidate pool there is empty
+// and the level would legitimately sample nothing. The fixture therefore loads
+// the `hf` mod overlay (like items_test/pack_test do) in its own suite, so it
+// cannot disturb the Diablo-data state the baselines above measure.
+// ---------------------------------------------------------------------------
+
+class HellfireNoParamsSamplingTest : public ::testing::Test {
+protected:
+	static void SetUpTestSuite()
+	{
+		LoadCoreArchives();
+		LoadGameArchives();
+		if (!HaveMainData()) {
+			missingMpqAssets_ = true;
+			return;
+		}
+		gbIsSpawn = false;
+		gbIsHellfire = true;
+		sgGameInitInfo.fullQuests = 1;
+		// TestInitGame(..., hellfire = true) mounts the hf overlay, which is what
+		// gives L17-24 a non-empty candidate pool.
+		TestInitGame(/*fullQuests=*/true, /*originalCathedral=*/true, /*hellfire=*/true);
+		LoadMonsterData();
+		LoadLevelRoster();
+	}
+
+	static void TearDownTestSuite()
+	{
+		// Restore the Diablo-data state for any suite that runs after this one.
+		gbIsHellfire = false;
+		UnloadModArchives();
+		LoadModArchives({});
+		LoadMonsterData();
+		LoadLevelRoster();
+	}
+
+	static bool missingMpqAssets_;
+};
+
+bool HellfireNoParamsSamplingTest::missingMpqAssets_ = false;
+
+TEST_F(HellfireNoParamsSamplingTest, LevelsWithoutParamsStillSampleTypes)
+{
+	if (missingMpqAssets_)
+		GTEST_SKIP() << "MPQ assets not found - skipping test";
+
+	// Guard the premise first: if the overlay did not mount, the "still samples"
+	// assertion below would be vacuous, so fail loudly instead of passing.
+	ASSERT_TRUE(HaveHellfire()) << "hf overlay required: L17-24 have no candidates under base monstdat";
+
+	int levelsChecked = 0;
+	for (uint8_t level = 17; level <= 24; level++) {
+		// Premise 1: this level really is on the no-params path (R28's subject).
+		ASSERT_EQ(GetLevelRosterParams(level), nullptr)
+		    << "level " << static_cast<int>(level) << " now has a params row; move it out of this test";
+		// Premise 2: and it has no core roster rows either, so every scatter type
+		// it gets must come from the tail draw.
+		ASSERT_TRUE(GetLevelRoster(level).empty())
+		    << "level " << static_cast<int>(level) << " now has roster rows; move it out of this test";
+
+		currlevel = level;
+		size_t candidates = 0;
+		for (size_t i = 0; i < MonstersData.size(); i++) {
+			if (IsRosterEntryAvailableAt(level, static_cast<_monster_id>(i)))
+				candidates++;
+		}
+		// Premise 3: the pool is non-empty, otherwise "samples nothing" would be
+		// correct rather than a regression.
+		ASSERT_GT(candidates, 0u) << "level " << static_cast<int>(level) << " has no candidates at all";
+
+		for (uint32_t seed = 0; seed < 20; seed++) {
+			currlevel = level;
+			InitLevelMonsters();
+			SetRndSeed(31000 + seed);
+			ASSERT_TRUE(GetLevelMTypes().has_value());
+
+			// The actual R28 assertion: at least one PLACE_SCATTER type. This is
+			// what InitMonsters() counts as numscattypes; with tailDraw = 0 it
+			// would be zero on L17/21/22/23 (the levels with no scatter pre-add).
+			size_t scatterTypes = 0;
+			for (size_t i = 0; i < LevelMonsterTypeCount; i++) {
+				if ((LevelMonsterTypes[i].placeFlags & PLACE_SCATTER) != 0)
+					scatterTypes++;
+			}
+			EXPECT_GT(scatterTypes, 0u)
+			    << "level " << static_cast<int>(level) << " seed " << seed
+			    << " has no PLACE_SCATTER type: InitMonsters() would place no scattered monsters";
+
+			// And the draw is genuinely unbounded rather than capped at some small
+			// number: the legacy loop fills up to the sprite budget, so it must be
+			// able to exceed the largest tail_draw the L1-16 tables use.
+			EXPECT_GT(LevelMonsterTypeCount, 1u)
+			    << "level " << static_cast<int>(level) << " seed " << seed << " sampled nothing beyond MT_GOLEM";
+		}
+		levelsChecked++;
+	}
+	EXPECT_EQ(levelsChecked, 8) << "all of L17-24 must be exercised";
+}
+
+TEST_F(HellfireNoParamsSamplingTest, NoParamsTailExceedsTheParameterisedCap)
+{
+	if (missingMpqAssets_)
+		GTEST_SKIP() << "MPQ assets not found - skipping test";
+	ASSERT_TRUE(HaveHellfire()) << "hf overlay required";
+
+	// Sharper form of "unbounded": some no-params level must realise more scatter
+	// types than the largest tail_draw configured for L1-16. That is only true if
+	// the fallback is std::numeric_limits<int>::max() (legacy) rather than any of
+	// the table's small tail_draw values, and it cannot be satisfied by a
+	// tautology - it is a measured count from the real engine.
+	int maxTableTailDraw = 0;
+	for (uint8_t level = 1; level <= 16; level++) {
+		const LevelRosterParams *params = GetLevelRosterParams(level);
+		if (params != nullptr)
+			maxTableTailDraw = std::max(maxTableTailDraw, params->tailDraw);
+	}
+	ASSERT_GT(maxTableTailDraw, 0) << "L1-16 tail_draw values must be readable for this comparison";
+
+	size_t bestScatter = 0;
+	for (uint8_t level = 17; level <= 24; level++) {
+		for (uint32_t seed = 0; seed < 20; seed++) {
+			currlevel = level;
+			InitLevelMonsters();
+			SetRndSeed(32000 + seed);
+			ASSERT_TRUE(GetLevelMTypes().has_value());
+			size_t scatterTypes = 0;
+			for (size_t i = 0; i < LevelMonsterTypeCount; i++) {
+				if ((LevelMonsterTypes[i].placeFlags & PLACE_SCATTER) != 0)
+					scatterTypes++;
+			}
+			bestScatter = std::max(bestScatter, scatterTypes);
+		}
+	}
+	EXPECT_GT(bestScatter, static_cast<size_t>(maxTableTailDraw))
+	    << "no-params levels must draw a legacy (budget-limited) tail, not a tail_draw-sized one";
+}
 
 } // namespace
