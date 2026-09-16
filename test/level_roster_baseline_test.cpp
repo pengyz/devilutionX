@@ -328,40 +328,20 @@ TEST_F(LevelRosterBaselineTest, PlacedClassMixWithinBaseline)
 	// L16 is excluded because its hardcoded branch returns before the roster path
 	// runs (spec 4.2.7), so its mix is a property of that fixed list, not of the
 	// roster; its baseline stays the unconstrained sentinel.
-	// PRE-EXISTING R4 BREACHES, found the moment L1-12 stopped being unmeasured
-	// (I4). These four levels already exceed baseline + 5pp on the CURRENT shipped
-	// roster - the defect predates this fix wave, which was chartered to add the
-	// missing guard, not to re-balance six cathedral/catacomb levels:
+	// There is deliberately NO exception list here: every level in the asserted
+	// range is held to its real R4 ceiling.
 	//
-	//   L2  0.174287 vs ceiling 0.141630  (+3.3pp over)
-	//   L3  0.189022 vs ceiling 0.159937  (+2.9pp over)
-	//   L4  0.361194 vs ceiling 0.213892  (+14.7pp over)
-	//   L8  0.457950 vs ceiling 0.293231  (+16.5pp over)
-	//
-	// R4 forbids fixing a breach by loosening the ceiling, so the R4 ceiling above
-	// is NOT touched. Instead each breach is locked at the value measured today: it
-	// cannot get worse, the number is in the source where a reviewer sees it, and
-	// the roster fix is escalated as a separate decision rather than being buried.
-	// The lock is not a second ceiling - the EXPECT_GT below asserts each listed
-	// level really is still over its R4 ceiling, so once its roster is fixed this
-	// case FAILS and forces the entry to be deleted instead of quietly outliving
-	// the defect.
-	//
-	// The 0.005 margin covers placement jitter only; the fixture is seeded
-	// (9000 + seed) and otherwise deterministic.
-	struct KnownBreach {
-		uint8_t level;
-		double lock;
-	};
-	constexpr std::array<KnownBreach, 4> kKnownR4Breaches {
-		KnownBreach { 2, 0.174287 + 0.005 },
-		KnownBreach { 3, 0.189022 + 0.005 },
-		KnownBreach { 4, 0.361194 + 0.005 },
-		KnownBreach { 8, 0.457950 + 0.005 },
-	};
-
+	// History (round 2 of the task-5 fix wave): extending this case from L13-15 to
+	// L1-15 exposed four levels whose roster pushed the ranged share past
+	// baseline + 5pp - L2 (+3.3pp), L3 (+2.9pp), L4 (+14.7pp), L8 (+16.5pp). Those
+	// breaches were introduced by the roster feature itself (the baselines are
+	// pre-change measurements), so per R4 the DATA was fixed, never the ceiling:
+	// L2/L3 gained cheap Charge/Melee cores, L4 dropped one of its two
+	// RangedTurret cores and gained two Melee cores, L8 dropped its RangedTurret
+	// core and gained Sneak/Charge/Melee cores, with tail_draw / max_image raised
+	// where the core set no longer fit. Post-fix measurements are in the
+	// [ MEASURED ] lines below; all four now sit under their ceilings with margin.
 	constexpr int kSeeds = 200;
-	size_t breachesSeen = 0;
 	for (uint8_t level = 1; level <= 15; level++) {
 		// A level inside the asserted range must have a real baseline: with the
 		// sentinel its ceiling is 1.0 and the EXPECT_LE below can never fail, so
@@ -389,29 +369,9 @@ TEST_F(LevelRosterBaselineTest, PlacedClassMixWithinBaseline)
 		std::cout << "[ MEASURED ] level " << static_cast<int>(level) << " ranged share " << share
 		          << " (" << ranged << "/" << total << "), baseline " << kRangedShareBaseline[level]
 		          << ", ceiling " << kRangedShareCeiling[level] << std::endl;
-		const auto breach = std::find_if(kKnownR4Breaches.begin(), kKnownR4Breaches.end(),
-		    [level](const KnownBreach &b) { return b.level == level; });
-		if (breach != kKnownR4Breaches.end()) {
-			breachesSeen++;
-			// Premise: this level must still BE a breach. If its roster was fixed,
-			// this fails and the entry must be removed rather than left as a
-			// permanently satisfied loophole.
-			EXPECT_GT(share, kRangedShareCeiling[level])
-			    << "level " << static_cast<int>(level) << " no longer breaches its R4 ceiling ("
-			    << share << " <= " << kRangedShareCeiling[level]
-			    << "): delete its kKnownR4Breaches entry so the real ceiling applies again";
-			EXPECT_LE(share, breach->lock)
-			    << "level " << static_cast<int>(level) << " ranged share " << share
-			    << " got WORSE than the locked pre-existing breach " << breach->lock
-			    << " (" << ranged << "/" << total << "); R4 ceiling is " << kRangedShareCeiling[level];
-			continue;
-		}
-
 		EXPECT_LE(share, kRangedShareCeiling[level])
 		    << "level " << static_cast<int>(level) << " ranged share " << share
 		    << " exceeds baseline " << kRangedShareBaseline[level] << " + 5pp"
 		    << " (" << ranged << "/" << total << ")";
 	}
-	EXPECT_EQ(breachesSeen, kKnownR4Breaches.size())
-	    << "every kKnownR4Breaches entry must name a level this loop actually measures";
 }

@@ -1282,6 +1282,26 @@ TEST_F(SamplingBaselineTest, HellUniqueBasesRemainReachable)
 
 	// Bases that L13's Melee cap structurally excludes (see scope note 2). Every
 	// OTHER candidate base on L13-15 must be reachable.
+	//
+	// All three entries share ONE cause and ONE accepted-at-this-stage reason, and
+	// all three fail the moment that cause is removed:
+	//
+	//   Why accepted now: these are L13 Melee bases. L13's R4 ceiling (0.2775)
+	//   admits only 2 Melee + 1 ranged scatter types, so both Melee slots must be
+	//   core; the Melee class is then AT its B1 cap of 2 and the tail loop prunes
+	//   Melee entirely, so no Melee base can ever be drawn. Reaching them needs one
+	//   of three DESIGN decisions this fix wave is not chartered to take: raise the
+	//   ceiling (forbidden outright by R4), raise L13's Melee cap, or grant
+	//   allow_unique_boost to core one of them (spec 4.4.3 gates exactly the
+	//   spawn-rate increase that would cause).
+	//
+	//   What makes an entry fail: any change that frees an L13 Melee tail slot -
+	//   BehaviorClassCapForLevel raising L13's cap above 2, L13's core dropping to
+	//   one Melee type, or the base being cored under allow_unique_boost. The
+	//   assertion below is EXPECT_FALSE, so such a change turns this into a failure
+	//   and the entry must be deleted rather than silently outliving its reason.
+	//   The blockedSeen premise likewise fails if an entry stops naming a base this
+	//   loop actually checks.
 	const std::set<std::pair<uint8_t, _monster_id>> kCapBlocked {
 		{ 13, MT_BALROG },  // Blackskull
 		{ 13, MT_RTBLACK }, // Rustweaver
