@@ -54,7 +54,6 @@ level	monster_id	role	allow_unique_boost
 14	MT_XACID	core	-
 15	MT_BALROG	core	-
 15	MT_SNOWWICH	core	-
-15	MT_MAGISTR	core	-
 15	MT_GSNAKE	core	-
 16	MT_GSNAKE	core	-
 16	MT_BTBLACK	core	-

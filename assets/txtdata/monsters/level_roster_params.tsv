@@ -11,6 +11,6 @@ level	max_image	tail_draw	class_floors
 10	16000	3	RangedKite=2
 11	16000	3	RangedKite=2
 12	16000	3	RangedKite=2,Melee=2
-13	18000	1	Melee=2,RangedKite=1
-14	18000	1	Melee=2,RangedKite=1
-15	18000	3	Melee=2,RangedTurret=2
+13	18000	1	Melee=2
+14	18000	2	Melee=1
+15	18000	3	Melee=2,RangedTurret=1
