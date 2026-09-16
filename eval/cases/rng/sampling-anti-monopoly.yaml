@@ -1,9 +1,10 @@
 # 维护提醒（R35）：本 case 的 `expected.passed_min` 与 `output_contains` 里的
 # "[  PASSED  ] N tests." 是**硬编码的用例计数**。往 SamplingBaselineTest 里新增或删除用例后
 # 必须同步这两处数字，否则门禁会静默失效（N 偏小 → 少跑也算过）或误红
-# （N 偏大 → 全绿也判失败）。当前值对应 28 个用例（2026-09-16 核对；R38 两个结构守卫 RosterPerSeedVariety /
+# （N 偏大 → 全绿也判失败）。当前值对应 30 个用例（2026-09-16 核对；R38 两个结构守卫 RosterPerSeedVariety /
 # HellUniqueBasesRemainReachable 后 24 -> 26；阶段 B Task 1 的两个 G1 用例
-# LeaderDeathReleasesMinions / UniqueLeaderDeathBehaviourUnchanged 后 26 -> 28）。
+# LeaderDeathReleasesMinions / UniqueLeaderDeathBehaviourUnchanged 后 26 -> 28；阶段 B Task 2 的
+# 两个 G2 用例 SquadMinionsUnbuffed / UniqueMinionsBehaviourUnchanged 后 28 -> 30）。
 id: "sampling-anti-monopoly-cap"
 name: "采样反垄断：B1 cap 后契约（真实引擎 GetLevelMTypes）"
 category: "rng"
@@ -22,9 +23,9 @@ run:
 expected:
   exit_code: 0
   failed: 0
-  passed_min: 28
+  passed_min: 30
   skipped_max: 1
-  output_contains: ["[  PASSED  ] 28 tests."]
+  output_contains: ["[  PASSED  ] 30 tests."]
 
 description: >
   B1 采样反垄断 harness（纯测试 + cap 实施后）：直接驱动真实 GetLevelMTypes
@@ -53,3 +54,11 @@ description: >
   随从永远不被释放且留下悬挂索引，槽位复用后会指向一只活着的无关怪）；
   UniqueLeaderDeathBehaviourUnchanged 是 unique 路径回归——relation 置 None、
   索引**仍保留**（monhealthbar 蓝色随从着色依赖它）。已验证前者在修复前红、后者在修复前后皆绿。
+  阶段 B Task 2 追加（G2，spec 2026-09-15-level-rosters-design §4.3.1）：PlaceGroup 新增
+  MinionOptions{tough,inheritAi,inheritIntelligence} 参数，把随从 HP 加倍 / AI 继承 /
+  intelligence 继承三件事从硬编码行为改为可选。SquadMinionsUnbuffed 用一对 AI 类型不同的
+  leashed leader/minion（避免"两者 AI 相同导致断言恒真"这一已反复出现的缺陷）驱动 PlaceGroup
+  显式传入全 false 的 MinionOptions，断言 HP 落在未加倍的 [min,max] 区间内、minion 保留自己的
+  AI 而非被 setLeader() 覆盖、intelligence 不从 leader 继承；UniqueMinionsBehaviourUnchanged
+  是回归——PrepareUniqueMonst 调用 PlaceGroup 时从不显式构造 MinionOptions，因此默认值必须
+  让 Leashed 词条 unique 的随从依旧 HP 加倍且继承 leader 的 AI，与本任务改动之前字节对齐。

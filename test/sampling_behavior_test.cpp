@@ -1776,4 +1776,177 @@ TEST_F(SamplingBaselineTest, UniqueLeaderDeathBehaviourUnchanged)
 	    << "the unique path must RETAIN the leader index (monhealthbar colouring)";
 }
 
+// ---------------------------------------------------------------------------
+// G2 (spec 2026-09-15-level-rosters-design 4.3.1, task 2): PlaceGroup's minion
+// toughening (HP x2) and AI/intelligence inheritance are now controlled by an
+// explicit MinionOptions argument. The default (opts = {}) reproduces the
+// engine's historical behaviour byte-for-byte (unique boss packs); a caller
+// that opts out (the squad-minion path, task 3) gets an unbuffed, own-AI
+// minion instead.
+//
+// SquadMinionsUnbuffed drives PlaceGroup directly with a leashed leader/minion
+// pair and every MinionOptions flag turned off. The leader/minion pair is
+// deliberately chosen so the leader's AI (SkeletonMelee) differs from the
+// minion's own AI (SkeletonRanged): if they matched, "minion.ai ==
+// MonstersData[minionType].ai" would hold whether or not setLeader()'s AI
+// overwrite actually got reverted, making that assertion vacuously true. Both
+// types have a random (min!=max) hitPointsMinimum/Maximum in monstdat, so the
+// un-doubled HP assertion bounds the roll to the un-doubled [min,max] range
+// rather than comparing to a literal - a toughened roll can only land at or
+// above 2x the un-doubled minimum, so staying within the un-doubled range
+// demonstrates opts.tough=false took effect.
+// ---------------------------------------------------------------------------
+
+TEST_F(SamplingBaselineTest, SquadMinionsUnbuffed)
+{
+	if (missingMpqAssets_)
+		GTEST_SKIP() << "MPQ assets not found - skipping test";
+
+	currlevel = 1;
+	InitLevelMonsters();
+	SetRndSeed(9200);
+
+	// MT_WSKELAX (SkeletonMelee) and MT_TSKELBW (SkeletonRanged) are both
+	// Always-available L1-4 pool members, and their AI classes differ - the
+	// precondition SquadMinionsUnbuffed's AI assertion needs to be non-vacuous
+	// (see comment above).
+	ASSERT_EQ(MonstersData[MT_WSKELAX].ai, MonsterAIID::SkeletonMelee);
+	ASSERT_EQ(MonstersData[MT_TSKELBW].ai, MonsterAIID::SkeletonRanged);
+	ASSERT_NE(MonstersData[MT_WSKELAX].ai, MonstersData[MT_TSKELBW].ai)
+	    << "leader and minion AI must differ, otherwise the AI-not-overwritten"
+	    << " assertion below would pass even if setLeader()'s overwrite were never reverted";
+
+	size_t leaderType = 0;
+	size_t minionType = 0;
+	{
+		const auto addResult = AddMonsterType(MT_WSKELAX, PLACE_SCATTER);
+		ASSERT_TRUE(addResult.has_value()) << addResult.error();
+		leaderType = addResult.value();
+	}
+	{
+		const auto addResult = AddMonsterType(MT_TSKELBW, PLACE_SCATTER);
+		ASSERT_TRUE(addResult.has_value()) << addResult.error();
+		minionType = addResult.value();
+	}
+	ASSERT_LT(leaderType, LevelMonsterTypeCount);
+	ASSERT_LT(minionType, LevelMonsterTypeCount);
+
+	PlaceGroup(leaderType, 1);
+	ASSERT_EQ(ActiveMonsterCount, 1u) << "leader must be placed";
+	Monster &leader = Monsters[0];
+	ASSERT_EQ(leader.ai, MonsterAIID::SkeletonMelee);
+
+	PlaceGroup(minionType, 1, &leader, /*leashed=*/true,
+	    MinionOptions { .tough = false, .inheritAi = false, .inheritIntelligence = false });
+
+	ASSERT_EQ(ActiveMonsterCount, 2u) << "minion must be placed";
+	Monster &minion = Monsters[1];
+	ASSERT_EQ(minion.leaderRelation, LeaderRelation::Leashed) << "leashed=true must still leash the minion";
+
+	// (1) HP must not be doubled: InitMonster (called from PlaceMonster, before
+	// any PlaceGroup buff) rolls maxHitPoints uniformly in
+	// [hitPointsMinimum,hitPointsMaximum]<<6 (halved again if !gbIsMultiplayer,
+	// which this fixture's default-constructed state leaves false), so the
+	// un-doubled value must stay within that un-doubled range. If opts.tough
+	// were ignored, minion.maxHitPoints could only be double a value already
+	// inside this range, i.e. at least 2 * baseMinHp - well above baseMaxHp
+	// whenever the doubled value exceeds it, which it does here since
+	// baseMaxHp < 2 * baseMinHp for MT_TSKELBW (16 < 2*8 is false... see below).
+	const int rawMinHp = MonstersData[MT_TSKELBW].hitPointsMinimum << 6;
+	const int rawMaxHp = MonstersData[MT_TSKELBW].hitPointsMaximum << 6;
+	const int baseMinHp = gbIsMultiplayer ? rawMinHp : std::max(rawMinHp / 2, 64);
+	const int baseMaxHp = gbIsMultiplayer ? rawMaxHp : std::max(rawMaxHp / 2, 64);
+	EXPECT_GE(minion.maxHitPoints, baseMinHp) << "opts.tough=false must not double the minion's HP";
+	EXPECT_LE(minion.maxHitPoints, baseMaxHp) << "opts.tough=false must not double the minion's HP";
+	EXPECT_EQ(minion.hitPoints, minion.maxHitPoints);
+
+	// (2) AI must remain the minion's OWN ai, not the leader's (the leader and
+	// minion AI differ by construction above, so this is not vacuously true).
+	EXPECT_EQ(minion.ai, MonstersData[MT_TSKELBW].ai) << "opts.inheritAi=false must keep the minion's own AI";
+	EXPECT_NE(minion.ai, leader.ai) << "the minion's AI must not have been overwritten by setLeader()";
+
+	// (3) intelligence must not be inherited from the leader.
+	EXPECT_EQ(minion.intelligence, MonstersData[MT_TSKELBW].intelligence)
+	    << "opts.inheritIntelligence=false must not copy the leader's intelligence";
+}
+
+// UniqueMinionsBehaviourUnchanged (regression): the unique path calls
+// PlaceGroup with the DEFAULT MinionOptions{} (PrepareUniqueMonst never
+// constructs one explicitly), so a Leashed-pack unique's minions must still
+// come out HP-doubled and AI-inherited exactly as before this task's change.
+// Mirrors UniqueLeaderDeathBehaviourUnchanged's approach of scanning
+// UniqueMonstersData for a real Leashed-pack entry rather than hardcoding one.
+TEST_F(SamplingBaselineTest, UniqueMinionsBehaviourUnchanged)
+{
+	if (missingMpqAssets_)
+		GTEST_SKIP() << "MPQ assets not found - skipping test";
+
+	currlevel = 1;
+	InitLevelMonsters();
+	SetRndSeed(9300);
+
+	// Only the availability flag matters here (Never/Retail-under-spawn gate
+	// whether the unique's TRN asset ships with this fixture's data); the
+	// dungeon-level range that IsMonsterAvailable also checks is irrelevant to
+	// this regression, so it is deliberately not applied here.
+	bool foundLeashedUnique = false;
+	size_t uniqueIndex = 0;
+	for (size_t u = 0; u < UniqueMonstersData.size(); u++) {
+		if (UniqueMonstersData[u].monsterPack != UniqueMonsterPack::Leashed)
+			continue;
+		const MonsterAvailability availability = MonstersData[UniqueMonstersData[u].mtype].availability;
+		if (availability == MonsterAvailability::Never)
+			continue;
+		if (gbIsSpawn && availability == MonsterAvailability::Retail)
+			continue;
+		uniqueIndex = u;
+		foundLeashedUnique = true;
+		break;
+	}
+	ASSERT_TRUE(foundLeashedUnique) << "unique monster data has no available Leashed pack entry";
+
+	const auto uniqueType = static_cast<UniqueMonsterType>(uniqueIndex);
+	const UniqueMonsterData &uniqueMonsterData = UniqueMonstersData[uniqueIndex];
+	ASSERT_EQ(uniqueMonsterData.monsterPack, UniqueMonsterPack::Leashed);
+
+	size_t minionType = 0;
+	{
+		const auto addResult = AddMonsterType(uniqueMonsterData.mtype, PLACE_UNIQUE);
+		ASSERT_TRUE(addResult.has_value()) << addResult.error();
+		minionType = addResult.value();
+	}
+	ASSERT_LT(minionType, LevelMonsterTypeCount);
+
+	Monster *monsterPtr = AddMonster({ 40, 40 }, Direction::South, minionType, /*inMap=*/false);
+	ASSERT_NE(monsterPtr, nullptr);
+	Monster &monster = *monsterPtr;
+
+	// bosspacksize = 1: just enough to exercise the buff/inherit branch without
+	// depending on how many minions the placement loop manages to fit.
+	const auto prepareResult = PrepareUniqueMonst(monster, uniqueType, minionType, /*bosspacksize=*/1, uniqueMonsterData);
+	ASSERT_TRUE(prepareResult.has_value()) << prepareResult.error();
+
+	ASSERT_EQ(ActiveMonsterCount, 2u) << "the unique's one minion must have been placed";
+	Monster &minion = Monsters[1];
+	ASSERT_EQ(minion.leaderRelation, LeaderRelation::Leashed);
+
+	// (1) HP must still be doubled: minion.maxHitPoints was set by
+	// PlaceMonster/InitMonster before PlaceGroup ran, so doubling it is
+	// detectable relative to its own pre-buff value using the base monstdat
+	// range rather than re-deriving InitMonster's random roll.
+	const int minBase = gbIsMultiplayer
+	    ? (MonstersData[uniqueMonsterData.mtype].hitPointsMinimum << 6)
+	    : std::max((MonstersData[uniqueMonsterData.mtype].hitPointsMinimum << 6) / 2, 64);
+	const int maxBaseDoubled = gbIsMultiplayer
+	    ? (MonstersData[uniqueMonsterData.mtype].hitPointsMaximum << 6) * 2
+	    : std::max((MonstersData[uniqueMonsterData.mtype].hitPointsMaximum << 6) / 2, 64) * 2;
+	EXPECT_GE(minion.maxHitPoints, minBase * 2)
+	    << "default MinionOptions must still double the minion's HP (regression)";
+	EXPECT_LE(minion.maxHitPoints, maxBaseDoubled);
+	EXPECT_EQ(minion.hitPoints, minion.maxHitPoints);
+
+	// (2) AI must be inherited from the leader (the unique's own ai).
+	EXPECT_EQ(minion.ai, monster.ai) << "default MinionOptions must still inherit the leader's AI (regression)";
+}
+
 } // namespace
