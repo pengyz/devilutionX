@@ -158,6 +158,52 @@ TEST_F(LevelRosterTest, ValidationRejectsAClassFloorThatExceedsTheB1CapAtL14)
 	EXPECT_NE(error->find("caps"), std::string::npos);
 }
 
+TEST_F(LevelRosterTest, ValidationRejectsThreeSameClassCoreMembersUnderTheB1CapAtL10)
+{
+	// R29: core members are pre-added before the sampling loop, so they bypass the B1
+	// cap entirely. A table listing 3 RangedKite cores at level 10 would therefore ship a
+	// level that violates the <= 2 guarantee no matter what the sampler does, and the
+	// acceptance test could not catch it (the realised roster is the input). The only place
+	// this can be blocked is load time, so validation must reject it here.
+	const std::vector<LevelRosterEntry> entries {
+		{ 10, MT_BMAGMA, LevelRosterRole::Core, false },
+		{ 10, MT_WMAGMA, LevelRosterRole::Core, false },
+		{ 10, MT_RSTORM, LevelRosterRole::Core, false },
+	};
+	const std::vector<LevelRosterParams> params { { 10, 6000, 2, {} } };
+	const auto error = ValidateLevelRoster(entries, params);
+	ASSERT_TRUE(error.has_value()) << "3 RangedKite cores at L10 must be rejected";
+	EXPECT_NE(error->find("core roster has 3"), std::string::npos) << *error;
+	EXPECT_NE(error->find("RangedKite"), std::string::npos) << *error;
+	EXPECT_NE(error->find("level 10"), std::string::npos) << *error;
+	EXPECT_NE(error->find("cap for that level and class is 2"), std::string::npos) << *error;
+
+	// Prove the rejection is driven by the count against the cap, not by these three types
+	// being unacceptable on their own: dropping to exactly the cap must pass.
+	const std::vector<LevelRosterEntry> atCap { entries[0], entries[1] };
+	EXPECT_FALSE(ValidateLevelRoster(atCap, params).has_value());
+}
+
+TEST_F(LevelRosterTest, ValidationRejectsThreeSameClassCoreMembersInSpawnModeToo)
+{
+	// The core-vs-cap check sits before the spawn-mode relaxation, because the B1 guarantee
+	// is about the shipped table, not about which availability rules are in force.
+	const std::vector<LevelRosterEntry> entries {
+		{ 14, MT_RSNAKE, LevelRosterRole::Core, false },
+		{ 14, MT_BSNAKE, LevelRosterRole::Core, false },
+		{ 14, MT_NBLACK, LevelRosterRole::Core, false },
+	};
+	const std::vector<LevelRosterParams> params { { 14, 6000, 2, {} } };
+
+	gbIsSpawn = true;
+	const auto error = ValidateLevelRoster(entries, params);
+	gbIsSpawn = false;
+
+	ASSERT_TRUE(error.has_value());
+	EXPECT_NE(error->find("core roster has 3"), std::string::npos) << *error;
+	EXPECT_NE(error->find("Melee"), std::string::npos) << *error;
+}
+
 TEST_F(LevelRosterTest, SortRosterByLevelThenFindLevelRosterKeepsAllMembersOfAnInterleavedLevel)
 {
 	// FindLevelRoster() assumes same-level entries are contiguous. SortRosterByLevel()

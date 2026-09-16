@@ -227,6 +227,35 @@ std::optional<std::string> ValidateLevelRoster(std::span<const LevelRosterEntry>
 			return StrCat("level ", level, " has no core roster members");
 	}
 
+	// Core-vs-cap self-consistency (R29). The sampling loop applies the B1 caps to the
+	// tail draw only: the core roster is pre-added ahead of the loop and therefore bypasses
+	// them by design (spec 4.2.2). That makes it possible for the DATA to break a B1
+	// guarantee that the code can no longer defend - e.g. a level whose core lists three
+	// RangedKite monsters is an all-kite level no matter what the loop does afterwards.
+	// Reject that here, at load time, so the guarantee is structural rather than something
+	// a percentage baseline happens to notice. Checked in both modes: it is a property of
+	// the table itself, and the availability filter the pre-add applies can only ever make
+	// the realised core a SUBSET of these rows, so passing here is the conservative bound.
+	for (const uint8_t level : levels) {
+		uint8_t coreClassCounts[static_cast<size_t>(BehaviorClass::Count)] = {};
+		for (const LevelRosterEntry &entry : entries) {
+			if (entry.level != level || entry.role != LevelRosterRole::Core)
+				continue;
+			coreClassCounts[static_cast<size_t>(GetBehaviorClass(MonstersData[static_cast<size_t>(entry.type)].ai))]++;
+		}
+		for (size_t i = 0; i < static_cast<size_t>(BehaviorClass::Count); i++) {
+			const auto cls = static_cast<BehaviorClass>(i);
+			const uint8_t cap = BehaviorClassCapForLevel(level, cls);
+			if (cap == 0)
+				continue;
+			if (coreClassCounts[i] > cap)
+				return StrCat("level ", level, " core roster has ", static_cast<int>(coreClassCounts[i]),
+				    " monsters of behaviour class ", magic_enum::enum_name(cls),
+				    " but the B1 sampling cap for that level and class is ", static_cast<int>(cap),
+				    "; core bypasses the cap, so this breaks the guarantee in the data");
+		}
+	}
+
 	if (gbIsSpawn) {
 		// Shareware (spawn) data ships a much smaller monster/unique set, so the full
 		// retail-style checks (per-row availability, unique-base whitelist, class floor

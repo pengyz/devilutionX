@@ -33,7 +33,9 @@
 #include "levels/gendung.h"
 #include "monster.h"
 #include "multi.h"
+#include "player.h"
 #include "quests.h"
+#include "tables/questdat.hpp"
 #include "tables/level_roster.h"
 #include "tables/monstdat.h"
 #include "utils/str_cat.hpp"
@@ -726,20 +728,29 @@ size_t AvailableCoreCount(uint8_t level)
 	return count;
 }
 
-// Types that the B1 cap cannot constrain: MT_GOLEM (unconditional PLACE_SPECIAL
-// pre-add) plus the level's core roster, which bypasses the cap by design
-// (spec 4.2.2 - the cap lives inside the sampling loop only).
-size_t CapExemptClassCount(uint8_t level, BehaviorClass cls)
+// Cap exemptions that come from the ENGINE, not from the roster (R29).
+//
+// The roster must NOT be used to compute this. Deriving the allowance from the
+// very table under test makes the assertion self-fulfilling: a core roster that
+// lists three same-class monsters would raise its own budget by three and the
+// check could never fail - exactly the class of data defect (L11's three kite
+// cores, L14's Melee cores) that this suite exists to catch. Core is therefore
+// held to the cap here, and the load-time validator (ValidateLevelRoster's
+// core-vs-cap check) rejects a roster that would break it.
+//
+// What genuinely cannot be capped is what GetLevelMTypes() pre-adds regardless
+// of any table: MT_GOLEM (unconditional PLACE_SPECIAL) and the quest uniques of
+// this level, whose base type is chosen by UniqueMonstersData rather than by the
+// roster. Those are counted from engine data only.
+size_t EnginePreAddClassCount(uint8_t level, BehaviorClass cls)
 {
 	size_t count = 0;
 	if (GetBehaviorClass(MonstersData[MT_GOLEM].ai) == cls)
 		count++;
-	for (const LevelRosterEntry &entry : GetLevelRoster(level)) {
-		if (entry.role != LevelRosterRole::Core)
+	for (const UniqueMonsterData &unique : UniqueMonstersData) {
+		if (unique.mlevel != level)
 			continue;
-		if (!IsRosterEntryAvailableAt(level, entry.type))
-			continue;
-		if (GetBehaviorClass(MonstersData[entry.type].ai) == cls)
+		if (GetBehaviorClass(MonstersData[unique.mtype].ai) == cls)
 			count++;
 	}
 	return count;
@@ -759,6 +770,13 @@ TEST_F(SamplingBaselineTest, RosterCoreAlwaysPresent)
 	// AC1: every available core member of a level is realised on 100% of seeds,
 	// and every core member is a candidate of that level (i.e. the roster row
 	// itself is available there, so pre-adding it is not a smuggled monster).
+	//
+	// Range note (R31): this case runs 1-16 while RosterTailDrawBounded and
+	// RosterQuotasSatisfied run 1-15. L16 has roster ROWS but no params row on
+	// purpose (spec 4.2.7): GetLevelMTypes() takes the hardcoded L16 branch and
+	// returns before any roster pre-add, so on L16 only the static half of AC1 is
+	// checkable - the rows are well-formed, available candidates and are
+	// registered - and the realised-core assertion below is skipped for it.
 	for (uint8_t level = 1; level <= 16; level++) {
 		const std::span<const LevelRosterEntry> roster = GetLevelRoster(level);
 		ASSERT_FALSE(roster.empty()) << "level " << static_cast<int>(level) << " must have roster rows";
@@ -802,6 +820,11 @@ TEST_F(SamplingBaselineTest, RosterTailDrawBounded)
 	// AC2: the tail draw is min(tail_draw, available candidates). Counting the
 	// tail as "types beyond the pre-adds" needs the pre-add count measured, not
 	// assumed: Golem is always pre-added and the roster's core count varies.
+	//
+	// Range note (R31): 1-15, not 1-16. A tail bound is only meaningful where a
+	// tail is drawn, and L16 deliberately has no params row (spec 4.2.7) because
+	// its hardcoded branch returns before the roster path runs. Extending this
+	// loop to 16 would only assert that a missing params row is missing.
 	for (uint8_t level = 1; level <= 15; level++) {
 		const LevelRosterParams *params = GetLevelRosterParams(level);
 		ASSERT_NE(params, nullptr) << "level " << static_cast<int>(level) << " must have a params row";
@@ -830,6 +853,11 @@ TEST_F(SamplingBaselineTest, RosterQuotasSatisfied)
 	// AC3: each level's class floors are met and the B1 caps are never broken.
 	// Caps come from BehaviorClassCapForLevel (the single source of truth the
 	// validator uses), so a drift between validator and sampling loop fails here.
+	//
+	// Range note (R31): 1-15 for the same reason as RosterTailDrawBounded - floors
+	// and caps are properties of the roster sampling loop, which L16 never enters
+	// (hardcoded branch + early return, spec 4.2.7). L16's cap guarantee is
+	// therefore a property of that hardcoded list, covered by Level16HardcodedTypes.
 	for (uint8_t level = 1; level <= 15; level++) {
 		const LevelRosterParams *params = GetLevelRosterParams(level);
 		ASSERT_NE(params, nullptr) << "level " << static_cast<int>(level);
@@ -852,11 +880,13 @@ TEST_F(SamplingBaselineTest, RosterQuotasSatisfied)
 				const uint8_t cap = BehaviorClassCapForLevel(level, static_cast<BehaviorClass>(i));
 				if (cap == 0)
 					continue;
-				// The cap constrains what the sampling loop may ADD; unconditional
-				// pre-adds (Golem, quest uniques) and the level's core roster are
-				// exempt by design, so compare against the core+preadd floor.
-				const size_t exempt = CapExemptClassCount(level, static_cast<BehaviorClass>(i));
-				EXPECT_LE(counts[i], std::max(static_cast<size_t>(cap), exempt))
+				// R29: the allowance is cap + the ENGINE's unconditional pre-adds
+				// (Golem and this level's quest uniques). It deliberately does not
+				// include the core roster: core is subject to the same cap, enforced
+				// at load time by ValidateLevelRoster, so a core row that broke a B1
+				// guarantee fails here instead of quietly raising its own budget.
+				const size_t enginePreAdds = EnginePreAddClassCount(level, static_cast<BehaviorClass>(i));
+				EXPECT_LE(counts[i], static_cast<size_t>(cap) + enginePreAdds)
 				    << "level " << static_cast<int>(level) << " seed " << seed
 				    << " breaks the B1 cap for class " << i;
 			}
@@ -955,6 +985,29 @@ protected:
 			missingMpqAssets_ = true;
 			return;
 		}
+
+		// R30: this suite mounts the hf overlay and runs TestInitGame(), which
+		// mutates process-global state that the SamplingBaselineTest measurements
+		// above depend on. Most importantly InitQuests() lifts every
+		// Quests[*]._qactive out of its zero-initialised QUEST_NOTAVAIL, and an
+		// active quest pre-adds its unique's base type: leaving Q_WARLORD active
+		// would add Melee MT_BTBLACK to L13, pushing that level to 3 Melee types
+		// and breaking HellL13SameClassTailBaseline's EXPECT_EQ(tail, 0.0) - a
+		// failure that only appears once the suite order changes (--gtest_shuffle).
+		// So snapshot every global TestInitGame() touches and restore the snapshot
+		// in TearDownTestSuite(), rather than guessing at "initial" values.
+		savedQuests_.assign(std::begin(Quests), std::end(Quests));
+		// Player is not copyable, so snapshot the two things TestInitGame() changes
+		// about it (the vector's size and pOriginalCathedral) rather than the object.
+		savedPlayerCount_ = Players.size();
+		savedMyPlayerIsFirst_ = !Players.empty() && MyPlayer == &Players[0];
+		savedOriginalCathedral_ = Players.empty() ? true : Players[0].pOriginalCathedral;
+		savedGameInitInfo_ = sgGameInitInfo;
+		savedIsMultiplayer_ = gbIsMultiplayer;
+		savedIsHellfire_ = gbIsHellfire;
+		savedIsSpawn_ = gbIsSpawn;
+		snapshotTaken_ = true;
+
 		gbIsSpawn = false;
 		gbIsHellfire = true;
 		sgGameInitInfo.fullQuests = 1;
@@ -967,18 +1020,51 @@ protected:
 
 	static void TearDownTestSuite()
 	{
-		// Restore the Diablo-data state for any suite that runs after this one.
-		gbIsHellfire = false;
+		if (!snapshotTaken_)
+			return;
+
+		std::copy(savedQuests_.begin(), savedQuests_.end(), std::begin(Quests));
+		Players.resize(savedPlayerCount_);
+		if (!Players.empty())
+			Players[0].pOriginalCathedral = savedOriginalCathedral_;
+		MyPlayer = savedMyPlayerIsFirst_ && !Players.empty() ? &Players[0] : nullptr;
+		sgGameInitInfo = savedGameInitInfo_;
+		gbIsMultiplayer = savedIsMultiplayer_;
+		gbIsHellfire = savedIsHellfire_;
+		gbIsSpawn = savedIsSpawn_;
+
+		// And put the Diablo monster/roster data back, since the overlay changed it.
 		UnloadModArchives();
 		LoadModArchives({});
 		LoadMonsterData();
 		LoadLevelRoster();
+		snapshotTaken_ = false;
 	}
 
 	static bool missingMpqAssets_;
+
+private:
+	static std::vector<Quest> savedQuests_;
+	static size_t savedPlayerCount_;
+	static bool savedMyPlayerIsFirst_;
+	static bool savedOriginalCathedral_;
+	static GameData savedGameInitInfo_;
+	static bool savedIsMultiplayer_;
+	static bool savedIsHellfire_;
+	static bool savedIsSpawn_;
+	static bool snapshotTaken_;
 };
 
 bool HellfireNoParamsSamplingTest::missingMpqAssets_ = false;
+std::vector<Quest> HellfireNoParamsSamplingTest::savedQuests_;
+size_t HellfireNoParamsSamplingTest::savedPlayerCount_ = 0;
+bool HellfireNoParamsSamplingTest::savedMyPlayerIsFirst_ = false;
+bool HellfireNoParamsSamplingTest::savedOriginalCathedral_ = true;
+GameData HellfireNoParamsSamplingTest::savedGameInitInfo_ {};
+bool HellfireNoParamsSamplingTest::savedIsMultiplayer_ = false;
+bool HellfireNoParamsSamplingTest::savedIsHellfire_ = false;
+bool HellfireNoParamsSamplingTest::savedIsSpawn_ = false;
+bool HellfireNoParamsSamplingTest::snapshotTaken_ = false;
 
 TEST_F(HellfireNoParamsSamplingTest, LevelsWithoutParamsStillSampleTypes)
 {

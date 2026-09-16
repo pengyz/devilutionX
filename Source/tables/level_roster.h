@@ -94,6 +94,13 @@ std::span<const LevelRosterEntry> FindLevelRoster(std::span<const LevelRosterEnt
  * samples from this roster (Task 3's sampling loop) must apply its own availability filter
  * against the currently loaded MonstersData before treating a returned entry as usable; a
  * non-empty span here is not itself a guarantee of spawn-mode availability.
+ *
+ * Level 16 is a documented exception (spec 4.2.7, R31): GetLevelMTypes() hardcodes L16's types
+ * and returns before the roster pre-add runs, so `level_rosters.tsv`'s L16 rows are
+ * REGISTRATION ONLY - they record which monsters the level fields for the validator and for
+ * later phases, and never influence sampling. `level_roster_params.tsv` deliberately has no L16
+ * row for the same reason: a params row there would be unreachable table data. The TSV format
+ * carries no comment syntax, so that fact is recorded here rather than beside the rows.
  */
 std::span<const LevelRosterEntry> GetLevelRoster(uint8_t level);
 const LevelRosterParams *GetLevelRosterParams(uint8_t level);
