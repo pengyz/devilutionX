@@ -10,6 +10,7 @@
 #include <string>
 
 #include "drlg_test.hpp" // TestInitGame / GetTileCount（本仓既有测试夹具）
+#include "engine/assets.hpp"
 #include "engine/load_file.hpp"
 #include "levels/gendung.h"
 #include "levels/trigs.h" // InitL1Triggers 等 + Freeupstairs（CreateLevel 逻辑复刻用）
@@ -236,12 +237,25 @@ protected:
 		// GetLevelRoster()/GetLevelRosterParams() 全空 → 无 PLACE_SCATTER 类型 →
 		// 该层放不出任何怪（本用例的 placed 基线会全零）。
 		LoadLevelRoster();
+
+		// gbIsSpawn=false 让 Q_SKELKING 在单人模式下于 currlevel==3 保持可用
+		// （InitQuests 只在 gbIsSpawn 时清空任务），PlaceQuestMonsters() 因此会尝试
+		// PlaceUniqueMonst(SkeletonKing, ...) -> InitTRNForUniqueMonster()，加载
+		// monsters\monsters\genrl.trn。该文件只存在于零售版(DIABDAT.MPQ)/Hellfire
+		// 资产中，spawn.mpq 里没有（已用 smpq -l 核实）。探测这个真实依赖一次，
+		// 而不是用 HaveHellfire()：未来只有 DIABDAT.MPQ（零售、非 HF）的环境也应
+		// 能跑这些以零售语义测量的基线用例。
+		size_t trnSize = 0;
+		const AssetHandle trnHandle = OpenAsset(R"(monsters\monsters\genrl.trn)", trnSize);
+		missingRetailTrn_ = !trnHandle.ok() || trnSize == 0;
 	}
 
 	static bool missingMpqAssets_;
+	static bool missingRetailTrn_;
 };
 
 bool LevelRosterBaselineTest::missingMpqAssets_ = false;
+bool LevelRosterBaselineTest::missingRetailTrn_ = false;
 
 TEST_F(LevelRosterBaselineTest, PlacesMonstersForCathedralL1)
 {
@@ -249,8 +263,14 @@ TEST_F(LevelRosterBaselineTest, PlacesMonstersForCathedralL1)
 		GTEST_SKIP() << "MPQ assets not found - skipping test";
 
 	CreateDungeonForMeasurement(1, 1000);
-	ASSERT_TRUE(GetLevelMTypes().has_value());
-	ASSERT_TRUE(InitMonsters().has_value());
+	{
+		const auto getTypesResult = GetLevelMTypes();
+		ASSERT_TRUE(getTypesResult.has_value()) << getTypesResult.error();
+	}
+	{
+		const auto initResult = InitMonsters();
+		ASSERT_TRUE(initResult.has_value()) << initResult.error();
+	}
 
 	const auto mix = MeasurePlacedClassMix();
 
@@ -266,6 +286,8 @@ TEST_F(LevelRosterBaselineTest, PlacedClassMixReport)
 {
 	if (missingMpqAssets_)
 		GTEST_SKIP() << "MPQ assets not found - skipping test";
+	if (missingRetailTrn_)
+		GTEST_SKIP() << "retail/HF TRN (monsters\\monsters\\genrl.trn) not available - skipping test";
 
 	// 默认只跑小样本并断言真实不变量（F3）；只有显式设置 SAMPLING_REPORT 时才跑
 	// 200 seeds x 16 levels 的完整基线报告并写文件。
@@ -284,8 +306,14 @@ TEST_F(LevelRosterBaselineTest, PlacedClassMixReport)
 		size_t placed = 0;
 		for (uint32_t seed = 0; seed < seedsPerLevel; seed++) {
 			CreateDungeonForMeasurement(level, 5000 + seed);
-			ASSERT_TRUE(GetLevelMTypes().has_value());
-			ASSERT_TRUE(InitMonsters().has_value());
+			{
+				const auto getTypesResult = GetLevelMTypes();
+				ASSERT_TRUE(getTypesResult.has_value()) << getTypesResult.error();
+			}
+			{
+				const auto initResult = InitMonsters();
+				ASSERT_TRUE(initResult.has_value()) << initResult.error();
+			}
 			const auto mix = MeasurePlacedClassMix();
 
 			// F3: 对每个样本断言真实不变量，而不仅仅是「引擎调用没报错」。
@@ -317,6 +345,8 @@ TEST_F(LevelRosterBaselineTest, PlacedClassMixWithinBaseline)
 {
 	if (missingMpqAssets_)
 		GTEST_SKIP() << "MPQ assets not found - skipping test";
+	if (missingRetailTrn_)
+		GTEST_SKIP() << "retail/HF TRN (monsters\\monsters\\genrl.trn) not available - skipping test";
 
 	// AC (spec §4.5): the roster must not push a level's ranged share more than 5
 	// points above the pre-change baseline. This drives the PRODUCTION fixture
@@ -355,8 +385,14 @@ TEST_F(LevelRosterBaselineTest, PlacedClassMixWithinBaseline)
 		size_t ranged = 0;
 		for (uint32_t seed = 0; seed < kSeeds; seed++) {
 			CreateDungeonForMeasurement(level, 9000 + seed);
-			ASSERT_TRUE(GetLevelMTypes().has_value());
-			ASSERT_TRUE(InitMonsters().has_value());
+			{
+				const auto getTypesResult = GetLevelMTypes();
+				ASSERT_TRUE(getTypesResult.has_value()) << getTypesResult.error();
+			}
+			{
+				const auto initResult = InitMonsters();
+				ASSERT_TRUE(initResult.has_value()) << initResult.error();
+			}
 			const auto mix = MeasurePlacedClassMix();
 			total += ActiveMonsterCount;
 			ranged += mix[static_cast<size_t>(BehaviorClass::RangedTurret)]
