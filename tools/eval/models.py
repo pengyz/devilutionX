@@ -20,7 +20,7 @@ _TOP_LEVEL = frozenset({
     'setup', 'run', 'expected', 'scoring', 'description',
 })
 
-_SETUP = frozenset({'mpq_required', 'side_effect', 'timeout', 'env', 'needs_build'})
+_SETUP = frozenset({'mpq_required', 'retail_or_hf_required', 'side_effect', 'timeout', 'env', 'needs_build'})
 
 _RUN = frozenset({'backend', 'binary', 'filter', 'args', 'command', 'harness'})
 
@@ -67,6 +67,13 @@ class EvalCase:
     @property
     def mpq_required(self) -> bool:
         return self.setup.get('mpq_required', False)
+
+    @property
+    def retail_or_hf_required(self) -> bool:
+        """True when the case needs the unique-monster TRN assets, which ship
+        only with retail (DIABDAT.MPQ) or Hellfire (hellfire.mpq) data - never
+        with the shareware spawn.mpq that CI downloads."""
+        return self.setup.get('retail_or_hf_required', False)
 
     @property
     def side_effect(self) -> bool:

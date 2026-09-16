@@ -62,6 +62,19 @@ def mpq_present(build_dir: Path | None = None) -> bool:
     return any((p / name).exists() for p in candidates for name in names)
 
 
+def retail_or_hf_present(build_dir: Path | None = None) -> bool:
+    """Detect retail (DIABDAT.MPQ) or Hellfire (hellfire.mpq) data, which is what
+    the unique-monster TRN assets require (`monsters\\monsters\\<mTrnName>.trn`).
+    spawn.mpq alone is NOT enough - see docs/knowledge/reference_ci_workflows_on_feature_branches.md."""
+    import os
+    pref = os.path.expanduser('~/.local/share/diasurgical/devilution')
+    candidates = [Path(pref)]
+    if build_dir is not None:
+        candidates.append(build_dir)
+    names = ('DIABDAT.MPQ', 'diabdat.mpq', 'hellfire.mpq', 'HELLFIRE.MPQ')
+    return any((p / name).exists() for p in candidates for name in names)
+
+
 def find_cases(selector: str | None, cases_dir: Path) -> list[models.EvalCase]:
     """Resolve cases by id-glob; all cases if selector is None."""
     all_cases = models.load_cases_dir(cases_dir)
@@ -73,7 +86,7 @@ def find_cases(selector: str | None, cases_dir: Path) -> list[models.EvalCase]:
 def run_case(case: models.EvalCase, build_dir: Path, include_side_effects: bool) -> dict:
     """Run one case and produce the result dict for the report."""
     start = time.monotonic()
-    skip_reason = assertions.classify_skip(case, mpq_present(build_dir), include_side_effects)
+    skip_reason = assertions.classify_skip(case, mpq_present(build_dir), include_side_effects, retail_or_hf_present(build_dir))
     if skip_reason:
         return {
             'case_id': case.id, 'category': case.category, 'difficulty': case.difficulty,

@@ -10,6 +10,8 @@ tags: ["sampling", "monster-generation", "level-roster", "baseline"]
 
 setup:
   mpq_required: true
+  # U1（同类）：PlacedClassMix* 走真实建关放置，需 unique 怪染色 TRN（零售或 HF 提供）。
+  retail_or_hf_required: true
   timeout: 300
 
 run:

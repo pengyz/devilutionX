@@ -80,10 +80,12 @@ def apply_assertions(case: EvalCase, result: RunResult) -> tuple[bool, list[str]
     return not failures, failures
 
 
-def classify_skip(case: EvalCase, mpq_present: bool, include_side_effects: bool) -> str | None:
+def classify_skip(case: EvalCase, mpq_present: bool, include_side_effects: bool, retail_or_hf_present: bool = True) -> str | None:
     """Return a skip reason, or None if the case should run."""
     if case.mpq_required and not mpq_present:
         return "MPQ assets (spawn.mpq or DIABDAT.MPQ) not found"
+    if case.retail_or_hf_required and not retail_or_hf_present:
+        return "retail/HF assets (DIABDAT.MPQ or hellfire.mpq) not found - unique-monster TRN unavailable"
     if case.side_effect and not include_side_effects:
         return "side_effect case; use --include-side-effects"
     return None
