@@ -26,6 +26,7 @@
 - [手工解冲突的文件不会继承上游同一 hunk 里自动合并进来的新增行](gotcha_conflict_file_loses_auto_merged_lines.md) — `plrctrls.cpp` 是本轮 4 个手工冲突文件之一，冲突块只处理两行 include 取舍，漏带上游同一次 quest_log 迁移新增的 `panels/quest_log.hpp` include → 7 处编译错误（`91e805149` 修复）；「不重叠即安全」的推断对冲突文件集合失效，需整文件三方核对
 
 ## Patterns
+- [`pattern_assertions_must_be_failable.md`](pattern_assertions_must_be_failable.md) — **断言必须具备可失败性**（本会话 4 次复发的头号缺陷模式：自证/恒真/测量无断言/区间重叠）；写守卫必须能指名"什么改动会让它变红"
 <!-- 代码约定、本项目开发模式 -->
 
 - [定长 wire 字段必须按 sizeof 读取](pattern_fixed_width_field_reads.md) — `PlayerPack::pName`/`TEar::heroname` 等定长 `char[N]` 无 NUL 保证；裸指针转 `string_view`/`strcpy` 走 strlen 越界（上游 b4dfc8d26 只修了玩家名，耳朵名 5 处上游至今未修）。验证必须把整个堆分配填满非 NUL，否则 ASan 抓不到
