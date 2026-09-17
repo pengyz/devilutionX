@@ -230,6 +230,68 @@ def check_test_only_functions() -> list[str]:
 
 # ------------------------------------------------------------------------ main
 
+# --------------------------------------------------------------------------- F
+
+def _cmake_test_targets() -> set[str]:
+    """Targets registered in CMake/Tests.cmake as tests/standalone_tests.
+
+    Benchmarks are deliberately excluded: run_tests.py does not build them.
+    Handles both literal entries inside set(tests|standalone_tests ...) and
+    conditional list(APPEND tests|standalone_tests <target>) lines.
+    """
+    path = REPO / 'CMake' / 'Tests.cmake'
+    if not path.exists():
+        return set()
+    targets: set[str] = set()
+    listing = False
+    for raw in read_text(path).splitlines():
+        line = raw.replace('\r', '').strip()
+        # NOTE: Tests.cmake writes `set(tests` with the closing paren on its own
+        # line, so the pattern must NOT require a closing paren here.
+        if re.match(r'^set\((tests|standalone_tests)$', line):
+            listing = True
+            continue
+        if listing and line.startswith(')'):
+            listing = False
+            continue
+        if listing:
+            name = line.split('#')[0].strip()
+            if name:
+                targets.add(name)
+            continue
+        m = re.match(r'^list\(APPEND\s+(tests|standalone_tests)\s+(\S+)\)', line)
+        if m:
+            targets.add(m.group(2))
+    return targets
+
+
+def _runner_test_targets() -> set[str]:
+    """TEST_TARGETS as written in tools/run_tests.py (parsed, never imported)."""
+    import ast
+    tree = ast.parse(read_text(REPO / 'tools' / 'run_tests.py'))
+    for node in ast.walk(tree):
+        if isinstance(node, ast.Assign) and any(
+                isinstance(t, ast.Name) and t.id == 'TEST_TARGETS' for t in node.targets):
+            return {e.value for e in getattr(node.value, 'elts', []) if isinstance(e, ast.Constant)}
+    return set()
+
+
+def check_runner_test_targets() -> list[str]:
+    """Every registered test target must be built by the runner.
+
+    A hand-maintained runner list drifts silently; when it does, the "full gate"
+    never rebuilds the missing binaries and ctest runs stale on-disk artifacts.
+    See docs/knowledge/gotcha_run_tests_target_list_misses_new_binaries.md.
+    """
+    cmake_targets = _cmake_test_targets()
+    runner_targets = _runner_test_targets()
+    if not cmake_targets or not runner_targets:
+        return ['could not parse CMake/Tests.cmake targets or run_tests.py TEST_TARGETS']
+    return [f'CMake/Tests.cmake registers "{t}" but tools/run_tests.py TEST_TARGETS omits it'
+            ' - the full gate would run a stale binary for it'
+            for t in sorted(cmake_targets - runner_targets)]
+
+
 def main() -> int:
     import argparse
     parser = argparse.ArgumentParser(description='Mechanical drift checks for the Better D1 fork.')
@@ -248,6 +310,7 @@ def main() -> int:
         checks.append(('C  modified files keep line endings', check_modified_line_endings(base)))
         checks.append(('C2 added files match .editorconfig', check_added_line_endings(base)))
     checks.append(('E  no test-only production functions', check_test_only_functions()))
+    checks.append(('F  run_tests.py builds every registered test target', check_runner_test_targets()))
 
     failed = 0
     for name, failures in checks:

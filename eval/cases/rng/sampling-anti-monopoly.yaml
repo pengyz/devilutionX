@@ -79,7 +79,7 @@ description: >
   （引开 leader 即触发的正常玩法），而 ReleaseMinions 原先只过滤 Leashed，于是普通 leader
   死亡时该随从既不改 relation 也不清索引；槽位被 AddMonster 复用后，GroupUnity（入口只挡 None）
   会解引用到一只无关的活怪并把随从重新拴上去。修法把过滤放宽到 `!= None`，但**只在普通怪路径清索引**，
-  unique 路径（relation 置 None、索引保留）逐字节不变，由后一条回归用例守住。
+  unique 路径（relation 置 None、索引保留）索引保留（unique 路径的 relation 现统一置 None：旧码在 Separated+unique 时保持 Separated，新码改为 None 属**修正**，已被用例断言；"逐字节"仅对索引成立），由后一条回归用例守住。
   BuffedMinionPredicateTracksToughening 覆盖新谓词 IsBuffedMinion：monhealthbar 的蓝名判据
   从 `leader != NoLeader` 改为「真的被强化」（当前＝leader 为 unique），否则 tough=false 的
   小队随从会被染蓝、与「只买构成不买数值」相反。用例两臂都断言 leader 索引已设置（证明旧判据
