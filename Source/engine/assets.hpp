@@ -27,8 +27,11 @@
 #include "utils/str_cat.hpp"
 #include "utils/string_or_view.hpp"
 
-#ifndef UNPACKED_MPQS
+// `ModManifest` (from mod_identity.h) is used unconditionally below by
+// `ReadModManifestByName`, so this include must stay outside the guard even
+// though it is otherwise only needed for the packed-MPQ mod pipeline.
 #include "mods/mod_identity.h"
+#ifndef UNPACKED_MPQS
 #include "mpq/mpq_reader.hpp"
 #endif
 
