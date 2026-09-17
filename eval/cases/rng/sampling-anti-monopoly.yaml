@@ -4,9 +4,11 @@
 # （N 偏大 → 全绿也判失败）。当前值对应 30 个用例（2026-09-16 核对；R38 两个结构守卫 RosterPerSeedVariety /
 # HellUniqueBasesRemainReachable 后 24 -> 26；阶段 B Task 1 的两个 G1 用例
 # LeaderDeathReleasesMinions / UniqueLeaderDeathBehaviourUnchanged 后 26 -> 28；阶段 B Task 2 的
-# 两个 G2 用例 SquadMinionsUnbuffed / UniqueMinionsBehaviourUnchanged 后 28 -> 30）。
+# 两个 G2 用例 SquadMinionsUnbuffed / UniqueMinionsBehaviourUnchanged 后 28 -> 30；
+# 阶段 B 最终修复轮 RB26/RB27 的三个用例 LeaderDeathReleasesSeparatedMinions /
+# UniqueLeaderDeathKeepsSeparatedMinionIndex / BuffedMinionPredicateTracksToughening 后 30 -> 33）。
 #
-# 口径说明（2026-09-17，含 U1 修复）：30 是**有素材环境**（DIABDAT.MPQ 或 Hellfire 在位）的计数。
+# 口径说明（2026-09-17，含 U1 修复）：33 是**有素材环境**（DIABDAT.MPQ 或 Hellfire 在位）的计数。
 # UniqueMinionsBehaviourUnchanged 会探测所选 Leashed unique 的 `monsters\monsters\<mTrnName>.trn`，
 # 该素材只随零售/HF 数据发布，**不随 spawn.mpq**。因此本 case 显式声明真实数据依赖
 # `setup.retail_or_hf_required: true`：在只有 spawn.mpq 的环境（如 nightly CI）下**整案跳过**，
@@ -32,9 +34,9 @@ run:
 expected:
   exit_code: 0
   failed: 0
-  passed_min: 30
+  passed_min: 33
   skipped_max: 1
-  output_contains: ["[  PASSED  ] 30 tests."]
+  output_contains: ["[  PASSED  ] 33 tests."]
 
 description: >
   B1 采样反垄断 harness（纯测试 + cap 实施后）：直接驱动真实 GetLevelMTypes
@@ -71,3 +73,21 @@ description: >
   AI 而非被 setLeader() 覆盖、intelligence 不从 leader 继承；UniqueMinionsBehaviourUnchanged
   是回归——PrepareUniqueMonst 调用 PlaceGroup 时从不显式构造 MinionOptions，因此默认值必须
   让 Leashed 词条 unique 的随从依旧 HP 加倍且继承 leader 的 AI，与本任务改动之前字节对齐。
+  阶段 B 最终修复轮追加（RB26/RB27，用例数 30 -> 33）：
+  LeaderDeathReleasesSeparatedMinions / UniqueLeaderDeathKeepsSeparatedMinionIndex 覆盖
+  `LeaderRelation::Separated`——GroupUnity 在视线被挡时把随从置为该态并**保留 leader 索引**
+  （引开 leader 即触发的正常玩法），而 ReleaseMinions 原先只过滤 Leashed，于是普通 leader
+  死亡时该随从既不改 relation 也不清索引；槽位被 AddMonster 复用后，GroupUnity（入口只挡 None）
+  会解引用到一只无关的活怪并把随从重新拴上去。修法把过滤放宽到 `!= None`，但**只在普通怪路径清索引**，
+  unique 路径（relation 置 None、索引保留）逐字节不变，由后一条回归用例守住。
+  BuffedMinionPredicateTracksToughening 覆盖新谓词 IsBuffedMinion：monhealthbar 的蓝名判据
+  从 `leader != NoLeader` 改为「真的被强化」（当前＝leader 为 unique），否则 tough=false 的
+  小队随从会被染蓝、与「只买构成不买数值」相反。用例两臂都断言 leader 索引已设置（证明旧判据
+  分辨不出），并用同种子 A/B 实测 HP 恰为 2 倍来确立「被强化」这一前提。
+  三条反证均实跑「改坏→红→恢复→绿」（过滤改回只 Leashed、unique 路径也清索引、谓词改回
+  `leader != NoLeader`），原始输出见
+  `.superpowers/sdd/2026-09-15-level-rosters-phase-b/final-fix-report.md`。
+  同时修掉夹具的一处真实缺陷：PrepareDeathPathPrerequisites 现按 diablo.cpp 的顺序补上
+  LoadSpellData()。死亡路径的掉落可以掉书，GetBookSpell 在 SpellsData 为空时
+  `while (rv > 0)` 永不收敛（rv 恒 1、`s++` 无法命中回绕），表现为挂死并在 items.cpp:648
+  报 UBSan 有符号溢出；命中与否只看掉落运气，所以是补依赖而不是换种子绕开。

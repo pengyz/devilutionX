@@ -40,6 +40,7 @@
 #include "tables/level_roster.h"
 #include "tables/monstdat.h"
 #include "tables/questdat.hpp"
+#include "tables/spelldat.h"
 #include "utils/str_cat.hpp"
 
 using namespace devilution;
@@ -1647,8 +1648,18 @@ TEST_F(HellfireNoParamsSamplingTest, NoParamsTailExceedsTheParameterisedCap)
 // MyPlayer (PlayEffect, SetupAllItems). diablo.cpp loads item data and has a
 // player before any monster can die; mirror that here so the tests exercise the
 // real death path instead of a trimmed-down stand-in.
+//
+// SpellsData is part of that prerequisite set, in diablo.cpp's own order
+// (LoadSpellData before LoadItemData): loot generation can roll a BOOK, and
+// GetBookSpell (items.cpp) then walks SpellsData with `while (rv > 0) { ...; s++;
+// if (s == SpellsData.size()) s = 1; }`. With SpellsData empty, GenerateRnd(0) + 1
+// makes rv = 1, no spell can ever decrement it, and the wrap check never matches,
+// so the loop spins until `s++` overflows - a hang, then a UBSan signed-overflow
+// report at items.cpp:648. Which seed hits it is pure loot luck, which is exactly
+// why it is loaded here rather than worked around by choosing a quieter seed.
 void PrepareDeathPathPrerequisites()
 {
+	LoadSpellData();
 	LoadItemData();
 	Players.resize(1);
 	MyPlayer = &Players[0];
@@ -1671,6 +1682,143 @@ void RunEngineDeath(Monster &leader)
 	// Same last-frame body as MonsterDeath(Monster&) in monster.cpp.
 	leader.isInvalid = true;
 	M_UpdateRelations(leader);
+}
+
+// ---------------------------------------------------------------------------
+// RB26: the release must cover LeaderRelation::Separated too.
+//
+// GroupUnity moves a minion to Separated the moment the line of sight to its leader is
+// blocked (monster.cpp) and KEEPS the `leader` index so the minion can rejoin the pack.
+// That is ordinary play: luring a leader out of sight / more than 4 tiles away separates
+// its minions. ReleaseMinions used to filter on `== Leashed`, so an ordinary leader dying
+// while a minion was Separated left both the relation AND the index behind - and GroupUnity
+// only refuses to run on None, so after DeleteMonster's swap plus a later AddMonster reused
+// the slot, the next tick dereferenced that index into an unrelated LIVE monster,
+// re-leashed the minion to it (packSize++) and let DirOK/FollowTheLeader pin it there.
+//
+// Nothing else in the tree clears a Separated minion's index (only InitMonster and
+// ScavengerAi touch this area, and ScavengerAi does not clear it either), so the tests
+// below are the guard for that path.
+//
+// They set the state directly instead of driving a tick: reaching Separated organically
+// needs a blocked line of sight plus a full ProcessMonsters pass, which would run every AI
+// on the level. The state itself is what ReleaseMinions branches on, so it is set here and
+// the PUBLIC death path (RunEngineDeath, same as the Leashed cases) does the rest.
+// ---------------------------------------------------------------------------
+
+// Put `minion` into the state GroupUnity's separation branch leaves behind: relation
+// Separated, `leader` index RETAINED, and the leader's packSize already decremented (that
+// happens at the moment of separation, which is why ShrinkLeaderPacksize deliberately does
+// not decrement again for a Separated minion).
+void SeparateMinionFromLeader(Monster &minion, Monster &leader)
+{
+	ASSERT_EQ(minion.leaderRelation, LeaderRelation::Leashed)
+	    << "separation starts from a leashed minion, mirroring GroupUnity";
+	ASSERT_EQ(minion.leader, static_cast<uint8_t>(leader.getId()));
+	// Exactly GroupUnity's `else if (leaderRelation == Leashed)` body.
+	leader.packSize--;
+	minion.leaderRelation = LeaderRelation::Separated;
+	// The index must survive separation - that is what makes the dangling-index defect
+	// reachable, and what the fix has to clean up on the ordinary path.
+	ASSERT_EQ(minion.leader, static_cast<uint8_t>(leader.getId()));
+}
+
+TEST_F(SamplingBaselineTest, LeaderDeathReleasesSeparatedMinions)
+{
+	if (missingMpqAssets_)
+		GTEST_SKIP() << "MPQ assets not found - skipping test";
+
+	PrepareDeathPathPrerequisites();
+
+	// Level 1 has no unique monsters, so every placed monster is ordinary.
+	currlevel = 1;
+	InitLevelMonsters();
+	SetRndSeed(9400);
+	{
+		const auto typesResult = GetLevelMTypes();
+		ASSERT_TRUE(typesResult.has_value()) << typesResult.error();
+	}
+	ASSERT_GT(LevelMonsterTypeCount, 0U);
+
+	Monster *leaderPtr = AddMonster({ 40, 40 }, Direction::South, 0, /*inMap=*/false);
+	ASSERT_NE(leaderPtr, nullptr);
+	Monster *minionPtr = AddMonster({ 41, 40 }, Direction::South, 0, /*inMap=*/false);
+	ASSERT_NE(minionPtr, nullptr);
+
+	Monster &leader = *leaderPtr;
+	Monster &minion = *minionPtr;
+	ASSERT_FALSE(leader.isUnique()) << "this test must cover the ORDINARY leader path";
+
+	minion.setLeader(&leader);
+	leader.packSize = 1;
+	SeparateMinionFromLeader(minion, leader);
+	ASSERT_EQ(minion.leaderRelation, LeaderRelation::Separated);
+
+	RunEngineDeath(leader);
+
+	EXPECT_EQ(minion.leaderRelation, LeaderRelation::None)
+	    << "an ordinary leader's death must break a SEPARATED minion's relation too;"
+	    << " GroupUnity only skips None, so anything else keeps dereferencing the index";
+	EXPECT_EQ(minion.leader, Monster::NoLeader)
+	    << "the SEPARATED minion's index must be cleared as well - this is the RB26 hole:"
+	    << " filtering on Leashed alone leaves it pointing at a slot AddMonster can reuse";
+	EXPECT_EQ(minion.getLeader(), nullptr)
+	    << "getLeader() must stop resolving to the dead leader's slot";
+}
+
+TEST_F(SamplingBaselineTest, UniqueLeaderDeathKeepsSeparatedMinionIndex)
+{
+	if (missingMpqAssets_)
+		GTEST_SKIP() << "MPQ assets not found - skipping test";
+
+	// Regression twin of UniqueLeaderDeathBehaviourUnchanged for the Separated state: the
+	// RB26 fix widens the filter for BOTH paths, but only the ordinary path may clear the
+	// index. The unique path must stay byte-for-byte as before (spec 4.3.1), because the
+	// retained index is what IsBuffedMinion / monhealthbar colour a buffed minion from, and
+	// a unique's slot is never recycled while the level lives.
+	PrepareDeathPathPrerequisites();
+
+	currlevel = 1;
+	InitLevelMonsters();
+	SetRndSeed(9500);
+	{
+		const auto typesResult = GetLevelMTypes();
+		ASSERT_TRUE(typesResult.has_value()) << typesResult.error();
+	}
+	ASSERT_GT(LevelMonsterTypeCount, 0U);
+
+	Monster *leaderPtr = AddMonster({ 40, 40 }, Direction::South, 0, /*inMap=*/false);
+	ASSERT_NE(leaderPtr, nullptr);
+	Monster *minionPtr = AddMonster({ 41, 40 }, Direction::South, 0, /*inMap=*/false);
+	ASSERT_NE(minionPtr, nullptr);
+
+	Monster &leader = *leaderPtr;
+	Monster &minion = *minionPtr;
+
+	bool foundLeashedUnique = false;
+	for (size_t u = 0; u < UniqueMonstersData.size(); u++) {
+		if (UniqueMonstersData[u].monsterPack != UniqueMonsterPack::Leashed)
+			continue;
+		leader.uniqueType = static_cast<UniqueMonsterType>(u);
+		foundLeashedUnique = true;
+		break;
+	}
+	ASSERT_TRUE(foundLeashedUnique) << "unique monster data has no Leashed pack entry";
+	ASSERT_TRUE(leader.isUnique());
+
+	minion.setLeader(&leader);
+	const auto retainedIndex = static_cast<uint8_t>(leader.getId());
+	leader.packSize = 1;
+	SeparateMinionFromLeader(minion, leader);
+	ASSERT_EQ(minion.leaderRelation, LeaderRelation::Separated);
+
+	RunEngineDeath(leader);
+
+	EXPECT_EQ(minion.leaderRelation, LeaderRelation::None)
+	    << "a unique leader's death must clear a separated minion's relation";
+	EXPECT_EQ(minion.leader, retainedIndex)
+	    << "the unique path must RETAIN the leader index in the Separated case too"
+	    << " (IsBuffedMinion / monhealthbar colouring, spec 4.3.1)";
 }
 
 TEST_F(SamplingBaselineTest, LeaderDeathReleasesMinions)
@@ -1896,6 +2044,112 @@ TEST_F(SamplingBaselineTest, SquadMinionsUnbuffed)
 	    << "opts.inheritIntelligence=false must not copy the leader's intelligence";
 	EXPECT_EQ(toughened.intelligence, squad.intelligence)
 	    << "opts.tough must not affect the minion's intelligence";
+}
+
+// ---------------------------------------------------------------------------
+// RB27: monhealthbar's blue name means "this minion was STRENGTHENED by its leader"
+// (HP x2), and its test used to be `leader != Monster::NoLeader`. Since G2 a squad minion
+// gets a leader with MinionOptions{ .tough = false } - no numeric change at all - so that
+// test coloured stock monsters blue and the UI announced the opposite of the squad
+// feature's "composition only, no numbers" promise.
+//
+// IsBuffedMinion (monster.h) is the real predicate monhealthbar now calls. This case pins
+// both sides of it, and pins them against MEASURED HP rather than against the predicate's
+// own definition: each arm places a minion twice from the same seed with only opts.tough
+// flipped, so "buffed" is established by the HP doubling actually happening (or not) - the
+// same same-seed A/B judgement SquadMinionsUnbuffed uses, and for the same reason (the
+// doubled and un-doubled monstdat roll ranges overlap, so a range check proves nothing).
+//
+// The unique arm deliberately does NOT go through PrepareUniqueMonst: it only needs the
+// leader to BE unique (uniqueType set, as UniqueLeaderDeathBehaviourUnchanged does), so it
+// avoids InitTRNForUniqueMonster and therefore runs without retail/HF TRN assets.
+// ---------------------------------------------------------------------------
+
+TEST_F(SamplingBaselineTest, BuffedMinionPredicateTracksToughening)
+{
+	if (missingMpqAssets_)
+		GTEST_SKIP() << "MPQ assets not found - skipping test";
+
+	currlevel = 1;
+	InitLevelMonsters();
+
+	size_t leaderType = 0;
+	size_t minionType = 0;
+	{
+		const auto addResult = AddMonsterType(MT_WSKELAX, PLACE_SCATTER);
+		ASSERT_TRUE(addResult.has_value()) << addResult.error();
+		leaderType = addResult.value();
+	}
+	{
+		const auto addResult = AddMonsterType(MT_TSKELBW, PLACE_SCATTER);
+		ASSERT_TRUE(addResult.has_value()) << addResult.error();
+		minionType = addResult.value();
+	}
+
+	// Index of a unique whose pack really is Leashed, so the "unique leader" arm mirrors a
+	// configuration the engine actually produces rather than an arbitrary uniqueType.
+	size_t leashedUniqueIndex = UniqueMonstersData.size();
+	for (size_t u = 0; u < UniqueMonstersData.size(); u++) {
+		if (UniqueMonstersData[u].monsterPack != UniqueMonsterPack::Leashed)
+			continue;
+		leashedUniqueIndex = u;
+		break;
+	}
+	ASSERT_LT(leashedUniqueIndex, UniqueMonstersData.size())
+	    << "unique monster data has no Leashed pack entry";
+
+	struct MinionProbe {
+		bool buffed;
+		int maxHitPoints;
+		bool leaderIndexSet;
+	};
+	// makeLeaderUnique controls the ONLY thing IsBuffedMinion looks at; opts.tough controls
+	// the actual buff. Both are varied independently below, which is what shows the
+	// predicate tracks toughening rather than the presence of a leader.
+	const auto place = [&](Point leaderTile, bool makeLeaderUnique, bool tough) -> MinionProbe {
+		InitLevelMonsters();
+		SetRndSeed(9600);
+		Monster *leaderPtr = AddMonster(leaderTile, Direction::South, leaderType, /*inMap=*/false);
+		EXPECT_NE(leaderPtr, nullptr);
+		if (makeLeaderUnique)
+			leaderPtr->uniqueType = static_cast<UniqueMonsterType>(leashedUniqueIndex);
+		EXPECT_EQ(leaderPtr->isUnique(), makeLeaderUnique);
+		PlaceGroup(minionType, 1, leaderPtr, /*leashed=*/true,
+		    MinionOptions { .tough = tough, .inheritAi = false, .inheritIntelligence = false });
+		EXPECT_EQ(ActiveMonsterCount, 2u) << "minion must be placed";
+		const Monster &minion = Monsters[1];
+		return MinionProbe { IsBuffedMinion(minion), minion.maxHitPoints,
+			minion.leader != Monster::NoLeader };
+	};
+
+	// Squad path as the scatter loop drives it: ordinary leader, tough = false.
+	const MinionProbe squad = place({ 40, 40 }, /*makeLeaderUnique=*/false, /*tough=*/false);
+	// Unique boss pack as PrepareUniqueMonst drives it: unique leader, default toughening.
+	const MinionProbe uniquePack = place({ 60, 60 }, /*makeLeaderUnique=*/true, /*tough=*/true);
+	// Same seed, same minion type, tough flipped off: the HP reference that proves the
+	// unique arm above was really doubled instead of merely rolling high.
+	const MinionProbe uniqueUnbuffed = place({ 20, 20 }, /*makeLeaderUnique=*/true, /*tough=*/false);
+
+	ASSERT_GT(squad.maxHitPoints, 0) << "a zero HP roll would make the equalities below trivial";
+	// Premise: both arms DO have a leader index, so `leader != NoLeader` cannot tell them
+	// apart - i.e. the old test really was blind here and this case is not vacuous.
+	ASSERT_TRUE(squad.leaderIndexSet);
+	ASSERT_TRUE(uniquePack.leaderIndexSet);
+	// Premise: the squad minion is genuinely unbuffed and the unique's is genuinely buffed,
+	// measured as a same-seed 2x difference rather than assumed from the flags.
+	ASSERT_EQ(squad.maxHitPoints, uniqueUnbuffed.maxHitPoints)
+	    << "the two tough=false runs must roll identical HP, otherwise the A/B lost RNG"
+	    << " alignment and the doubling check below cannot distinguish anything";
+	ASSERT_EQ(uniquePack.maxHitPoints, 2 * uniqueUnbuffed.maxHitPoints)
+	    << "the unique arm must really be HP-doubled for 'buffed' to mean anything";
+
+	EXPECT_FALSE(squad.buffed)
+	    << "a squad minion (MinionOptions::tough = false) is NOT strengthened, so it must not"
+	    << " be reported as buffed - the blue name would contradict the squad feature's"
+	    << " composition-only promise";
+	EXPECT_TRUE(uniquePack.buffed)
+	    << "a unique boss pack's minion IS HP-doubled, so it must still be reported as buffed"
+	    << " (monhealthbar keeps colouring it blue)";
 }
 
 // UniqueMinionsBehaviourUnchanged (regression): the unique path calls
