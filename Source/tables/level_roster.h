@@ -124,10 +124,42 @@ std::span<const LevelRosterEntry> GetLevelRoster(uint8_t level);
 const LevelRosterParams *GetLevelRosterParams(uint8_t level);
 
 /**
+ * @brief The highest dungeon level the active game mode can reach.
+ *
+ * Hellfire adds Nest/Crypt (L17-24) on top of Diablo's L1-16. `giNumberOfLevels`
+ * (`loadsave.h`) carries the same idea as a COUNT that includes town and is only assigned
+ * once a game starts (`diablo.cpp:2732` in StartGame(), `pfile.cpp:755`), which is strictly
+ * after LoadLevelRoster() runs during start-up (`diablo.cpp:2813` in DiabloMain()); reading
+ * it there would yield its zero-initialised value and silently switch every per-level check
+ * off. So this derives the bound from `gbIsHellfire` - the same input `giNumberOfLevels` is
+ * computed from - which the hf mod's init.lua has already set via hellfire.enable() by the
+ * time the roster loads.
+ */
+uint8_t MaxValidatedDungeonLevel();
+
+/**
  * @brief Validates a candidate roster against the currently loaded MonstersData/UniqueMonstersData.
+ *
+ * The roster tables are a single table extended to L24, so a Diablo-only install parses the
+ * Hellfire L17-24 rows as well. Those rows name monsters that only the hf overlay's
+ * monstdat.tsv makes available (base monstdat.tsv ships them as availability=Never), so
+ * `maxLevel` scopes the PER-LEVEL checks - row availability, unique-base whitelist, class
+ * floor satisfiability, core-non-empty, core-vs-cap - to levels the active mode can reach.
+ * Rows for a level above `maxLevel` are unreachable data there, not a defect.
+ *
+ * GLOBAL/structural checks (type existence, duplicate rows, `max_image > 0`, `tail_draw >= 0`,
+ * the squad column ranges, the BehaviorClass::Count sentinel) are properties of the table
+ * itself and are deliberately NOT scoped: they hold whether or not the level is reachable.
+ *
+ * `maxLevel` defaults to the active mode's bound, which is what the loader wants and what
+ * the pre-A2 two-argument call sites meant; a test passes an explicit bound so a case can pin
+ * either side of the range without touching global game-mode state. This is a DEFAULT
+ * ARGUMENT rather than a second overload on purpose: an overload would add another exported
+ * symbol whose only callers are tests, which is exactly the shape drift check E rejects.
+ *
  * @return An error description, or an empty optional when the roster is valid.
  */
-std::optional<std::string> ValidateLevelRoster(std::span<const LevelRosterEntry> entries, std::span<const LevelRosterParams> params);
+std::optional<std::string> ValidateLevelRoster(std::span<const LevelRosterEntry> entries, std::span<const LevelRosterParams> params, uint8_t maxLevel = MaxValidatedDungeonLevel());
 
 /**
  * B1 sampling cap for this level's behaviour mix (monster.cpp:3513-3531).

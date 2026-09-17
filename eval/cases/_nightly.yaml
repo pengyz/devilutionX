@@ -30,6 +30,7 @@ cases:
   - dungeon-drlg_l4
   - flow-diablo
   - flow-timedemo-warrior
+  - level-roster-validation
   - level-rosters
   - mechanics-char_panel
   - mechanics-game_menu

@@ -1,0 +1,61 @@
+# 维护提醒（R35）：`expected.passed_min` 与 `output_contains` 里的
+# "[  PASSED  ] N tests." 是**硬编码用例计数**。往 LevelRosterTest / ParseClassFloorsTest
+# 里新增或删除用例后必须同步这两处数字，否则门禁会静默失效（N 偏小 → 少跑也算过）
+# 或误红（N 偏大 → 全绿也判失败）。当前值 35 = LevelRosterTest 29 + ParseClassFloorsTest 6
+# （Phase A2 Task 1 追加 4 个层范围用例：25 + 4 = 29）。
+id: "level-roster-validation"
+name: "逐层名册校验：层范围化（阶段 A2 Task 1）"
+category: "rng"
+difficulty: "medium"
+tags: ["level-roster", "validation", "level-range"]
+
+setup:
+  # 纯校验函数 + 内存夹具，不建关、不读 MPQ（已实测 HOME/XDG_DATA_HOME 指向空目录仍全绿）。
+  mpq_required: false
+  # 实测约 0.2s，60s 余量充足。
+  timeout: 60
+
+run:
+  backend: "gtest"
+  binary: "level_roster_test"
+  filter: "LevelRosterTest.*:ParseClassFloorsTest.*"
+
+expected:
+  exit_code: 0
+  failed: 0
+  passed_min: 35
+  skipped_max: 0
+  output_contains:
+    - "[  PASSED  ] 35 tests."
+
+description: >
+  行为变更门禁（CLAUDE.md「行为变更必产 eval」）：阶段 A2 Task 1 把
+  `ValidateLevelRoster` 从"校验表里所有层"改成"只校验当前层范围内的层"，
+  这是**加载期行为变更**——单表扩到 L24 后，非 Hellfire 安装会读到 L17-24 行，
+  改动前这些行会让校验失败并拒绝启动（L17-24 的怪物在基础 monstdat.tsv 里
+  availability=Never），改动后 maxLevel=16 下被跳过。
+
+  层范围由 `MaxValidatedDungeonLevel()` 给出（`gbIsHellfire ? 24 : 16`）。
+  注意**没有**直接读 `giNumberOfLevels`（`Source/loadsave.h:18`）：它在
+  `StartGame()`（`diablo.cpp:2732`）才赋值，而 `LoadLevelRoster()` 在
+  `DiabloMain()`（`diablo.cpp:2813`）更早跑，此时它是 0 —— 直接读会让
+  maxLevel==0 从而**静默关掉所有逐层校验**。
+
+  本 case 锁住双向可失败性，两个方向都有具名用例：
+  `ValidationSkipsLevelsAboveTheActiveLevelRange`（表含 L17 行、maxLevel=16 → 通过）
+  与 `ValidationStillChecksLevelsInsideTheActiveLevelRange`（同表、maxLevel=24 → 失败，
+  报文点名 "not available" 与 "level 17"）。
+  另两条守住范围边界不被滥用：`GlobalChecksIgnoreTheActiveLevelRange` 断言 8 类
+  **全局**检查（重复行、max_image>0、tail_draw>=0、squad_* 值域、哨兵、
+  unique base 白名单）在 maxLevel=16 下**仍然**拒绝 L20 的坏行——即把全局检查
+  错误地塞进层范围条件里会判红；`CoreNonEmptyAndCoreVsCapAreScopedToTheActiveLevelRange`
+  同时覆盖 core 非空与 core-vs-cap 两项逐层检查的两个方向。
+
+  反证均实跑（改实现、不改测试，随后恢复）：
+  (1) 把范围判据改成恒真/恒假 → 上述两条 scoped 用例判红（2 FAILED TESTS）；
+  (2) 把全局检查移进范围条件内 → `GlobalChecksIgnoreTheActiveLevelRange` 判红
+  （1 FAILED TEST）。恢复后 41/41 全绿。
+
+  与 `level-rosters` case 的分工：那条跑真实建关放置链路量化占比（重、需 MPQ、
+  在 nightly），本条只跑校验函数（轻、无资产依赖），所以进 smoke，
+  让"非 Hellfire 安装能不能起得来"这类拒绝启动回归在提交前就被拦住。

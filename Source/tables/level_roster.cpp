@@ -177,7 +177,16 @@ std::span<const LevelRosterEntry> FindLevelRoster(std::span<const LevelRosterEnt
 	return { &*begin, static_cast<size_t>(std::distance(begin, end)) };
 }
 
-std::optional<std::string> ValidateLevelRoster(std::span<const LevelRosterEntry> entries, std::span<const LevelRosterParams> params)
+uint8_t MaxValidatedDungeonLevel()
+{
+	// Mirrors giNumberOfLevels' rule (`gbIsHellfire ? 25 : 17`, diablo.cpp:2732) minus the
+	// town slot that count includes, so this is the highest DUNGEON level: 24 under
+	// Hellfire, 16 otherwise. See the header for why giNumberOfLevels itself cannot be read
+	// at roster load time.
+	return gbIsHellfire ? 24 : 16;
+}
+
+std::optional<std::string> ValidateLevelRoster(std::span<const LevelRosterEntry> entries, std::span<const LevelRosterParams> params, uint8_t maxLevel)
 {
 	// Type existence/bounds is shared by both modes: a row naming an id outside
 	// MonstersData's range (e.g. a smuggled MT_INVALID) must be rejected before either
@@ -238,11 +247,20 @@ std::optional<std::string> ValidateLevelRoster(std::span<const LevelRosterEntry>
 
 	// Core-non-empty check: every distinct level appearing in entries or params must have
 	// at least one core member. This is enforced in both modes.
+	//
+	// The level list is filtered by `maxLevel` here, which is what scopes this check and the
+	// core-vs-cap check below: a level the active game mode cannot reach carries unreachable
+	// table data (the shipped table is a single table extended to L24 and a Diablo-only
+	// install still parses its Hellfire rows), so its per-level shape must not be fatal.
 	std::vector<uint8_t> levels;
-	for (const LevelRosterEntry &entry : entries)
-		levels.push_back(entry.level);
-	for (const LevelRosterParams &param : params)
-		levels.push_back(param.level);
+	for (const LevelRosterEntry &entry : entries) {
+		if (entry.level <= maxLevel)
+			levels.push_back(entry.level);
+	}
+	for (const LevelRosterParams &param : params) {
+		if (param.level <= maxLevel)
+			levels.push_back(param.level);
+	}
 	std::sort(levels.begin(), levels.end());
 	levels.erase(std::unique(levels.begin(), levels.end()), levels.end());
 	for (const uint8_t level : levels) {
@@ -291,12 +309,19 @@ std::optional<std::string> ValidateLevelRoster(std::span<const LevelRosterEntry>
 	}
 
 	for (const LevelRosterEntry &entry : entries) {
+		// Rows above the active range describe levels this mode never generates; their
+		// monsters are only available under the hf overlay's monstdat, so checking them
+		// here would make the shipped table fatal on a Diablo-only install.
+		if (entry.level > maxLevel)
+			continue;
 		if (!IsAvailableAt(entry.level, entry.type))
 			return StrCat("monster ", static_cast<int>(entry.type), " is not available at level ", entry.level);
 		if (!entry.allowUniqueBoost && IsUniqueBaseForLevel(entry.level, entry.type))
 			return StrCat("monster ", static_cast<int>(entry.type), " is a unique's base at level ", entry.level, " and needs allow_unique_boost");
 	}
 	for (const LevelRosterParams &param : params) {
+		if (param.level > maxLevel)
+			continue;
 		// Class floor satisfiability: the level's available candidate pool, after being
 		// truncated by the B1 sampling cap, must still contain at least `floor` monsters
 		// of that behavior class.
@@ -357,7 +382,7 @@ void LoadLevelRosterFromFiles(std::string_view rosterFile, std::string_view para
 	Entries.shrink_to_fit();
 	Params.shrink_to_fit();
 
-	const std::optional<std::string> error = ValidateLevelRoster(Entries, Params);
+	const std::optional<std::string> error = ValidateLevelRoster(Entries, Params, MaxValidatedDungeonLevel());
 	if (error.has_value())
 		app_fatal(StrCat("Level roster validation failed: ", *error));
 

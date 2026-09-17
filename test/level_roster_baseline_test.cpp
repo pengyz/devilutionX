@@ -8,16 +8,23 @@
 #include <fstream>
 #include <iostream>
 #include <string>
+#include <vector>
 
 #include "drlg_test.hpp" // TestInitGame / GetTileCount（本仓既有测试夹具）
 #include "engine/assets.hpp"
 #include "engine/load_file.hpp"
 #include "engine/random.hpp"
+#include "game_mode.hpp" // gbIsHellfire / gbIsSpawn（A2 的 HF 门控套件用）
 #include "levels/gendung.h"
 #include "levels/trigs.h" // InitL1Triggers 等 + Freeupstairs（CreateLevel 逻辑复刻用）
 #include "monster.h"
+#include "mpq/mpq_reader.hpp" // hellfire.mpq 直接挂载（见 HF 套件注释）
+#include "multi.h"
+#include "player.h"
+#include "quests.h"
 #include "tables/level_roster.h"
 #include "tables/monstdat.h"
+#include "utils/file_util.h"
 #include "utils/paths.h"
 #include "utils/str_cat.hpp"
 
@@ -66,6 +73,15 @@ void LoadRealMegaTiles(dungeon_type levelType)
 		break;
 	case DTYPE_HELL:
 		til = "levels\\l4data\\l4.til";
+		break;
+	// A2: L17-20 (Nest) / L21-24 (Crypt) live under nlevels\ and only exist in the
+	// Hellfire assets. Paths mirror diablo.cpp:LoadLvlGFX (:1429-1438), same as the
+	// four Diablo cases above.
+	case DTYPE_NEST:
+		til = "nlevels\\l6data\\l6.til";
+		break;
+	case DTYPE_CRYPT:
+		til = "nlevels\\l5data\\l5.til";
 		break;
 	default:
 		FAIL() << "LoadRealMegaTiles: unexpected leveltype " << static_cast<int>(levelType);
@@ -116,6 +132,14 @@ void CreateDungeonForMeasurement(uint8_t level, uint32_t seed)
 		break;
 	case DTYPE_HELL:
 		InitL4Triggers();
+		break;
+	// A2: same dispatch CreateLevel uses for the Hellfire level types
+	// (diablo.cpp:1481-1486).
+	case DTYPE_NEST:
+		InitHiveTriggers();
+		break;
+	case DTYPE_CRYPT:
+		InitCryptTriggers();
 		break;
 	default:
 		FAIL() << "CreateDungeonForMeasurement: unexpected leveltype for level " << static_cast<int>(level);
@@ -1349,6 +1373,291 @@ TEST_F(SquadPlacementTest, SquadFormationRate)
 			    << "level " << static_cast<int>(level) << " runs the 4.3.4 fallback, so no roll may"
 			    << " report a leashed leader";
 		}
+	}
+	AppendMeasurementReport(report);
+}
+
+// ---------------------------------------------------------------------------
+// A2 Task 1, step 5: the PRE-CHANGE baseline for L17-24 (Hellfire Nest/Crypt).
+//
+// Why this case exists: A2 task 2 will add core/tail rows and per-level params for
+// L17-24. Acceptance 8 judges that data against the ranged share these levels have
+// BEFORE the data lands (<= baseline + 5pp, same R4 rule and same 5-point band as
+// kRangedShareCeiling above). That baseline can only be measured now, while L17-24
+// still run the R28 legacy fallback (no params row, no roster rows), so this case
+// measures and PRINTS it unconditionally rather than asserting a threshold: there is
+// nothing to assert against yet, and inventing one would be a fabricated ceiling.
+// The printed numbers are transcribed into the task report; task 2 fills
+// kRangedShareBaseline[17..24] from them before adding those levels to the
+// PlacedClassMixWithinBaseline loop.
+//
+// CAVEAT that travels with these numbers (measured, not assumed): §4.5's behaviour
+// taxonomy - GetBehaviorClass() in Source/tables/monstdat.cpp - enumerates the DIABLO
+// AIs and sends everything else to its `default:` arm, BehaviorClass::Boss. Ten AIs
+// that only appear on L17-24 land there: ArchLich, Diablo, FireBat, FireMan, Lich,
+// Necromorb, Psychorb, Scavenger, Torchant (plus BoneDemon, which IS enumerated as
+// RangedKite). Several of those are ranged casters in gameplay terms, so the ranged
+// share printed below UNDERSTATES the real ranged pressure on these levels, and the
+// large Boss counts are that default arm, not eight boss-filled levels.
+//
+// That gap is NOT fixed here: re-classifying AIs would change §4.5's taxonomy (a
+// controller-maintained spec) and would silently move the L1-16 numbers the existing
+// kRangedShareBaseline entries were measured with. It is recorded so acceptance 8 is
+// read correctly - a like-for-like comparison, both sides measured under this same
+// taxonomy - rather than as an absolute statement about ranged pressure.
+//
+// Asset gating: CI only ships spawn.mpq. Under the base monstdat.tsv every L17-24
+// monster is availability=Never (the hf overlay re-ships the whole table with them
+// available), and the Nest/Crypt .til assets live under nlevels\ in the Hellfire
+// data, so without Hellfire assets there is no measurement to take - skip, never
+// fail. HaveHellfire() is the right probe here (unlike PlacedClassMixReport's
+// genrl.trn probe, which deliberately admits a retail-but-not-HF install): these
+// levels do not exist at all without Hellfire.
+//
+// Global state: this suite mounts the hf overlay and flips gbIsHellfire, which the
+// Diablo-data suites above measure against. It therefore snapshots and restores
+// every global it touches, following HellfireNoParamsSamplingTest in
+// sampling_behavior_test.cpp (R30) - including reloading the Diablo monster/roster
+// data in TearDownTestSuite so a later suite (or --gtest_shuffle) cannot inherit
+// Hellfire data.
+// ---------------------------------------------------------------------------
+// The priority LoadHellfireArchives() mounts hellfire.mpq at; UnloadModArchives()
+// clears the whole 8000-8999 band, so using the real value keeps teardown correct.
+constexpr int kHellfireMpqPriority = 8000;
+
+class HellfireLevelBaselineTest : public ::testing::Test {
+protected:
+	static void SetUpTestSuite()
+	{
+		LoadGameArchives();
+		if (!HaveMainData()) {
+			missingMpqAssets_ = true;
+			return;
+		}
+
+		savedQuests_.assign(std::begin(Quests), std::end(Quests));
+		savedPlayerCount_ = Players.size();
+		savedMyPlayerIsFirst_ = !Players.empty() && MyPlayer == &Players[0];
+		savedOriginalCathedral_ = Players.empty() ? true : Players[0].pOriginalCathedral;
+		savedGameInitInfo_ = sgGameInitInfo;
+		savedIsMultiplayer_ = gbIsMultiplayer;
+		savedIsHellfire_ = gbIsHellfire;
+		savedIsSpawn_ = gbIsSpawn;
+		savedPrefPath_ = paths::PrefPath();
+		snapshotTaken_ = true;
+
+		gbIsSpawn = false;
+		// TestInitGame() mounts the hf ARCHIVE but does not touch gbIsHellfire (the
+		// mod's init.lua, which calls hellfire.enable(), is not run by tests). The
+		// flag has to be set explicitly, and it matters twice over here: it selects
+		// the Hellfire level range and it is what MaxValidatedDungeonLevel() reads,
+		// so LoadLevelRoster() below validates L17-24 in full rather than skipping
+		// them - which is precisely the scoping this task added.
+		gbIsHellfire = true;
+		paths::SetPrefPath(paths::BasePath() + "test/fixtures/");
+		TestInitGame(/*fullQuests=*/true, /*originalCathedral=*/true, /*hellfire=*/true);
+		// TestInitGame() mounts the hf MOD archive (mods/hf), which supplies the L17-24
+		// monstdat overlay - but NOT the Nest/Crypt graphics: nlevels\\l6data\\l6.til and
+		// nlevels\\l5data\\l5.til live in hellfire.mpq itself. Without them pMegaTiles
+		// stays null and DRLG_LPass3 segfaults on the first L17 dungeon (observed).
+		//
+		// The production route is the mod's init.lua calling hellfire.loadData() ->
+		// LoadHellfireArchives() (Source/lua/modules/hellfire.cpp:13). That function is
+		// deliberately NOT used here: it also requires hfmonk/hfmusic/hfvoice.mpq and
+		// calls DisplayFatalErrorAndExit() when any is missing, which would abort the whole
+		// test binary on an install that has hellfire.mpq but not the split extras. This
+		// measurement needs level TILES only - no monk graphics, music or voice - so the
+		// archive is mounted directly at Hellfire's own priority (8000, the value
+		// LoadHellfireArchives uses; UnloadModArchives() clears 8000-8999, so TearDown
+		// still unmounts it).
+		for (const std::string &searchPath : { paths::BasePath(), paths::PrefPath(), paths::ConfigPath() }) {
+			if (MpqArchives.find(kHellfireMpqPriority) != MpqArchives.end())
+				break;
+			for (const char *name : { "hellfire.mpq", "HELLFIRE.MPQ" }) {
+				const std::string candidate = searchPath + name;
+				if (!FileExists(candidate))
+					continue;
+				auto archive = MpqArchive::Open(candidate.c_str());
+				if (archive.has_value()) {
+					MpqArchives.insert_or_assign(kHellfireMpqPriority, std::move(*archive));
+					break;
+				}
+			}
+		}
+		LoadMonsterData();
+		LoadLevelRoster();
+
+		// HaveHellfire() only reports that hellfire.mpq was FOUND. What this suite
+		// actually needs is the Nest/Crypt tile data readable, so probe the real
+		// dependency (same principle as missingRetailTrn_ above): one .til per Hellfire
+		// level type, since L17-20 and L21-24 use different files.
+		size_t nestTilSize = 0;
+		size_t cryptTilSize = 0;
+		const AssetHandle nestTil = OpenAsset(R"(nlevels\l6data\l6.til)", nestTilSize);
+		const AssetHandle cryptTil = OpenAsset(R"(nlevels\l5data\l5.til)", cryptTilSize);
+		missingHellfire_ = !HaveHellfire() || !nestTil.ok() || nestTilSize == 0
+		    || !cryptTil.ok() || cryptTilSize == 0;
+	}
+
+	static void TearDownTestSuite()
+	{
+		if (!snapshotTaken_)
+			return;
+
+		std::copy(savedQuests_.begin(), savedQuests_.end(), std::begin(Quests));
+		Players.resize(savedPlayerCount_);
+		if (!Players.empty())
+			Players[0].pOriginalCathedral = savedOriginalCathedral_;
+		MyPlayer = savedMyPlayerIsFirst_ && !Players.empty() ? &Players[0] : nullptr;
+		sgGameInitInfo = savedGameInitInfo_;
+		gbIsMultiplayer = savedIsMultiplayer_;
+		gbIsHellfire = savedIsHellfire_;
+		gbIsSpawn = savedIsSpawn_;
+		paths::SetPrefPath(savedPrefPath_);
+
+		UnloadModArchives();
+		LoadModArchives({});
+		LoadMonsterData();
+		LoadLevelRoster();
+		snapshotTaken_ = false;
+	}
+
+	static bool missingMpqAssets_;
+	static bool missingHellfire_;
+
+private:
+	static std::vector<Quest> savedQuests_;
+	static size_t savedPlayerCount_;
+	static bool savedMyPlayerIsFirst_;
+	static bool savedOriginalCathedral_;
+	static GameData savedGameInitInfo_;
+	static bool savedIsMultiplayer_;
+	static bool savedIsHellfire_;
+	static bool savedIsSpawn_;
+	static std::string savedPrefPath_;
+	static bool snapshotTaken_;
+};
+
+bool HellfireLevelBaselineTest::missingMpqAssets_ = false;
+bool HellfireLevelBaselineTest::missingHellfire_ = false;
+std::vector<Quest> HellfireLevelBaselineTest::savedQuests_;
+size_t HellfireLevelBaselineTest::savedPlayerCount_ = 0;
+bool HellfireLevelBaselineTest::savedMyPlayerIsFirst_ = false;
+bool HellfireLevelBaselineTest::savedOriginalCathedral_ = true;
+GameData HellfireLevelBaselineTest::savedGameInitInfo_ {};
+bool HellfireLevelBaselineTest::savedIsMultiplayer_ = false;
+bool HellfireLevelBaselineTest::savedIsHellfire_ = false;
+bool HellfireLevelBaselineTest::savedIsSpawn_ = false;
+std::string HellfireLevelBaselineTest::savedPrefPath_;
+bool HellfireLevelBaselineTest::snapshotTaken_ = false;
+
+TEST_F(HellfireLevelBaselineTest, A2PreChangeBaselineForHellfireLevels)
+{
+	if (missingMpqAssets_)
+		GTEST_SKIP() << "MPQ assets not found - skipping test";
+	if (missingHellfire_)
+		GTEST_SKIP() << "Hellfire assets required: L17-24 do not exist without them";
+
+	// Premise 1: the range really is still on the pre-change (R28 legacy) path. If
+	// task 2's data has already landed, this measurement is no longer a PRE-change
+	// baseline and silently recording it would corrupt acceptance 8's reference.
+	for (uint8_t level = 17; level <= 24; level++) {
+		ASSERT_EQ(GetLevelRosterParams(level), nullptr)
+		    << "level " << static_cast<int>(level) << " already has a params row: this case measures the"
+		    << " PRE-change baseline, so it must run before A2 task 2's data";
+		ASSERT_TRUE(GetLevelRoster(level).empty())
+		    << "level " << static_cast<int>(level) << " already has roster rows: see above";
+	}
+
+	// Same fixture, seed count and denominator convention as
+	// PlacedClassMixWithinBaseline, so the numbers are directly comparable with the
+	// kRangedShareBaseline entries: 200 seeds, placed-monster denominator, ranged =
+	// RangedTurret + RangedKite.
+	constexpr uint32_t kSeeds = 200;
+	std::string report = "\n## A2 pre-change baseline: L17-24 (Hellfire, 200 seeds per level)\n\n"
+	                     "| level | placed | types | ranged | ranged share | Melee | RangedTurret |"
+	                     " RangedKite | Rally | Charge | Sneak | Summon | Boss |\n"
+	                     "|---|---|---|---|---|---|---|---|---|---|---|---|---|\n";
+
+	for (uint8_t level = 17; level <= 24; level++) {
+		std::array<size_t, static_cast<size_t>(BehaviorClass::Count)> sum {};
+		size_t placed = 0;
+		size_t typeCountSum = 0;
+		for (uint32_t seed = 0; seed < kSeeds; seed++) {
+			CreateDungeonForMeasurement(level, 61000 + seed);
+			{
+				const auto getTypesResult = GetLevelMTypes();
+				ASSERT_TRUE(getTypesResult.has_value()) << getTypesResult.error();
+			}
+			{
+				const auto initResult = InitMonsters();
+				ASSERT_TRUE(initResult.has_value()) << initResult.error();
+			}
+			const auto mix = MeasurePlacedClassMix();
+
+			// Premise 2 (per sample): the level really did field monsters. A level
+			// that placed nothing would report a 0/0 share, which reads as "0% ranged"
+			// - a baseline that can never be exceeded, i.e. a silently useless
+			// reference for acceptance 8.
+			ASSERT_GT(ActiveMonsterCount, 0u)
+			    << "level " << static_cast<int>(level) << " seed " << seed << " placed no monster";
+			EXPECT_LE(ActiveMonsterCount, MaxMonsters - 10)
+			    << "level " << static_cast<int>(level) << " seed " << seed << " exceeds engine placement cap";
+			size_t mixTotal = 0;
+			for (const size_t count : mix)
+				mixTotal += count;
+			EXPECT_EQ(mixTotal, ActiveMonsterCount) << "class-mix sum must equal placed count";
+
+			for (size_t i = 0; i < mix.size(); i++)
+				sum[i] += mix[i];
+			placed += ActiveMonsterCount;
+			typeCountSum += LevelMonsterTypeCount;
+		}
+
+		const size_t ranged = sum[static_cast<size_t>(BehaviorClass::RangedTurret)]
+		    + sum[static_cast<size_t>(BehaviorClass::RangedKite)];
+		const double rangedShare = static_cast<double>(ranged) / static_cast<double>(placed);
+		const double avgTypes = static_cast<double>(typeCountSum) / static_cast<double>(kSeeds);
+
+		// UNCONDITIONAL print (pass or fail): this output IS the deliverable - task 2
+		// transcribes it into kRangedShareBaseline[17..24]. The numerator/denominator
+		// are printed alongside the share so the constant can be written in the same
+		// auditable "numerator/denominator" form the existing table uses.
+		std::cout << "[ A2BASELINE ] level " << static_cast<int>(level)
+		          << " placed " << placed
+		          << " types " << avgTypes
+		          << " ranged " << ranged
+		          << " rangedShare " << rangedShare
+		          << " (" << sum[static_cast<size_t>(BehaviorClass::RangedTurret)]
+		          << "+" << sum[static_cast<size_t>(BehaviorClass::RangedKite)]
+		          << ")/" << placed
+		          << " Melee " << sum[static_cast<size_t>(BehaviorClass::Melee)]
+		          << " RangedTurret " << sum[static_cast<size_t>(BehaviorClass::RangedTurret)]
+		          << " RangedKite " << sum[static_cast<size_t>(BehaviorClass::RangedKite)]
+		          << " Rally " << sum[static_cast<size_t>(BehaviorClass::Rally)]
+		          << " Charge " << sum[static_cast<size_t>(BehaviorClass::Charge)]
+		          << " Sneak " << sum[static_cast<size_t>(BehaviorClass::Sneak)]
+		          << " Summon " << sum[static_cast<size_t>(BehaviorClass::Summon)]
+		          << " Boss " << sum[static_cast<size_t>(BehaviorClass::Boss)]
+		          << std::endl;
+
+		// The caveat above, printed next to the numbers it qualifies: a reader who sees
+		// only this log line must not read a 0 ranged share as "no ranged pressure".
+		if (level == 17) {
+			std::cout << "[ A2BASELINE ] NOTE: GetBehaviorClass() maps HF-only AIs (Lich, ArchLich,"
+			             " Necromorb, Psychorb, FireBat, FireMan, Torchant, Scavenger, ...) to its"
+			             " default arm BehaviorClass::Boss, so the Boss column absorbs several ranged"
+			             " casters and rangedShare understates real ranged pressure on L17-24."
+			             " Acceptance 8 compares like for like under this same taxonomy."
+			          << std::endl;
+		}
+
+		report += StrCat("| ", level, " | ", placed, " | ",
+		    static_cast<int>(avgTypes * 100.0 + 0.5), "/100 | ", ranged, " | ",
+		    static_cast<int>(rangedShare * 10000.0 + 0.5), "/10000 |");
+		for (const size_t count : sum)
+			report += StrCat(" ", count, " |");
+		report += "\n";
 	}
 	AppendMeasurementReport(report);
 }

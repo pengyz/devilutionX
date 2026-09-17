@@ -204,6 +204,164 @@ TEST_F(LevelRosterTest, ValidationRejectsThreeSameClassCoreMembersInSpawnModeToo
 	EXPECT_NE(error->find("Melee"), std::string::npos) << *error;
 }
 
+// Phase A2 task 1: the roster table is a SINGLE table extended to L24, so a non-Hellfire
+// install parses the L17-24 rows too. Those rows name monsters that only the hf overlay's
+// monstdat.tsv makes available (base monstdat.tsv ships them as availability=Never), so
+// validating them unconditionally would make the shipped table fatal on every Diablo-only
+// install - i.e. refuse to start. Per-level checks are therefore scoped to the levels the
+// active game mode can actually reach, while global/structural checks stay unscoped.
+//
+// MT_UNRAV is the vehicle: base monstdat.tsv has it as `Never` with window 17-18, and the
+// hf overlay re-ships the same row as available. Under the base data loaded by this suite it
+// is therefore unavailable at L17 no matter what, which is exactly the pre-A2 fatal.
+TEST_F(LevelRosterTest, ValidationSkipsLevelsAboveTheActiveLevelRange)
+{
+	// A Diablo-only install (maxLevel 16) must accept the table: L17's row is unreachable
+	// data there, not a defect.
+	const std::vector<LevelRosterEntry> entries {
+		{ 1, MT_WSKELAX, LevelRosterRole::Core, false },
+		{ 17, MT_UNRAV, LevelRosterRole::Core, false },
+	};
+	const std::vector<LevelRosterParams> params {
+		{ 1, 6000, 2, { { BehaviorClass::Melee, 2 } } },
+		{ 17, 6000, 2, {} },
+	};
+
+	const auto scoped = ValidateLevelRoster(entries, params, 16);
+	EXPECT_FALSE(scoped.has_value())
+	    << "L17 rows must not be validated when the active range stops at 16: " << scoped.value_or("");
+}
+
+TEST_F(LevelRosterTest, ValidationStillChecksLevelsInsideTheActiveLevelRange)
+{
+	// The other direction, and the reason the scoping is not just "ignore L17+": once the
+	// range really does include L17 (a Hellfire install, maxLevel 24), the same row must be
+	// held to the full per-level check. Under this suite's base monstdat MT_UNRAV is
+	// availability=Never, so it is genuinely unavailable at L17 and must be fatal.
+	const std::vector<LevelRosterEntry> entries {
+		{ 1, MT_WSKELAX, LevelRosterRole::Core, false },
+		{ 17, MT_UNRAV, LevelRosterRole::Core, false },
+	};
+	const std::vector<LevelRosterParams> params {
+		{ 1, 6000, 2, { { BehaviorClass::Melee, 2 } } },
+		{ 17, 6000, 2, {} },
+	};
+
+	const auto error = ValidateLevelRoster(entries, params, 24);
+	ASSERT_TRUE(error.has_value()) << "L17 must be validated when the active range reaches it";
+	EXPECT_NE(error->find("not available"), std::string::npos) << *error;
+	EXPECT_NE(error->find("level 17"), std::string::npos) << *error;
+}
+
+TEST_F(LevelRosterTest, GlobalChecksIgnoreTheActiveLevelRange)
+{
+	// The scoping must not become a blanket "skip everything about L17+": structural defects
+	// are properties of the TABLE, independent of whether the level is reachable, and a
+	// mis-scoped implementation that wrapped these in the level guard would ship them
+	// unchecked. Each case below is a global check applied to an OUT-OF-RANGE level
+	// (maxLevel 16) and must still be rejected.
+
+	// Duplicate (level, monster_id) entry rows.
+	{
+		const std::vector<LevelRosterEntry> entries {
+			{ 20, MT_UNRAV, LevelRosterRole::Core, false },
+			{ 20, MT_UNRAV, LevelRosterRole::Tail, false },
+		};
+		const std::vector<LevelRosterParams> params { { 20, 6000, 2, {} } };
+		const auto error = ValidateLevelRoster(entries, params, 16);
+		ASSERT_TRUE(error.has_value());
+		EXPECT_NE(error->find("more than one roster row"), std::string::npos) << *error;
+	}
+	// Duplicate params rows for the same level.
+	{
+		const std::vector<LevelRosterEntry> entries { { 20, MT_UNRAV, LevelRosterRole::Core, false } };
+		const std::vector<LevelRosterParams> params { { 20, 6000, 2, {} }, { 20, 6000, 2, {} } };
+		const auto error = ValidateLevelRoster(entries, params, 16);
+		ASSERT_TRUE(error.has_value());
+		EXPECT_NE(error->find("more than one params row"), std::string::npos) << *error;
+	}
+	// Non-positive max_image.
+	{
+		const std::vector<LevelRosterEntry> entries { { 20, MT_UNRAV, LevelRosterRole::Core, false } };
+		const std::vector<LevelRosterParams> params { { 20, 0, 2, {} } };
+		const auto error = ValidateLevelRoster(entries, params, 16);
+		ASSERT_TRUE(error.has_value());
+		EXPECT_NE(error->find("non-positive max_image"), std::string::npos) << *error;
+	}
+	// Negative tail_draw.
+	{
+		const std::vector<LevelRosterEntry> entries { { 20, MT_UNRAV, LevelRosterRole::Core, false } };
+		const std::vector<LevelRosterParams> params { { 20, 6000, -1, {} } };
+		const auto error = ValidateLevelRoster(entries, params, 16);
+		ASSERT_TRUE(error.has_value());
+		EXPECT_NE(error->find("negative tail_draw"), std::string::npos) << *error;
+	}
+	// squad_chance above 100 / squad_size above 3 / squads enabled with size 0.
+	{
+		const std::vector<LevelRosterEntry> entries { { 20, MT_UNRAV, LevelRosterRole::Core, false } };
+		const std::vector<LevelRosterParams> tooMuchChance { { 20, 6000, 2, {}, 101, 1, true } };
+		const auto chanceError = ValidateLevelRoster(entries, tooMuchChance, 16);
+		ASSERT_TRUE(chanceError.has_value());
+		EXPECT_NE(chanceError->find("squad_chance above 100"), std::string::npos) << *chanceError;
+
+		const std::vector<LevelRosterParams> tooBigSquad { { 20, 6000, 2, {}, 30, 4, true } };
+		const auto sizeError = ValidateLevelRoster(entries, tooBigSquad, 16);
+		ASSERT_TRUE(sizeError.has_value());
+		EXPECT_NE(sizeError->find("squad_size above 3"), std::string::npos) << *sizeError;
+
+		const std::vector<LevelRosterParams> zeroSquad { { 20, 6000, 2, {}, 30, 0, true } };
+		const auto zeroError = ValidateLevelRoster(entries, zeroSquad, 16);
+		ASSERT_TRUE(zeroError.has_value());
+		EXPECT_NE(zeroError->find("squad_size 0"), std::string::npos) << *zeroError;
+	}
+	// The BehaviorClass::Count sentinel in a class floor.
+	{
+		const std::vector<LevelRosterEntry> entries { { 20, MT_UNRAV, LevelRosterRole::Core, false } };
+		const std::vector<LevelRosterParams> params { { 20, 6000, 2, { { BehaviorClass::Count, 1 } } } };
+		const auto error = ValidateLevelRoster(entries, params, 16);
+		ASSERT_TRUE(error.has_value());
+		EXPECT_NE(error->find("sentinel"), std::string::npos) << *error;
+	}
+	// An unknown monster id (out-of-bounds type) would let downstream code index past
+	// MonstersData, so it must be rejected regardless of reachability.
+	{
+		const std::vector<LevelRosterEntry> entries {
+			{ 20, static_cast<_monster_id>(MonstersData.size() + 5), LevelRosterRole::Core, false },
+		};
+		const std::vector<LevelRosterParams> params { { 20, 6000, 2, {} } };
+		const auto error = ValidateLevelRoster(entries, params, 16);
+		ASSERT_TRUE(error.has_value());
+		EXPECT_NE(error->find("unknown monster id"), std::string::npos) << *error;
+	}
+}
+
+TEST_F(LevelRosterTest, CoreNonEmptyAndCoreVsCapAreScopedToTheActiveLevelRange)
+{
+	// core-non-empty and core-vs-cap are per-LEVEL checks (§4.4.4 counts cores for a given
+	// level), so they follow the level scope. Out of range they must not fire; in range they
+	// must. Pinning both directions keeps the split honest in both directions.
+	const std::vector<LevelRosterEntry> tailOnly { { 20, MT_UNRAV, LevelRosterRole::Tail, false } };
+	const std::vector<LevelRosterParams> params20 { { 20, 6000, 2, {} } };
+	EXPECT_FALSE(ValidateLevelRoster(tailOnly, params20, 16).has_value())
+	    << "an unreachable level's missing core is unreachable data, not a defect";
+	const auto inRange = ValidateLevelRoster(tailOnly, params20, 24);
+	ASSERT_TRUE(inRange.has_value());
+	EXPECT_NE(inRange->find("no core roster members"), std::string::npos) << *inRange;
+
+	// core-vs-cap: three Melee cores at L14 breaks the B1 cap of 2. Out of range (maxLevel
+	// 13) the level is unreachable; in range it must still be rejected.
+	const std::vector<LevelRosterEntry> threeMelee {
+		{ 14, MT_RSNAKE, LevelRosterRole::Core, false },
+		{ 14, MT_BSNAKE, LevelRosterRole::Core, false },
+		{ 14, MT_NBLACK, LevelRosterRole::Core, false },
+	};
+	const std::vector<LevelRosterParams> params14 { { 14, 6000, 2, {} } };
+	EXPECT_FALSE(ValidateLevelRoster(threeMelee, params14, 13).has_value());
+	const auto capError = ValidateLevelRoster(threeMelee, params14, 14);
+	ASSERT_TRUE(capError.has_value());
+	EXPECT_NE(capError->find("core roster has 3"), std::string::npos) << *capError;
+}
+
 TEST_F(LevelRosterTest, SortRosterByLevelThenFindLevelRosterKeepsAllMembersOfAnInterleavedLevel)
 {
 	// FindLevelRoster() assumes same-level entries are contiguous. SortRosterByLevel()
