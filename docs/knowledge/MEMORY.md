@@ -4,6 +4,8 @@
 <!-- 设计决策、模块边界、为什么选 A 不选 B -->
 
 ## Gotchas
+- [`gotcha_testing_hellfire_levels_headlessly.md`](gotcha_testing_hellfire_levels_headlessly.md) — 无头测 HF 层：别调 `LoadHellfireArchives()`（会 FatalExit 整个二进制）、补齐 `.til`+触发器、快照还原全局、以真实依赖门控跳过
+- [`gotcha_drift_check_c2_whole_file_crlf.md`](gotcha_drift_check_c2_whole_file_crlf.md) — 漂移 **C2** 对"相对 merge-base 新增"的文件要求**整文件 CRLF**（不是只看你加的行）
 - [`gotcha_unique_boss_packs_are_also_leashed.md`](gotcha_unique_boss_packs_are_also_leashed.md) — unique boss pack 也带拴系随从（默认 MinionOptions），度量小队必须用 `isUnique()` 区分，并断言 unique 随从数 >0 防 A/B 空转
 - [`gotcha_placegroup_leash_is_measured_from_a_neighbour.md`](gotcha_placegroup_leash_is_measured_from_a_neighbour.md) — `PlaceGroup` 的 4 格拴系从 **leader 的邻格**量起，真实边界 >4；断言邻近性别照抄 4
 - [`reference_ci_workflows_on_feature_branches.md`](reference_ci_workflows_on_feature_branches.md) — 推 `feature/**` 只触发 `better-d1-ci.yml`；**格式/tidy 检查仅在 master/PR**（"CI 绿"≠"格式合规"）；`docs/**` 提交不触发 CI
