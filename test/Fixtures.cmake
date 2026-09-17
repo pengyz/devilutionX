@@ -101,6 +101,8 @@ set(devilutionx_fixtures
   txtdata/monsters/level_roster_params_squads_unleashed.tsv
   txtdata/monsters/level_roster_params_squad_leashed_typo.tsv
   txtdata/monsters/level_roster_params_squad_leashed_outofrange.tsv
+  txtdata/monsters/level_rosters_no_hf.tsv
+  txtdata/monsters/level_roster_params_no_hf.tsv
 )
 
 copy_files(

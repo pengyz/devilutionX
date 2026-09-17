@@ -7,6 +7,7 @@
 #include <cstdlib>
 #include <fstream>
 #include <iostream>
+#include <set>
 #include <string>
 #include <vector>
 
@@ -175,19 +176,37 @@ void CreateDungeonForMeasurement(uint8_t level, uint32_t seed)
 // filled from the SAME A-baseline table, same 200-seed fixture, same
 // numerator/denominator convention, so the whole roster range L1-15 is bounded.
 //
-// Indexing: both tables are indexed BY LEVEL NUMBER and sized 17 so level 16 is
+// Indexing: both tables are indexed BY LEVEL NUMBER and sized 25 so level 24 is
 // a valid index rather than a buffer overrun. L16 stays UNCONSTRAINED, spelled as
 // the sentinel 1.0 (a share can never exceed 1.0) rather than 0.0. 0.0 would read
 // as "ceiling zero" and turn a missing baseline into a silent misjudgement - a
 // guaranteed failure, or worse, a pass that means nothing. The sentinel is kept
 // (not deleted now that L1-15 are filled) precisely so a future level added
-// without a baseline - phase A2's L17-24 - is unconstrained-by-declaration rather
-// than accidentally judged against zero. Adding such a level to the assertion
-// loop REQUIRES filling its baseline here first.
+// without a baseline is unconstrained-by-declaration rather than accidentally
+// judged against zero. Adding such a level to the assertion loop REQUIRES filling
+// its baseline here first.
+//
+// A2 (RA3): the tables were sized 17 while L17-24 ran the R28 legacy fallback. Task
+// 2 gives those levels real roster/params rows, so they are now filled from the
+// PRE-CHANGE measurement A2 task 1 took with the same fixture, seed count and
+// numerator/denominator convention ([ A2BASELINE ] output, 200 seeds per level,
+// seed base 61000, placed-monster denominator, ranged = RangedTurret + RangedKite):
+//
+//   L17 0/16188      L18 0/16188      L19 1983/16388   L20 3054/16342
+//   L21 0/22619      L22 0/22712      L23 3337/22648   L24 0/22653
+//
+// Five of those baselines are exactly 0, so their ceiling is a hard 0.05: on those
+// levels the data may add AT MOST a 5%-of-placed ranged presence measured under this
+// taxonomy. That is a real constraint on L24 in particular (see the report's budget
+// note), NOT a formality - but it is a WEAK one across the band, because
+// GetBehaviorClass() sends most HF ranged casters to its Boss arm (see the caveat on
+// HellfireLevelBaselineTest below, spec appendix E items 8/9). RB37 therefore adds a
+// SECOND, non-share guard for L17-24: HellfireRangedCasterFloor further down, which
+// counts monsters by their REAL ai instead of by this taxonomy.
 constexpr double kRangedShareTolerance = 0.05;
 constexpr double kRangedShareUnconstrained = 1.0;
 
-constexpr std::array<double, 17> kRangedShareBaseline {
+constexpr std::array<double, 25> kRangedShareBaseline {
 	kRangedShareUnconstrained,   // L0 (unused)
 	(0.0 + 0.0) / 18235.0,       // L1  (no ranged type in the L1 pool at all)
 	(2149.0 + 0.0) / 23453.0,    // L2
@@ -205,11 +224,22 @@ constexpr std::array<double, 17> kRangedShareBaseline {
 	(9674.0 + 3425.0) / 23443.0, // L14
 	(13533.0 + 0.0) / 23193.0,   // L15
 	kRangedShareUnconstrained,   // L16
+	// A2 task 1's [ A2BASELINE ] measurement, same auditable numerator/denominator
+	// form as L1-15 above. These are Hellfire-only levels: the ceiling below is only
+	// ever asserted by the Hellfire suite, which skips without Hellfire assets.
+	(0.0 + 0.0) / 16188.0,    // L17
+	(0.0 + 0.0) / 16188.0,    // L18
+	(0.0 + 1983.0) / 16388.0, // L19
+	(0.0 + 3054.0) / 16342.0, // L20
+	(0.0 + 0.0) / 22619.0,    // L21
+	(0.0 + 0.0) / 22712.0,    // L22
+	(0.0 + 3337.0) / 22648.0, // L23
+	(0.0 + 0.0) / 22653.0,    // L24
 };
 
 // A ceiling of exactly kRangedShareUnconstrained stays unconstrained: adding the
 // tolerance to the sentinel would push it above 1.0 and obscure that reading.
-constexpr std::array<double, 17> kRangedShareCeiling {
+constexpr std::array<double, 25> kRangedShareCeiling {
 	kRangedShareUnconstrained, // L0 (unused)
 	kRangedShareBaseline[1] + kRangedShareTolerance,
 	kRangedShareBaseline[2] + kRangedShareTolerance,
@@ -227,6 +257,14 @@ constexpr std::array<double, 17> kRangedShareCeiling {
 	kRangedShareBaseline[14] + kRangedShareTolerance,
 	kRangedShareBaseline[15] + kRangedShareTolerance,
 	kRangedShareUnconstrained, // L16
+	kRangedShareBaseline[17] + kRangedShareTolerance,
+	kRangedShareBaseline[18] + kRangedShareTolerance,
+	kRangedShareBaseline[19] + kRangedShareTolerance,
+	kRangedShareBaseline[20] + kRangedShareTolerance,
+	kRangedShareBaseline[21] + kRangedShareTolerance,
+	kRangedShareBaseline[22] + kRangedShareTolerance,
+	kRangedShareBaseline[23] + kRangedShareTolerance,
+	kRangedShareBaseline[24] + kRangedShareTolerance,
 };
 
 std::array<size_t, static_cast<size_t>(BehaviorClass::Count)> MeasurePlacedClassMix()
@@ -237,6 +275,54 @@ std::array<size_t, static_cast<size_t>(BehaviorClass::Count)> MeasurePlacedClass
 		mix[static_cast<size_t>(GetBehaviorClass(monster.ai))]++;
 	}
 	return mix;
+}
+
+/**
+ * @brief True when `ai` is dispatched to a ranged attack routine by the engine.
+ *
+ * Derived from AiProc (Source/monster.cpp:3138-3180), the array the engine indexes by
+ * monster.ai every tick: these are exactly the entries wired to AiRanged or
+ * AiRangedAvoidance, i.e. the AIs whose whole behaviour is "keep distance and throw a
+ * missile from GetMissileType()". Nothing here is a judgement call about flavour - a
+ * monster is counted iff the engine runs a ranged routine for it.
+ *
+ * Deliberately independent of GetBehaviorClass() (RB33: that taxonomy stays
+ * like-for-like so the L1-16 baselines keep their measurement premise). The overlap is
+ * expected and harmless: Magma/Storm/Acid/BoneDemon are RangedKite there and ranged
+ * here, Succubus/GoatRanged/Counselor are RangedTurret there and ranged here.
+ *
+ * Excluded on purpose: SkeletonRanged (SkeletonBowAi) and the unique-only AIs
+ * (LazarusSuccubus, HorkDemon) fire missiles from their own routines rather than
+ * through AiProc's ranged entries. They are absent from L17-24's candidate pool
+ * anyway - HorkDemon and Defiler reach these levels only as PLACE_UNIQUE pre-adds -
+ * so widening the predicate would only add noise this guard cannot act on.
+ */
+bool IsRangedCasterAi(MonsterAIID ai)
+{
+	switch (ai) {
+	// Diablo AIs on AiProc's ranged entries, listed for completeness: none of them
+	// appears in L17-24's pool, but the predicate must not silently depend on that.
+	case MonsterAIID::GoatRanged:
+	case MonsterAIID::Succubus:
+	case MonsterAIID::Counselor:
+	case MonsterAIID::Magma:
+	case MonsterAIID::Storm:
+	case MonsterAIID::Acid:
+	case MonsterAIID::AcidUnique:
+	case MonsterAIID::Diablo:
+	// Hellfire AIs - the ones acceptance 8 cannot see, since GetBehaviorClass() sends
+	// all but BoneDemon to its Boss arm.
+	case MonsterAIID::FireBat:
+	case MonsterAIID::Torchant:
+	case MonsterAIID::Lich:
+	case MonsterAIID::ArchLich:
+	case MonsterAIID::Psychorb:
+	case MonsterAIID::Necromorb:
+	case MonsterAIID::BoneDemon:
+		return true;
+	default:
+		return false;
+	}
 }
 
 // ---------------------------------------------------------------------------
@@ -1544,10 +1630,46 @@ protected:
 		snapshotTaken_ = false;
 	}
 
+	void TearDown() override
+	{
+		paths::SetAssetsPath(savedAssetsPath_);
+		// Leave the process holding the SHIPPED tables, exactly as SquadPlacementTest
+		// does: LoadPreA2Tables() below swaps process-global roster storage, and every
+		// other case in this binary (and any later case here) expects the shipped rows.
+		if (!missingMpqAssets_)
+			LoadLevelRoster();
+	}
+
+	void SetUp() override
+	{
+		savedAssetsPath_ = paths::AssetsPath();
+	}
+
+	/**
+	 * @brief Loads the L1-16-only copies of the shipped tables from test/fixtures/.
+	 *
+	 * A2 task 2 gave L17-24 real roster/params rows, so the SHIPPED tables can no
+	 * longer reproduce the pre-change (R28 legacy) sampling path that
+	 * A2PreChangeBaselineForHellfireLevels measures. The fixtures are the shipped
+	 * tables with the L17-24 rows removed and nothing else changed, so the legacy
+	 * fallback (global 4000 budget, unbounded tail) is reached the same way it was
+	 * before the data landed - which is what makes the recorded baseline a real A/B
+	 * against the post-change measurement rather than two different measurements.
+	 */
+	static void LoadPreA2Tables()
+	{
+		paths::SetAssetsPath(paths::BasePath() + "test/fixtures/");
+		LoadLevelRosterFromFiles(
+		    "txtdata\\monsters\\level_rosters_no_hf.tsv",
+		    "txtdata\\monsters\\level_roster_params_no_hf.tsv");
+		paths::SetAssetsPath(paths::BasePath() + "assets/");
+	}
+
 	static bool missingMpqAssets_;
 	static bool missingHellfire_;
 
 private:
+	std::string savedAssetsPath_;
 	static std::vector<Quest> savedQuests_;
 	static size_t savedPlayerCount_;
 	static bool savedMyPlayerIsFirst_;
@@ -1580,15 +1702,23 @@ TEST_F(HellfireLevelBaselineTest, A2PreChangeBaselineForHellfireLevels)
 	if (missingHellfire_)
 		GTEST_SKIP() << "Hellfire assets required: L17-24 do not exist without them";
 
-	// Premise 1: the range really is still on the pre-change (R28 legacy) path. If
-	// task 2's data has already landed, this measurement is no longer a PRE-change
-	// baseline and silently recording it would corrupt acceptance 8's reference.
+	// A2 task 2: the SHIPPED tables now carry L17-24 rows, so the pre-change path has
+	// to be reproduced from the L1-16-only fixtures (see LoadPreA2Tables). Task 1
+	// asserted the shipped tables themselves still lacked those rows; that premise was
+	// correct then and is deliberately inverted now, because the very thing this case
+	// exists to be a baseline FOR has landed.
+	LoadPreA2Tables();
+
+	// Premise 1 (unchanged in substance): the range really is on the pre-change (R28
+	// legacy) path for this measurement. Recording anything else here would corrupt
+	// acceptance 8's reference. It now checks the LOADED tables rather than the shipped
+	// ones, so a fixture that silently gained L17-24 rows still fails loudly.
 	for (uint8_t level = 17; level <= 24; level++) {
 		ASSERT_EQ(GetLevelRosterParams(level), nullptr)
-		    << "level " << static_cast<int>(level) << " already has a params row: this case measures the"
-		    << " PRE-change baseline, so it must run before A2 task 2's data";
+		    << "level " << static_cast<int>(level) << " has a params row after loading the pre-A2"
+		    << " fixtures: those fixtures must be the shipped tables MINUS the L17-24 rows";
 		ASSERT_TRUE(GetLevelRoster(level).empty())
-		    << "level " << static_cast<int>(level) << " already has roster rows: see above";
+		    << "level " << static_cast<int>(level) << " has roster rows: see above";
 	}
 
 	// Same fixture, seed count and denominator convention as
@@ -1605,6 +1735,11 @@ TEST_F(HellfireLevelBaselineTest, A2PreChangeBaselineForHellfireLevels)
 		std::array<size_t, static_cast<size_t>(BehaviorClass::Count)> sum {};
 		size_t placed = 0;
 		size_t typeCountSum = 0;
+		// RB37: the ranged-caster count is accumulated on the SAME pre-change samples
+		// as the class mix above, because it is the baseline for the RB37 guard and a
+		// baseline measured on a different run (or derived by arithmetic from the Boss
+		// column) would not be an A/B against anything.
+		size_t preChangeCasters = 0;
 		for (uint32_t seed = 0; seed < kSeeds; seed++) {
 			CreateDungeonForMeasurement(level, 61000 + seed);
 			{
@@ -1634,6 +1769,10 @@ TEST_F(HellfireLevelBaselineTest, A2PreChangeBaselineForHellfireLevels)
 				sum[i] += mix[i];
 			placed += ActiveMonsterCount;
 			typeCountSum += LevelMonsterTypeCount;
+			for (size_t i = 0; i < ActiveMonsterCount; i++) {
+				if (IsRangedCasterAi(Monsters[ActiveMonsters[i]].ai))
+					preChangeCasters++;
+			}
 		}
 
 		const size_t ranged = sum[static_cast<size_t>(BehaviorClass::RangedTurret)]
@@ -1663,6 +1802,16 @@ TEST_F(HellfireLevelBaselineTest, A2PreChangeBaselineForHellfireLevels)
 		          << " Boss " << sum[static_cast<size_t>(BehaviorClass::Boss)]
 		          << std::endl;
 
+		// RB37's baseline, measured on these same pre-change samples and printed in the
+		// same auditable numerator/denominator form. This line IS the source of
+		// kRangedCasterShareBaseline[17..24]; transcribing anything else there (for
+		// instance the Boss column above, which is NOT the same set - it excludes
+		// Acid/BoneDemon kites and includes non-caster AIs like Scavenger) makes the
+		// RB37 guard compare two different measurements.
+		std::cout << "[ A2CASTERBASE ] level " << static_cast<int>(level)
+		          << " rangedCasterShare " << (static_cast<double>(preChangeCasters) / static_cast<double>(placed))
+		          << " (" << preChangeCasters << "/" << placed << ")" << std::endl;
+
 		// The caveat above, printed next to the numbers it qualifies: a reader who sees
 		// only this log line must not read a 0 ranged share as "no ranged pressure".
 		if (level == 17) {
@@ -1682,4 +1831,250 @@ TEST_F(HellfireLevelBaselineTest, A2PreChangeBaselineForHellfireLevels)
 		report += "\n";
 	}
 	AppendMeasurementReport(report);
+}
+
+// ---------------------------------------------------------------------------
+// A2 Task 2, acceptance 8 for the Hellfire band: the POST-change ranged share of
+// L17-24 against kRangedShareBaseline[17..24] + 5pp.
+//
+// Why this is a separate case from PlacedClassMixWithinBaseline rather than an
+// extension of its loop: that case lives in LevelRosterBaselineTest, which measures
+// under DIABLO data (gbIsHellfire false, no hf overlay). L17-24 do not exist there -
+// every one of their monsters is availability=Never in the base monstdat.tsv - so its
+// loop CANNOT be widened to 24 without either mounting Hellfire in that fixture (which
+// would change the data every L1-15 baseline was measured under) or measuring eight
+// levels that place nothing. The guard therefore lives in the Hellfire suite, reads
+// the SAME kRangedShareBaseline/kRangedShareCeiling table, and uses the same 200
+// seeds / placed-monster denominator / ranged = RangedTurret + RangedKite convention,
+// so the two halves of the range are judged by one rule.
+TEST_F(HellfireLevelBaselineTest, PlacedClassMixWithinBaselineForHellfireLevels)
+{
+	if (missingMpqAssets_)
+		GTEST_SKIP() << "MPQ assets not found - skipping test";
+	if (missingHellfire_)
+		GTEST_SKIP() << "Hellfire assets required: L17-24 do not exist without them";
+
+	// Premise: this measures the SHIPPED tables. The suite's TearDown restores them,
+	// but a case that ran LoadPreA2Tables() earlier in the same process would leave a
+	// stale view if that ever changed, and measuring the fixtures here would silently
+	// re-measure the baseline and always pass.
+	for (uint8_t level = 17; level <= 24; level++) {
+		ASSERT_NE(GetLevelRosterParams(level), nullptr)
+		    << "level " << static_cast<int>(level) << " has no params row: acceptance 8 for the"
+		    << " Hellfire band judges A2 task 2's shipped data, so the data must be loaded";
+		ASSERT_FALSE(GetLevelRoster(level).empty())
+		    << "level " << static_cast<int>(level) << " has no roster rows: see above";
+	}
+
+	constexpr uint32_t kSeeds = 200;
+	for (uint8_t level = 17; level <= 24; level++) {
+		// Same anti-vacuity guard PlacedClassMixWithinBaseline uses: a level still
+		// holding the unconstrained sentinel has ceiling 1.0 and can never fail here.
+		ASSERT_LT(kRangedShareBaseline[level], kRangedShareUnconstrained)
+		    << "level " << static_cast<int>(level) << " is asserted but still holds the unconstrained"
+		    << " sentinel; fill its A2 baseline row before adding it to this loop";
+
+		size_t total = 0;
+		size_t ranged = 0;
+		for (uint32_t seed = 0; seed < kSeeds; seed++) {
+			CreateDungeonForMeasurement(level, 61000 + seed);
+			{
+				const auto getTypesResult = GetLevelMTypes();
+				ASSERT_TRUE(getTypesResult.has_value()) << getTypesResult.error();
+			}
+			{
+				const auto initResult = InitMonsters();
+				ASSERT_TRUE(initResult.has_value()) << initResult.error();
+			}
+			const auto mix = MeasurePlacedClassMix();
+			ASSERT_GT(ActiveMonsterCount, 0u)
+			    << "level " << static_cast<int>(level) << " seed " << seed << " placed no monster";
+			total += ActiveMonsterCount;
+			ranged += mix[static_cast<size_t>(BehaviorClass::RangedTurret)]
+			    + mix[static_cast<size_t>(BehaviorClass::RangedKite)];
+		}
+		ASSERT_GT(total, 0u) << "level " << static_cast<int>(level) << " placed nothing - the fixture is broken";
+		const double share = static_cast<double>(ranged) / static_cast<double>(total);
+		// Seed base 61000 matches A2PreChangeBaselineForHellfireLevels, so the printed
+		// share is a same-seed A/B against the baseline printed beside it.
+		std::cout << "[ A2MEASURED ] level " << static_cast<int>(level) << " ranged share " << share
+		          << " (" << ranged << "/" << total << "), baseline " << kRangedShareBaseline[level]
+		          << ", ceiling " << kRangedShareCeiling[level] << std::endl;
+		EXPECT_LE(share, kRangedShareCeiling[level])
+		    << "level " << static_cast<int>(level) << " ranged share " << share
+		    << " exceeds baseline " << kRangedShareBaseline[level] << " + 5pp"
+		    << " (" << ranged << "/" << total << ")";
+	}
+}
+
+// ---------------------------------------------------------------------------
+// RB37 (spec appendix E item 9): a NON-SHARE guard for L17-24.
+//
+// The problem it solves, measured rather than assumed: on L17-24 the taxonomy
+// GetBehaviorClass() applies puts RangedTurret at a constant 0 and routes most HF
+// ranged casters into its Boss arm, so the ONLY monster that can move rangedShare
+// across the whole band is BoneDemon (the one enumerated RangedKite). Acceptance 8 is
+// therefore nearly formal there - it would not notice a roster that filled every one
+// of the eight levels with Liches, ArchLiches, Psychorbs, Necromorbs, Firebats and
+// Torchants. RB33 keeps the taxonomy unchanged (like-for-like with L1-16), so the
+// second guard has to judge by something else.
+//
+// What this guard measures: the ranged-caster share of placed monsters computed from
+// each monster's REAL ai - the same predicate the engine itself dispatches on. It is
+// deliberately NOT a re-classification: GetBehaviorClass() is untouched, and this
+// number is used by nothing but this case.
+//
+// Direction: an UPPER bound, per red line 14 ("the depth layer must not silently
+// raise ranged pressure"). A floor would be the wrong instrument here - it would
+// reward stuffing the levels with casters. The bound is a MEASURED separating line
+// against the same pre-change fixture path the share baseline came from (both numbers
+// are printed unconditionally, so the margin is always visible), plus the same 5-point
+// band acceptance 8 uses, so the two guards fail for the same class of regression.
+//
+// Why it can actually fail (the property RB37 asks for), demonstrated rather than
+// asserted: L18's roster draft originally cored MT_PSYCHORB, the level's only ranged
+// caster. Measured with that ONE row changed and nothing else (200 seeds, same fixture):
+//
+//   [ A2CASTER   ] level 18 ranged-caster share 0.203546 (3295/16188) > ceiling 0.198629  -> RED
+//   [ A2MEASURED ] level 18 ranged share       0        (0/16188)     <= ceiling 0.05     -> GREEN
+//
+// That is exactly the blind spot RB37 named: acceptance 8 cannot see a level whose real
+// ranged pressure rose by 5.5 points, because Psychorb lands in GetBehaviorClass()'s
+// Boss arm and rangedShare stays a flat zero. Per R4 the breach was fixed in the DATA -
+// L18 cores MT_STINGER instead - not by raising the bound. The same swap-a-core-caster
+// -for-a-non-caster fix was applied to L20 (MT_NECRMORB -> MT_LASHWORM) and L23
+// (MT_HELLBAT -> MT_CRYPTDMN), which this guard also caught red on the first run.
+
+// Ranged-caster share of placed monsters, by real ai. Every row below is transcribed
+// from the [ A2CASTERBASE ] line A2PreChangeBaselineForHellfireLevels prints, i.e. it is
+// accumulated on the SAME pre-change samples (L1-16-only fixtures via LoadPreA2Tables,
+// 200 seeds per level, seed base 61000, placed-monster denominator) that produced
+// kRangedShareBaseline[17..24]. That co-measurement is the point: a bound derived by
+// arithmetic from the printed Boss column instead would be a DIFFERENT set - the Boss
+// arm excludes the Acid/BoneDemon kites and includes non-caster AIs such as Scavenger -
+// so the guard would compare two populations rather than run an A/B.
+//
+//   L17 0.213677 (3459/16188)   L18 0.148629 (2406/16188)
+//   L19 0.375763 (6158/16388)   L20 0.558744 (9131/16342)
+//   L21 0.420576 (9513/22619)   L22 0.417577 (9484/22712)
+//   L23 0.439288 (9949/22648)   L24 0.510043 (11554/22653)
+//
+// These are MEASURED separating lines, not spec constants: the band is acceptance 8's
+// own 5 points, so a roster that pushes real ranged pressure up by more than that on
+// any of the eight levels fails here even when rangedShare cannot see it. Per R4 a
+// breach is fixed in the DATA - never by raising these numbers.
+constexpr std::array<double, 25> kRangedCasterShareBaseline {
+	kRangedShareUnconstrained, // L0-L16 are not measured by this guard: it exists for
+	kRangedShareUnconstrained, // the Hellfire band, where the GetBehaviorClass() gap
+	kRangedShareUnconstrained, // makes acceptance 8 nearly formal (appendix E item 9).
+	kRangedShareUnconstrained, // L1-16 keep acceptance 8 as their quantitative guard.
+	kRangedShareUnconstrained,
+	kRangedShareUnconstrained,
+	kRangedShareUnconstrained,
+	kRangedShareUnconstrained,
+	kRangedShareUnconstrained,
+	kRangedShareUnconstrained,
+	kRangedShareUnconstrained,
+	kRangedShareUnconstrained,
+	kRangedShareUnconstrained,
+	kRangedShareUnconstrained,
+	kRangedShareUnconstrained,
+	kRangedShareUnconstrained,
+	kRangedShareUnconstrained,
+	3459.0 / 16188.0,  // L17 [ A2CASTERBASE ] 0.213677
+	2406.0 / 16188.0,  // L18 [ A2CASTERBASE ] 0.148629
+	6158.0 / 16388.0,  // L19 [ A2CASTERBASE ] 0.375763
+	9131.0 / 16342.0,  // L20 [ A2CASTERBASE ] 0.558744
+	9513.0 / 22619.0,  // L21 [ A2CASTERBASE ] 0.420576
+	9484.0 / 22712.0,  // L22 [ A2CASTERBASE ] 0.417577
+	9949.0 / 22648.0,  // L23 [ A2CASTERBASE ] 0.439288
+	11554.0 / 22653.0, // L24 [ A2CASTERBASE ] 0.510043
+};
+
+TEST_F(HellfireLevelBaselineTest, HellfireRangedCasterShareWithinBaseline)
+{
+	if (missingMpqAssets_)
+		GTEST_SKIP() << "MPQ assets not found - skipping test";
+	if (missingHellfire_)
+		GTEST_SKIP() << "Hellfire assets required: L17-24 do not exist without them";
+
+	// Premise 1: the predicate must actually select something in this band. If every
+	// candidate answered false, the measured share would be a constant 0 and the whole
+	// case would be a tautology - the exact failure mode RB37 is guarding against in
+	// acceptance 8, reproduced one level down.
+	size_t casterTypesInBand = 0;
+	for (uint8_t level = 17; level <= 24; level++) {
+		for (size_t i = 0; i < MonstersData.size(); i++) {
+			const MonsterData &data = MonstersData[i];
+			if (data.availability == MonsterAvailability::Never)
+				continue;
+			if (level < data.minDunLvl || level > data.maxDunLvl)
+				continue;
+			if (IsRangedCasterAi(data.ai))
+				casterTypesInBand++;
+		}
+	}
+	ASSERT_GT(casterTypesInBand, 0u)
+	    << "no L17-24 candidate has a ranged-caster ai: this guard would be a tautology";
+
+	// Premise 2: this case judges the SHIPPED A2 tables. If the rows were missing the
+	// measurement would silently fall back to the legacy path and re-measure the
+	// baseline against itself.
+	for (uint8_t level = 17; level <= 24; level++) {
+		ASSERT_NE(GetLevelRosterParams(level), nullptr)
+		    << "level " << static_cast<int>(level) << " has no shipped params row";
+		ASSERT_FALSE(GetLevelRoster(level).empty())
+		    << "level " << static_cast<int>(level) << " has no shipped roster rows";
+	}
+
+	constexpr uint32_t kSeeds = 200;
+	for (uint8_t level = 17; level <= 24; level++) {
+		ASSERT_LT(kRangedCasterShareBaseline[level], kRangedShareUnconstrained)
+		    << "level " << static_cast<int>(level) << " is asserted but still holds the unconstrained"
+		    << " sentinel; fill its measured row before adding it to this loop";
+
+		size_t placed = 0;
+		size_t casters = 0;
+		std::set<MonsterAIID> casterAis;
+		for (uint32_t seed = 0; seed < kSeeds; seed++) {
+			CreateDungeonForMeasurement(level, 61000 + seed);
+			{
+				const auto getTypesResult = GetLevelMTypes();
+				ASSERT_TRUE(getTypesResult.has_value()) << getTypesResult.error();
+			}
+			{
+				const auto initResult = InitMonsters();
+				ASSERT_TRUE(initResult.has_value()) << initResult.error();
+			}
+			ASSERT_GT(ActiveMonsterCount, 0u)
+			    << "level " << static_cast<int>(level) << " seed " << seed << " placed no monster";
+			for (size_t i = 0; i < ActiveMonsterCount; i++) {
+				const Monster &monster = Monsters[ActiveMonsters[i]];
+				if (!IsRangedCasterAi(monster.ai))
+					continue;
+				casters++;
+				casterAis.insert(monster.ai);
+			}
+			placed += ActiveMonsterCount;
+		}
+
+		const double share = static_cast<double>(casters) / static_cast<double>(placed);
+		const double ceiling = kRangedCasterShareBaseline[level] + kRangedShareTolerance;
+		// Unconditional print: a passing run must still show the headroom, otherwise the
+		// next roster edit has no reference point (same rule as [ MEASURED ]).
+		std::cout << "[ A2CASTER ] level " << static_cast<int>(level) << " ranged-caster share " << share
+		          << " (" << casters << "/" << placed << "), distinct caster ais " << casterAis.size()
+		          << ", baseline " << kRangedCasterShareBaseline[level]
+		          << ", ceiling " << ceiling << std::endl;
+		EXPECT_LE(share, ceiling)
+		    << "level " << static_cast<int>(level) << " ranged-caster share " << share
+		    << " exceeds baseline " << kRangedCasterShareBaseline[level] << " + 5pp"
+		    << " (" << casters << "/" << placed << "); per R4 fix the roster data, not this bound";
+		// Per-level non-emptiness: the band-wide premise above cannot tell whether an
+		// individual level realises a caster, and a level that realises none would be
+		// judged against a bound it cannot approach.
+		EXPECT_GT(casters, 0u)
+		    << "level " << static_cast<int>(level) << " placed no ranged caster across " << kSeeds
+		    << " seeds, so its bound is unreachable and measures nothing";
+	}
 }

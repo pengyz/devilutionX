@@ -3,6 +3,14 @@
 # 必须同步这两处数字，否则门禁会静默失效（N 偏小 → 少跑也算过）或误红
 # （N 偏大 → 全绿也判失败）。当前值对应 10 个用例（Phase B Task 3 追加 5 个 SquadPlacementTest 用例，
 # 修复轮次 1 再追加具名用例 SquadMinionsKeepOwnAi → 9；Task 4 追加 SquadFormationRate → 10）。
+#
+# 阶段 A2 Task 2 说明（计数为何仍是 10）：同一二进制新增的 3 个 `HellfireLevelBaselineTest`
+# 用例**故意落在本 case 的 filter 之外**，因此本 case 的用例数未变、passed_min 与
+# "[  PASSED  ] N tests." 均无需同步。理由：那 3 条依赖 Hellfire 资产，无 HF 环境下
+# （CI 只有 spawn.mpq）会 `GTEST_SKIP`，把它们纳入本 filter 会让 "[  PASSED  ] 13 tests."
+# 这行硬编码断言在无 HF 环境恒假——即为了给守卫加一层 eval 可见性，反而制造一条
+# 环境相关的假红。它们由**全量门禁**（`tools/run_tests.py` 的 ctest 全跑，二进制已在
+# `CMake/Tests.cmake:61` 注册）覆盖，本机实跑 3/3 绿、CI 按设计跳过。
 id: "level-rosters"
 name: "逐层名册 Phase A：放置构成占比在基线带内（真实引擎放置路径）"
 category: "rng"
