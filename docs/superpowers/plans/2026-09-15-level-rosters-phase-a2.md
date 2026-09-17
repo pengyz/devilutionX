@@ -58,7 +58,7 @@ std::optional<std::string> ValidateLevelRoster(
 - [ ] **步骤 2：跑测试确认失败**（当前实现会因 L17-24 怪不可用而 fatal）
 - [ ] **步骤 3：实现层范围化**
   - 逐层检查（存在性/可用性/floors 可满足性/`core` 非空）**只对 `level <= maxLevel`** 生效；
-  - 全局检查（重复行、`max_image>0`、`tail_draw>=0`、`squad_*` 范围、哨兵拒绝、unique base 白名单）**不受层范围影响**（它们与层是否可达无关）；
+  - 全局检查（重复行、`max_image>0`、`tail_draw>=0`、`squad_*` 范围、哨兵拒绝、unique base 白名单——**更正：该检查实为逐层语义**（签名 `IsUniqueBaseForLevel(level,type)`），应由层范围约束；评审实测 4 条 ≥L17 的 base unique 两表皆不可用/窗口外，故两种归属都不漏检，但合同文字以"逐层"为准）**；其余全局检查不受层范围影响**（它们与层是否可达无关）；
   - 保留既有两参重载（默认 `maxLevel`＝当前游戏最高地下层）以免破坏既有调用与测试——**若因此产生新的导出符号，须确认不触发漂移检查 E**（必要时把默认值写成调用方显式传参）。
 - [ ] **步骤 4：`LoadLevelRoster()` 传入真实层上限**（自行定位 `giNumberOfLevels`/等价常量，并在报告记录来源）
 - [ ] **步骤 5：L17-24 的前置基线实测**（资产门控；无 HF 素材则 `GTEST_SKIP`）
