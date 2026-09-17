@@ -1406,12 +1406,34 @@ bool MonsterGotHit(Monster &monster)
 }
 
 /**
- * @brief Breaks the leashed relation between @p leader and every minion following it.
+ * @brief Breaks the relation between @p leader and every minion that still references it.
+ *
+ * All THREE LeaderRelation states are handled here, and the split matters (RB26):
+ *
+ *   - None: nothing to break. Note the `leader` index can still be set in this state
+ *     (setLeader(nullptr) leaves it behind on purpose, see below), so the state - not
+ *     the index - is what decides whether a minion is still related to anyone.
+ *   - Leashed: the minion is following @p leader right now.
+ *   - Separated: GroupUnity puts a minion here as soon as the line of sight to its
+ *     leader is blocked, and KEEPS the `leader` index so the minion can rejoin the
+ *     pack once it gets close again. This is ordinary play - luring a leader more than
+ *     4 tiles away separates its minions - so filtering on Leashed alone skipped
+ *     exactly those minions: relation stayed Separated and the index stayed behind.
+ *     GroupUnity only refuses to run on None, so after an ORDINARY leader's slot was
+ *     recycled the next tick dereferenced that index into an unrelated live monster,
+ *     re-leashed the minion to it and let DirOK/FollowTheLeader pin the minion to that
+ *     stranger. Hence the filter below is `!= None`, not `== Leashed`.
+ *
+ * `packSize` is deliberately not adjusted for a Separated minion: GroupUnity already
+ * decremented the leader's packSize at the moment it separated the minion, and the
+ * leader is dying here anyway (that is ShrinkLeaderPacksize's job, for the dying
+ * monster's OWN leader).
  *
  * @param clearReference also reset the minion's `leader` index to Monster::NoLeader.
  *        setLeader(nullptr) deliberately keeps that index so monhealthbar can colour a
- *        unique's buffed minions, which is safe only because a unique's slot is never
- *        recycled while the level lives. An ORDINARY leader's slot IS recycled
+ *        unique's buffed minions (IsBuffedMinion reads it), which is safe only because
+ *        a unique's slot is never recycled while the level lives - so the UNIQUE path
+ *        must keep behaving exactly this way. An ORDINARY leader's slot IS recycled
  *        (DeleteMonster's swap + a later AddMonster), so keeping its index would leave
  *        the minion pointing at an unrelated live monster (G1, spec 4.3.1).
  */
@@ -1419,11 +1441,13 @@ void ReleaseMinions(const Monster &leader, bool clearReference = false)
 {
 	for (size_t i = 0; i < ActiveMonsterCount; i++) {
 		Monster &minion = Monsters[ActiveMonsters[i]];
-		if (minion.leaderRelation == LeaderRelation::Leashed && minion.getLeader() == &leader) {
-			minion.setLeader(nullptr);
-			if (clearReference)
-				minion.leader = Monster::NoLeader;
-		}
+		if (minion.leaderRelation == LeaderRelation::None)
+			continue;
+		if (minion.getLeader() != &leader)
+			continue;
+		minion.setLeader(nullptr);
+		if (clearReference)
+			minion.leader = Monster::NoLeader;
 	}
 }
 
@@ -4985,6 +5009,15 @@ bool IsTileAvailable(const Monster &monster, Point position)
 		return false;
 
 	return IsTileSafe(monster, position);
+}
+
+bool IsBuffedMinion(const Monster &minion)
+{
+	// See the doc comment in monster.h: the question is "did the leader's pack placement
+	// toughen this minion", which today is answered by the leader being unique - NOT by
+	// the mere presence of a leader index (squad minions have one and are unbuffed).
+	const Monster *leader = minion.getLeader();
+	return leader != nullptr && leader->isUnique();
 }
 
 bool IsSkel(_monster_id mt)

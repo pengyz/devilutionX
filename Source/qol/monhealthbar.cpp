@@ -14,6 +14,7 @@
 #include "engine/render/clx_render.hpp"
 #include "engine/render/primitive_render.hpp"
 #include "game_mode.hpp"
+#include "monster.h"
 #include "options.h"
 #include "utils/language.h"
 #include "utils/str_cat.hpp"
@@ -146,7 +147,10 @@ void DrawMonsterHealthBar(const Surface &out)
 	    { .flags = style | UiFlags::ColorBlack });
 	if (monster.isUnique())
 		style |= UiFlags::ColorWhitegold;
-	else if (monster.leader != Monster::NoLeader)
+	else if (IsBuffedMinion(monster))
+		// Blue means "this minion was strengthened by its leader" (HP x2). RB27: the old
+		// test was `leader != Monster::NoLeader`, which also caught phase B squad minions -
+		// placed with MinionOptions{ .tough = false }, i.e. not strengthened at all.
 		style |= UiFlags::ColorBlue;
 	else
 		style |= UiFlags::ColorWhite;

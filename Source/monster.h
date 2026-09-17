@@ -669,6 +669,28 @@ Monster *FindGolemForPlayer(const Player &player);
  * @brief Check that the given tile is available to the monster
  */
 bool IsTileAvailable(const Monster &monster, Point position);
+/**
+ * @brief Is @p minion a minion that was actually BUFFED by its leader's pack placement?
+ *
+ * "Buffed" means PlaceGroup applied MinionOptions::tough to it (HP x2). That is NOT the
+ * same question as "does this monster have a leader index" (RB27):
+ *
+ *   - `leader != Monster::NoLeader` only says a leader was assigned at some point. The
+ *     index is deliberately retained after setLeader(nullptr) and while a minion is
+ *     Separated, and - since phase B - squad minions get a leader with
+ *     MinionOptions{ .tough = false }, i.e. no numeric change at all. Colouring on the
+ *     index therefore announces "strengthened" for a squad minion that is stock, which
+ *     contradicts the squad feature's "composition only, no numbers" promise.
+ *   - Today the only path that passes the default (toughening) MinionOptions is the
+ *     unique boss pack (PrepareUniqueMonst -> PlaceGroup with MinionOptions{}), so a
+ *     unique leader is exactly the buffed case.
+ *
+ * IMPORTANT: this is a proxy for "the leader's pack placement toughened me", tied to the
+ * current callers of PlaceGroup. If any NON-unique leader ever starts placing minions
+ * with opts.tough = true, this predicate must be re-evaluated (and probably replaced by
+ * a real per-minion flag) rather than silently kept - it would then under-report.
+ */
+[[nodiscard]] bool IsBuffedMinion(const Monster &minion);
 bool IsSkel(_monster_id mt);
 bool IsGoat(_monster_id mt);
 /**
