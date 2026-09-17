@@ -273,7 +273,7 @@ level   max_image   tail_draw   class_floors          squad_chance   squad_size
 | L13-15 | `MT_GSNAKE` + `MT_BALROG` + `MT_HLSPWN`/`MT_SOLBRNR` + `MT_CABALIST`/`MT_MAGISTR` + **`MT_STORML`（A3@13）** | 地狱的数值压迫 + 远程齐射 |
 | L16 | 硬编码（Advocate/RBlack/Diablo）→ 只登记 | 保持终局 |
 
-**约束**：每层 4-5 只为初稿目标；**实测最终值**（2026-09-15，`level_rosters.tsv`）：L1 4、**L2 7**、**L3 6**、L4 5、L5-L7 各 4、**L8 6**、L9-L12 各 4、**L13 2、L14 3、L15 3**、L16 4。L2/L3/L8 超过初稿是为把远程占比压回 R4 带内（见附录 E）；L13-15 低于初稿是"B1 cap ≤2/类 + L13 低基线"挤压的结果（见附录 E 第 1 条）。仍须满足：含该层 A1/A3 承载；不得含 unique 的 base（除非白名单）；`Σimage` 低于逐层 `max_image`。
+**约束**：每层 4-5 只为初稿目标；**实测最终值**（2026-09-15，`level_rosters.tsv`）：L1 4、**L2 7**、**L3 6**、L4 5、L5-L7 各 4、**L8 6**、L9-L12 各 4、**L13 2、L14 2（2026-09-16 任务 D 后）、L15 3**、L16 4。L2/L3/L8 超过初稿是为把远程占比压回 R4 带内（见附录 E）；L13-15 低于初稿是"B1 cap ≤2/类 + L13 低基线"挤压的结果（见附录 E 第 1 条）。仍须满足：含该层 A1/A3 承载；不得含 unique 的 base（除非白名单）；`Σimage` 低于逐层 `max_image`。
 
 ## 附录 D：玩家可感预测（实现成败判据，来自 R2）
 
