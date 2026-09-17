@@ -18,7 +18,9 @@
 #include "levels/gendung.h"
 #include "levels/trigs.h" // InitL1Triggers 等 + Freeupstairs（CreateLevel 逻辑复刻用）
 #include "monster.h"
-#include "mpq/mpq_reader.hpp" // hellfire.mpq 直接挂载（见 HF 套件注释）
+#ifndef UNPACKED_MPQS
+#include "mpq/mpq_reader.hpp" // hellfire.mpq 直接挂载（见 HF 套件注释；仅打包 MPQ 路径需要）
+#endif
 #include "multi.h"
 #include "player.h"
 #include "quests.h"
@@ -1470,6 +1472,18 @@ protected:
 		// archive is mounted directly at Hellfire's own priority (8000, the value
 		// LoadHellfireArchives uses; UnloadModArchives() clears 8000-8999, so TearDown
 		// still unmounts it).
+		//
+		// F1 (task 1 fix review round 1): this whole self-mount is packed-MPQ-only. Under
+		// UNPACKED_MPQS, MpqArchiveT is std::string (a directory path, see assets.hpp), so
+		// there is no MpqArchive to construct or insert here, and UnloadModArchives()'s
+		// cleanup below is itself compiled out under that macro (see its #ifndef in
+		// assets.cpp), i.e. the unload half of this mount has no defined semantics in that
+		// configuration either. Rather than fabricate a directory-path equivalent for a
+		// measurement this task does not require under UNPACKED_MPQS, the whole block is
+		// skipped and the suite falls through to missingHellfire_ = true via the .til probe
+		// below (nlevels\ tiles are never found without the mount), so every case in this
+		// fixture GTEST_SKIPs cleanly instead of failing to compile.
+#ifndef UNPACKED_MPQS
 		for (const std::string &searchPath : { paths::BasePath(), paths::PrefPath(), paths::ConfigPath() }) {
 			if (MpqArchives.find(kHellfireMpqPriority) != MpqArchives.end())
 				break;
@@ -1484,9 +1498,11 @@ protected:
 				}
 			}
 		}
+#endif
 		LoadMonsterData();
 		LoadLevelRoster();
 
+#ifndef UNPACKED_MPQS
 		// HaveHellfire() only reports that hellfire.mpq was FOUND. What this suite
 		// actually needs is the Nest/Crypt tile data readable, so probe the real
 		// dependency (same principle as missingRetailTrn_ above): one .til per Hellfire
@@ -1497,6 +1513,12 @@ protected:
 		const AssetHandle cryptTil = OpenAsset(R"(nlevels\l5data\l5.til)", cryptTilSize);
 		missingHellfire_ = !HaveHellfire() || !nestTil.ok() || nestTilSize == 0
 		    || !cryptTil.ok() || cryptTilSize == 0;
+#else
+		// UNPACKED_MPQS never mounts hellfire.mpq above (see the comment on the mount
+		// block), so L17-24's Nest/Crypt tiles can never be reached in this configuration:
+		// skip unconditionally rather than probing assets that were never loaded.
+		missingHellfire_ = true;
+#endif
 	}
 
 	static void TearDownTestSuite()
