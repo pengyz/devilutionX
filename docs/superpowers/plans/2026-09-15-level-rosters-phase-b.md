@@ -394,17 +394,17 @@ git commit -m "test(monster): pin the squad formation rate per level and fall ba
 
 ## Task 5: 收尾（可证伪预测的验收、eval、台账、CI）
 
-- [ ] **步骤 1：验收附录 D 的两条可证伪预测**（阶段 B 的两条）
-  1. "能看到一只 + 1-2 只贴身同行的小队" → 由 Task 3 的用例与 §4.3 的小队断言覆盖；
-  2. "把 leader 引开 >4 格，leashed 随从脱队、靠近重新贴回" → 若无法在无头测试里覆盖，**必须**在报告中明确写"未覆盖 + 需要人工试玩验证"，不得假装通过。
+- [x] **步骤 1：验收附录 D 的两条可证伪预测**（阶段 B 的两条）
+  1. "能看到一只 + 1-2 只贴身同行的小队" → **覆盖**，由 `SquadFormsAroundACoreLeader`/`SquadRateIsMeasuredPerLevel`/`ShippedSquadChanceRealisesSquadsOnEveryLevel`/`SquadFormationRate`/`UnleashedFallbackPlacesNeighboursWithoutLeashing` 实测覆盖（详见 Task 5 报告）；
+  2. "把 leader 引开 >4 格，leashed 随从脱队、靠近重新贴回" → **未覆盖**：`GroupUnity`/`FollowTheLeader`/`IsLineNotSolid` 是 `monster.cpp` 匿名 namespace 内部符号（`nm` 实测为 `t` 而非导出符号），其唯一调用点在 `ProcessMonsters()` 的 tick 循环内部，需完整 AI/寻路/动画状态机驱动才能观察分离/归队；仓库内无任何测试驱动完整 `ProcessMonsters` tick。已在报告中如实标注"未覆盖，需要人工试玩验证"及理由。
 
-- [ ] **步骤 2：eval 用例与 `passed_min` 同步**（改动用例数时）
+- [x] **步骤 2：eval 用例与 `passed_min` 同步**（改动用例数时）：实测 `--gtest_list_tests` 得 10 个用例，与既有 `passed_min: 10` 一致，无需改动。
 
-- [ ] **步骤 3：全量门禁 + eval + 行尾**
+- [x] **步骤 3：全量门禁 + eval + 行尾**：`run_tests.py` 764 passed/0 failed/100%、drift 5/5；`eval --smoke` 36/36；`eval --run level-rosters` 50/50（单独跑，因其需要 `retail_or_hf_required` 而不在 smoke 集合内）；改动文件行尾核对为既有 LF，无 CRLF 混入。
 
-- [ ] **步骤 4：push 并跟踪 CI 到终态**（R43）：`gh run list` 找 run → `gh run watch <id> --exit-status` → 报告 `conclusion`；若红则按日志定位（CI 只有 `spawn.mpq`，需零售/HF 素材的用例必须 `GTEST_SKIP`，判据要**贴真实依赖**，参见阶段 A 的 `genrl.trn` 探测写法）。
+- [x] **步骤 4：push 并跟踪 CI 到终态**（R43）：见 Task 5 报告的 CI run 记录。
 
-- [ ] **步骤 5：提交**
+- [x] **步骤 5：提交**：见下方提交历史。
 
 ---
 
@@ -412,12 +412,12 @@ git commit -m "test(monster): pin the squad formation rate per level and fall ba
 
 | 项 | 值 |
 |---|---|
-| G1 验收结果 | （`LeaderDeathReleasesMinions` / `UniqueLeaderDeathBehaviourUnchanged` 实测） |
-| G2 验收结果 | （`SquadMinionsUnbuffered` / `UniqueMinionsBehaviourUnchanged` 实测） |
-| 逐层小队形成率 | （Task 4 步骤 1 的实测表） |
-| `squad_leashed` 回退层 | （哪些层、为何） |
-| 夹具重生成 | （哪些夹具、哪个提交） |
-| CI run | （run id + conclusion） |
+| G1 验收结果 | `sampling_behavior_test` 实测：`SamplingBaselineTest.LeaderDeathReleasesMinions` PASS（11ms）、`SamplingBaselineTest.UniqueLeaderDeathBehaviourUnchanged` PASS（10ms）。普通 leader 死亡（经引擎真实死亡路径 `MonsterDeath`→末帧→`M_UpdateRelations`）释放随从且清除悬挂 `leader` 索引；unique 路径（`setLeader(nullptr)` 保留索引供 `monhealthbar` 染色）行为不变 |
+| G2 验收结果 | `sampling_behavior_test` 实测：`SamplingBaselineTest.SquadMinionsUnbuffed` PASS（0ms）、`SamplingBaselineTest.UniqueMinionsBehaviourUnchanged` PASS（0ms）。小队随从经 `MinionOptions{tough=false, inheritAi=false, inheritIntelligence=false}` 不再被静默强化 HP / 换成 leader 的 AI；unique 路径（`PlaceGroup` 默认全 `true`）仍继承 AI 且 HP 翻倍 |
+| 逐层小队形成率 | `level_roster_baseline_test` 的 `SquadPlacementTest.SquadFormationRate` 实测（出厂表、500 seed/层，本次冻结树重跑，耗时 289.7s）：L1 0.999552、L2 0.999611、L3 0.99975、L4 0.99973、L5 1、L6 1、L7 0.999695、L8 0.99971、L9 0.999248、**L10 0.998896（全层最差）**、L11 0.999629、L12 1、L13 0.999688、L14 1、L15 1。统一 floor **0.95**（`kSquadFormationFloor`，具名数组，注释含逐层实测与"实测分隔线、非紧界、非规格常量"声明） |
+| `squad_leashed` 回退层 | **无任何层需要回退**：15 层实测 rate 均 ≥0.9989，远高于计划自身建议的 50% 下限与用例 floor 0.95；`level_roster_params.tsv` 的 `squad_leashed` 列 15 行全为 `1`，本轮零改动 |
+| 夹具重生成 | **未重生成**任何夹具。`timedemo`（`Timedemo.WarriorLevel1to2`）早已隔离于采样/名册改动（早在阶段 A 就与本类改动解耦），本次冻结树全量门禁 `ctest` 764 passed / 0 failed 已覆盖 `timedemo_test`，无需额外重生成动作 |
+| CI run | 见 Task 5 报告 `.superpowers/sdd/2026-09-15-level-rosters-phase-b/task-5-report.md`（push 后 `gh run list`/`gh run watch` 结果，含 run id + conclusion） |
 
 ---
 
