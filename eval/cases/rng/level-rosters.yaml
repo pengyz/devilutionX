@@ -13,6 +13,10 @@ setup:
   mpq_required: true
   # U1（同类）：PlacedClassMix* 走真实建关放置，需 unique 怪染色 TRN（零售或 HF 提供）。
   retail_or_hf_required: true
+  # RB22 记账（Task 5，2026-09-17 实测）：本 case 单跑（10 个用例，10x 500-seed 的
+  # SquadFormationRate 占大头）实测约 475s，对 timeout=900 余量约 47%。
+  # 若再往 LevelRosterBaselineTest/SquadPlacementTest 里加长用例（更多 seed、更多层），
+  # 必须同步上调本 timeout，不要让余量被悄悄吃掉。
   timeout: 900
 
 run:
