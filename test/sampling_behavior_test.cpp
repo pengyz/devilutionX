@@ -41,6 +41,7 @@
 #include "tables/monstdat.h"
 #include "tables/questdat.hpp"
 #include "tables/spelldat.h"
+#include "utils/paths.h"
 #include "utils/str_cat.hpp"
 
 using namespace devilution;
@@ -1470,7 +1471,32 @@ protected:
 		// gives L17-24 a non-empty candidate pool.
 		TestInitGame(/*fullQuests=*/true, /*originalCathedral=*/true, /*hellfire=*/true);
 		LoadMonsterData();
-		LoadLevelRoster();
+		// A2 task 2 gave L17-24 real roster/params rows, so the SHIPPED tables no
+		// longer reach the R28 legacy fallback that BOTH cases in this suite exist to
+		// pin. Load the L1-16-only fixtures instead: they are the shipped tables with
+		// the L17-24 rows removed and nothing else changed, which is exactly the input
+		// shape that puts those levels back on the no-params path.
+		//
+		// This keeps the coverage rather than retiring it. R28's guarantee - a level
+		// with no params row still gets a PLACE_SCATTER type, drawn against the legacy
+		// budget rather than a tail_draw-sized one - is a property of the LOADER plus
+		// the sampler, not of which levels happen to ship a row today. Deleting these
+		// cases because the shipped table changed would drop the only guard on the
+		// fallback branch, and that branch is still live code: any level without a
+		// params row takes it.
+		//
+		// It also un-hides a second problem. LevelsWithoutParamsStillSampleTypes
+		// failed loudly on its own premise assertion ("level 17 now has a params row;
+		// move it out of this test"), but NoParamsTailExceedsTheParameterisedCap has no
+		// such premise - against the shipped tables it would have gone on comparing the
+		// PARAMETERISED path with the parameterised cap and stayed green while
+		// measuring the wrong branch. Both now measure the branch they name.
+		const std::string savedAssetsPath = paths::AssetsPath();
+		paths::SetAssetsPath(paths::BasePath() + "test/fixtures/");
+		LoadLevelRosterFromFiles(
+		    "txtdata\\monsters\\level_rosters_no_hf.tsv",
+		    "txtdata\\monsters\\level_roster_params_no_hf.tsv");
+		paths::SetAssetsPath(savedAssetsPath);
 		// CI only ships spawn.mpq: no hellfire.mpq means the hf overlay above did
 		// not actually mount, so L17-24 would have an empty candidate pool and the
 		// "still samples types" premise is vacuous. Probe once here and skip in
@@ -1594,6 +1620,19 @@ TEST_F(HellfireNoParamsSamplingTest, NoParamsTailExceedsTheParameterisedCap)
 		GTEST_SKIP() << "MPQ assets not found - skipping test";
 	if (missingHellfire_)
 		GTEST_SKIP() << "hf overlay required: L17-24 have no candidates under base monstdat";
+
+	// Premise, added by A2 task 2: L17-24 must actually be on the no-params path.
+	// Without this, loading the shipped tables (which now carry L17-24 rows) leaves
+	// this case comparing the PARAMETERISED path against the parameterised cap - and
+	// it stayed GREEN while doing so, because a level with tail_draw 1 or 2 plus its
+	// scatter pre-adds can still out-count maxTableTailDraw. Its sibling caught the
+	// same mistake immediately only because it asserts this premise; measured with the
+	// shipped tables loaded, this case passed and that one failed. Pin it here too.
+	for (uint8_t level = 17; level <= 24; level++) {
+		ASSERT_EQ(GetLevelRosterParams(level), nullptr)
+		    << "level " << static_cast<int>(level) << " has a params row: this case measures the"
+		    << " no-params fallback, so it must run against the L1-16-only fixtures";
+	}
 
 	// Sharper form of "unbounded": some no-params level must realise more scatter
 	// types than the largest tail_draw configured for L1-16. That is only true if
