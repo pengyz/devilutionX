@@ -50,7 +50,7 @@ TEST_TARGETS = [
     "pack_test", "player_test", "quests_test", "quest_script_test",
     "scrollrt_test", "stores_test", "tile_properties_test", "timedemo_test",
     "townerdat_test", "writehero_test", "vendor_test", "panel_state_test",
-    "sampling_behavior_test",
+    "sampling_behavior_test", "level_roster_test", "level_roster_baseline_test",
     "store_transaction_test", "visual_store_test", "stash_test",
     "inventory_ui_test", "spell_ui_test", "spelldat_test", "spell_tooltip_test",
     "char_panel_test", "game_menu_test", "spell_ux_test", "consumable_stack_test",
