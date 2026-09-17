@@ -22,7 +22,30 @@ protected:
 	{
 		LoadCoreArchives();
 		gbIsSpawn = false;
+		// F2 (task 1 fix review round 1): every two-arg ValidateLevelRoster() call in this
+		// suite relies on that overload's default `maxLevel = MaxValidatedDungeonLevel()`,
+		// which reads this global (see level_roster.h/.cpp) and resolves to 16 when false,
+		// 24 when true. This binary never otherwise sets gbIsHellfire, so today's default
+		// happens to read false - but that is an ACCIDENT of initialization order, not a
+		// property this suite asserts. Pin it explicitly so the default maxLevel these 42+
+		// calls implicitly depend on stays 16 by DECLARATION, not by whichever other test
+		// binary/global happened to run first; a later change that flips gbIsHellfire
+		// elsewhere in the process must not silently change what these calls validate.
+		gbIsHellfire = false;
 		LoadMonsterData();
+	}
+
+	// Bonus guard for the pin above: if any future test in this suite ever flips
+	// gbIsHellfire (directly, or indirectly via code under test) without restoring it,
+	// every LATER two-arg ValidateLevelRoster() call in the same run would silently start
+	// validating against maxLevel 24 instead of 16. Catch that drift right after it would
+	// happen instead of leaving it to show up as an unrelated assertion failure elsewhere.
+	void TearDown() override
+	{
+		EXPECT_FALSE(gbIsHellfire) << "LevelRosterTest pins gbIsHellfire = false in "
+		                              "SetUpTestSuite() so the default maxLevel of the "
+		                              "two-arg ValidateLevelRoster() calls in this suite "
+		                              "stays 16; some test in this run left it true";
 	}
 };
 
