@@ -524,6 +524,20 @@ TEST_F(LevelRosterBaselineTest, PlacedClassMixWithinBaseline)
 	// core and gained Sneak/Charge/Melee cores, with tail_draw / max_image raised
 	// where the core set no longer fit. Post-fix measurements are in the
 	// [ MEASURED ] lines below; all four now sit under their ceilings with margin.
+	//
+	// History (task D, L14): L14 wanted the standard squad_chance of 30 but measured
+	// 0.615081 with its original 3-core set (1 Melee + 1 RangedTurret + 1 RangedKite),
+	// breaching the 0.60876 ceiling - squad partners are drawn from the OTHER cores,
+	// so 2 of the 3 cores being ranged biased every squad ranged. Per R4 the DATA
+	// changed again: L14's RangedKite core (MT_XACID) was dropped, leaving a
+	// melee-leaning 1 Melee + 1 RangedTurret core, which measures 0.543672 at
+	// squad_chance 30 (6.5pp of headroom, versus 0.36pp at the old chance of 10).
+	// The kite core is the ONLY one that could go: L14's six unique bases are 4 Melee
+	// + 2 RangedTurret, and the B1 cap is 2 per class, so a second core in either of
+	// those classes shuts that class's tail draw and costs AC9c reachability - which
+	// is exactly what raising L14's Melee floor to 2 did (6/6 -> 2/6, reverted).
+	// RangedKite carries no L14 unique base, so dropping it costs no reachability;
+	// HellUniqueBasesRemainReachable still measures L14 at 6/6.
 	constexpr int kSeeds = 200;
 	for (uint8_t level = 1; level <= 15; level++) {
 		// A level inside the asserted range must have a real baseline: with the
@@ -777,7 +791,7 @@ TEST_F(SquadPlacementTest, SquadsAreAbsentWhenTheTableDisablesThem)
 
 	// The A side of the A/B: identical levels and seeds to SquadFormsAroundACoreLeader, and
 	// the fixture differs from the shipped table in exactly ONE column - squad_chance, set to
-	// 0 on every level (the shipped value is 30, and 10 on L14).
+	// 0 on every level (the shipped value is 30 on every level).
 	//
 	// Fix review M1: the fixture used to zero squad_size as well, so the claim "A and B differ
 	// in one variable" - the premise every squad case argues from - was not true of the file
@@ -1104,8 +1118,11 @@ TEST_F(SquadPlacementTest, ShippedSquadChanceRealisesSquadsOnEveryLevel)
 //     because the remedy it is supposed to trigger had been applied.
 //   * denominator = SquadRollCounters::rolls, the loop's OWN count of rolls
 //     that entered the squad branch. It is not re-derived from squad_chance,
-//     so a level whose chance is low (L14 at 10) is judged on the rolls it
-//     actually made rather than on the ones the table nominally promises.
+//     so a level is judged on the rolls it actually made rather than on the
+//     ones the table nominally promises. This mattered while L14 shipped a
+//     reduced chance of 10; task D raised it back to 30 by dropping L14's
+//     RangedKite core, so the loop's own denominator keeps this case correct
+//     across such a data change with no edit here.
 //
 // Counters are per level and reset by InitLevelMonsters(), so they are read
 // straight after each run (a before/after difference underflows across the
@@ -1187,7 +1204,7 @@ TEST_F(SquadPlacementTest, SquadFormationRate)
 		GTEST_SKIP() << "retail/HF TRN (monsters\\monsters\\genrl.trn) not available - skipping test";
 
 	// The SHIPPED tables, deliberately: this case pins the formation rate of the
-	// configuration the game actually ships (squad_chance 30, L14 10), which is
+	// configuration the game actually ships (squad_chance 30 on every level), which is
 	// what acceptance 7 is about. The squads_always fixture would measure a
 	// different table and hide a shipped-data regression.
 	LoadLevelRoster(); // shipped tables (squad_chance 30)

@@ -1283,6 +1283,16 @@ TEST_F(SamplingBaselineTest, HellUniqueBasesRemainReachable)
 	if (missingMpqAssets_)
 		GTEST_SKIP() << "MPQ assets not found - skipping test";
 
+	// Scope note 3 - why L14 reaches 6/6 where L13 cannot. L14's candidate pool is
+	// Melee-heavy (8 Melee / 5 RangedTurret / 2 RangedKite) and its six unique bases
+	// are 4 Melee + 2 RangedTurret, so 6/6 requires the tail to stay able to draw
+	// BOTH of those classes - i.e. L14's core must hold at most one Melee and at most
+	// one RangedTurret, otherwise that class hits the cap of 2 and its tail draw
+	// closes. That is why raising L14's Melee floor to 2 collapsed this level to 2/6
+	// (reverted), and why task D instead dropped L14's RangedKite core to buy the
+	// ranged-share headroom squad_chance 30 needs: RangedKite carries no L14 unique
+	// base, so removing it costs no reachability here.
+	//
 	// Bases that L13's Melee cap structurally excludes (see scope note 2). Every
 	// OTHER candidate base on L13-15 must be reachable.
 	//

@@ -79,8 +79,9 @@ description: >
   同时记录：均匀 squad_chance=30 会把 L14 远程占比从 60.49% 推到 61.51%、越过
   60.88% 阈值。按 R4 只改数据、不动阈值：先试 class_floors Melee=1 → Melee=2（占比
   60.45% 达标），但全量门禁判红——该改动使 L14 的 unique base 可达性从 6/6 掉到 2/6，
-  违反验收 9c（HellUniqueBasesRemainReachable），故回退。最终采用 **L14 squad_chance
-  30 → 10**（占比 60.51% 达标，9c 恢复 6/6），其余各层保持 30。
+  违反验收 9c（HellUniqueBasesRemainReachable），故回退。Task 3 当时采用 **L14 squad_chance
+  30 → 10**（占比 60.51% 达标，9c 恢复 6/6），其余各层保持 30。**该让步已由 Phase B Task D
+  取消**（见下）。
 
   Phase B Task 3 修复轮次 1（评审必须修项）：为两条此前**无守卫**的规格要求补上可失败断言，
   用例数 8 → 9（新增具名用例 `SquadMinionsKeepOwnAi`，规格 §6 验收第 6 行点名）。
@@ -129,3 +130,19 @@ description: >
   加载器只拒绝反向组合 `squad_chance > 0 && squad_size == 0`）。反证：把该夹具 squad_chance
   改回 30 → `SquadsAreAbsentWhenTheTableDisablesThem` 判红，确认这一列就是该用例真正测的东西。
   出厂数据（assets/txtdata/**）与 `kRangedShareCeiling` / `kSquadFormationFloor` 阈值本轮零改动。
+
+  Phase B Task D（取消 L14 的 squad_chance 让步，**用例数不变，仍为 10**：本轮只改出厂数据与注释）：
+  目标是在**不放宽任何守卫**（`kRangedShareCeiling` / `kSquadFormationFloor` / class_floors 一律不动）
+  的前提下让 L14 也用统一的 `squad_chance=30`。结构判据：小队 partner 从**其他 core**抽取，
+  所以 3 个 core 里有 2 个是远程会让每支小队都偏远程；而 L14 的 6 个 unique base 是
+  **4 Melee + 2 RangedTurret**、B1 cap 为 2/类，因此**任何一类的 core 增到 2 都会关掉该类尾抽**
+  并打掉 9c（这正是 Task 3 抬 Melee floor 掉到 2/6 的原因）。**RangedKite 在 L14 没有 unique base**，
+  故唯一可动的杠杆是去掉 kite core `MT_XACID`，使 core 变为 1 Melee + 1 RangedTurret。
+  实测（200 seed，真实建关放置链路）：
+  对照 A@30（原 3 core）**0.615081 > 0.60876 判红**（复现 Task 3 的失败）；
+  采纳配置 B@30（去掉 kite core）**0.543672 ≤ 0.60876 通过**，余量由原来的 0.36pp 扩到 **6.5pp**；
+  9c 维持 **6/6**（`[ MEASURED ] level 14 unique bases reachable 6/6`）；
+  `[ SHIPPEDSQUAD ] level 14` rollRate **0.088 → 0.313406**（名义 30%）；
+  L14 每 seed 组合数 **51**（500 seed，RosterPerSeedVariety 通过）；其余各层占比与形成率逐位不变。
+  因此 `level_roster_params.tsv` 现在**全 15 层统一 squad_chance=30**，RB17 的 L14 冻结让步解除；
+  `class_floors` 仍为 Melee=1（RB14：不是自由杠杆，本轮未触碰）。
