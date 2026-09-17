@@ -4,6 +4,7 @@
 <!-- 设计决策、模块边界、为什么选 A 不选 B -->
 
 ## Gotchas
+- [`gotcha_unpacked_mpqs_mod_manifest_include_guard.md`](gotcha_unpacked_mpqs_mod_manifest_include_guard.md) — `UNPACKED_MPQS=ON` 曾因 `mod_identity.h` 被并进 guard 而**整引擎编不过**（CI 默认 OFF 故不暴露）；改动 `assets.hpp` 时两配置都要编
 - [`gotcha_testing_hellfire_levels_headlessly.md`](gotcha_testing_hellfire_levels_headlessly.md) — 无头测 HF 层：别调 `LoadHellfireArchives()`（会 FatalExit 整个二进制）、补齐 `.til`+触发器、快照还原全局、以真实依赖门控跳过
 - [`gotcha_drift_check_c2_whole_file_crlf.md`](gotcha_drift_check_c2_whole_file_crlf.md) — 漂移 **C2** 对"相对 merge-base 新增"的文件要求**整文件 CRLF**（不是只看你加的行）
 - [`gotcha_unique_boss_packs_are_also_leashed.md`](gotcha_unique_boss_packs_are_also_leashed.md) — unique boss pack 也带拴系随从（默认 MinionOptions），度量小队必须用 `isUnique()` 区分，并断言 unique 随从数 >0 防 A/B 空转
