@@ -224,6 +224,15 @@ std::array<size_t, static_cast<size_t>(BehaviorClass::Count)> MeasurePlacedClass
 // placed monsters, never inferred from squad_chance.
 // ---------------------------------------------------------------------------
 
+// The largest per-axis leader-to-minion distance PlaceGroup's leash can produce.
+//
+// DERIVED, not measured: PlaceGroup's accepted-candidate test is
+// `!(leashed && (|xp - x1| >= 4 || |yp - y1| >= 4))`, so an accepted tile is within 3 of the
+// FIRST candidate (x1, y1) on each axis; that first candidate is
+// `leader->position.tile + Direction(GenerateRnd(8))`, one step from the leader on each axis
+// (Displacement::fromDirection has |dx|, |dy| <= 1). 3 + 1 = 4.
+constexpr int kLeashedAxisBound = 4;
+
 struct SquadObservation {
 	/** Squad minions: leashed minions under an ORDINARY (non-unique) leader. */
 	size_t leashedMinions = 0;
@@ -233,8 +242,16 @@ struct SquadObservation {
 	size_t leadersWithZeroPackSize = 0;
 	/** Squad minions whose ai differs from their own type's ai (G2 violation; must be 0). */
 	size_t minionsWithOverwrittenAi = 0;
-	/** Squad minions further from their leader than the engine leash allows. */
+	/** Squad minions further from their leader than the engine leash allows (must be 0). */
 	size_t minionsOutsideLeash = 0;
+	/**
+	 * Squad minions sitting exactly ON the leash bound (Chebyshev 4 from the leader).
+	 *
+	 * This is what makes minionsOutsideLeash a real guard rather than a number nobody can
+	 * fail (fix review I1): the bound is only meaningful if the data reaches it. Asserted
+	 * NON-zero, so the "no minion past 4" check is known to sit on the clamp's boundary.
+	 */
+	size_t minionsAtLeashBound = 0;
 	/** Squad minions whose leader is NOT a core roster member of this level (must be 0). */
 	size_t minionsUnderNonCoreLeader = 0;
 	/**
@@ -308,16 +325,30 @@ SquadObservation ObserveSquads(uint8_t level)
 
 		if (monster.ai != monster.data().ai)
 			obs.minionsWithOverwrittenAi++;
-		// PlaceGroup measures its 4-tile leash from the FIRST candidate tile,
-		// which is a NEIGHBOUR of the leader (leader->position.tile +
-		// Direction(GenerateRnd(8))), not from the leader itself: the check is
-		// |xp - x1| < 4 with x1 = leader +/- 1. So a leashed minion may sit up to
-		// 4 tiles from the leader, and asserting < 4 here would fail on legitimate
-		// placements - the first run of this case failed that way on L9 seed 2.
+		// The leash bound, derived - and TIGHT (fix review I1).
+		//
+		// PlaceGroup measures its 4-tile leash from the FIRST candidate tile, which is a
+		// NEIGHBOUR of the leader (leader->position.tile + Direction(GenerateRnd(8))), not
+		// from the leader itself: the accepted-candidate check is |xp - x1| < 4, i.e.
+		// <= 3, with x1 = leader +/- 1 (Displacement::fromDirection has |dx|,|dy| <= 1).
+		// So the true per-axis ceiling relative to the LEADER is 3 + 1 = 4, and asserting
+		// < 4 here would fail on legitimate placements (the first run of this case failed
+		// that way on L9 seed 2).
+		//
+		// What review I1 objected to is that "dx > 4 must be 0" alone cannot be READ as a
+		// guard: nothing in the case showed that 4 is the real ceiling rather than a number
+		// far above the data, so the reader could not tell which change would turn it red.
+		// The bound is now named and, crucially, its TIGHTNESS is measured: 4 is actually
+		// REACHED by real placements (minionsAtLeashBound, asserted non-zero in
+		// SquadFormsAroundACoreLeader). That pins the metric to the boundary the clamp
+		// produces, so widening the clamp (or dropping the leash term from it) immediately
+		// pushes minions to 5+ and this counter goes non-zero.
 		const int dx = std::abs(monster.position.tile.x - leader->position.tile.x);
 		const int dy = std::abs(monster.position.tile.y - leader->position.tile.y);
-		if (dx > 4 || dy > 4)
+		if (dx > kLeashedAxisBound || dy > kLeashedAxisBound)
 			obs.minionsOutsideLeash++;
+		if (dx == kLeashedAxisBound || dy == kLeashedAxisBound)
+			obs.minionsAtLeashBound++;
 		if (!IsCoreMemberOfLevel(level, leader->type().type))
 			obs.minionsUnderNonCoreLeader++;
 		if (monster.type().type == leader->type().type)
@@ -607,6 +638,7 @@ TEST_F(SquadPlacementTest, SquadFormsAroundACoreLeader)
 
 	size_t totalLeadersWithMinions = 0;
 	size_t totalLeashedMinions = 0;
+	size_t totalMinionsAtLeashBound = 0;
 	for (uint8_t level = 9; level <= 12; level++) {
 		for (uint32_t seed = 0; seed < 10; seed++) {
 			const SquadObservation obs = RunLevel(level, 21000 + seed);
@@ -628,7 +660,9 @@ TEST_F(SquadPlacementTest, SquadFormsAroundACoreLeader)
 			    << ": spec 4.3.3 requires a squad to mix two DIFFERENT core types";
 			EXPECT_EQ(obs.minionsOutsideLeash, 0u)
 			    << "level " << static_cast<int>(level) << " seed " << seed
-			    << ": a leashed minion must sit within the engine's 4-tile leash";
+			    << ": a leashed minion must sit within kLeashedAxisBound (" << kLeashedAxisBound
+			    << ") tiles of its leader on each axis";
+			totalMinionsAtLeashBound += obs.minionsAtLeashBound;
 			EXPECT_EQ(obs.minionsUnderNonCoreLeader, 0u)
 			    << "level " << static_cast<int>(level) << " seed " << seed
 			    << ": squads may only form around a CORE roster member of that level";
@@ -655,6 +689,46 @@ TEST_F(SquadPlacementTest, SquadFormsAroundACoreLeader)
 	EXPECT_GT(totalLeashedMinions, 0u)
 	    << "no squad minion was placed at all, so the per-sample violation counts above"
 	    << " measured nothing";
+
+	// Fix review I1: the leash bound must be TIGHT, i.e. actually reached by real
+	// placements. Without this the "nothing beyond kLeashedAxisBound" assertions above
+	// could be satisfied by a bound far above the data, and no code change could turn
+	// them red. Printed unconditionally so the margin stays readable.
+	std::cout << "[ SQUADLEASH ] minions " << totalLeashedMinions
+	          << " at bound " << totalMinionsAtLeashBound
+	          << " beyond bound 0 (bound " << kLeashedAxisBound << ")" << std::endl;
+	EXPECT_GT(totalMinionsAtLeashBound, 0u)
+	    << "no squad minion reached Chebyshev " << kLeashedAxisBound << " from its leader over"
+	    << " L9-12 x 10 seeds, so kLeashedAxisBound is above what the clamp produces and the"
+	    << " minionsOutsideLeash assertions cannot fail on any placement";
+
+	// Fix review I2: squad_size had NO guard - replacing PlaceGroup's `num` argument in the
+	// squad branch with a constant 1 left all ten squad cases green, because `formed` only
+	// needs >= 1 minion, `realised` only needs packSize > 0, and the floor / adjacency /
+	// distinct-type / AI checks are all per minion rather than about how MANY there are.
+	//
+	// The guard is deliberately WEAK but falsifiable: minions per realised squad must stay
+	// >= 1.5. Measured on the shipped table through this very loop (L9-12 x 10 seeds,
+	// squads_always fixture): 1.98 minions per squad at squad_size = 2 - i.e. nearly every
+	// squad places both its minions, which matches SquadFormationRate's ~99.9% formation
+	// rate. Forcing the second argument to 1 caps the ratio at exactly 1.0, so it fails by a
+	// wide margin. 1.5 sits in the empty gap between those two values and does NOT pin the
+	// data: a level legitimately moving to squad_size 2 with worse placement luck, or the
+	// mean drifting to 1.6, still passes. It is a separator between "squad_size is honoured"
+	// and "squad_size is ignored", not a measured bound.
+	constexpr double kMinMinionsPerSquad = 1.5;
+	const double minionsPerSquad = totalLeadersWithMinions == 0
+	    ? 0.0
+	    : static_cast<double>(totalLeashedMinions) / static_cast<double>(totalLeadersWithMinions);
+	std::cout << "[ SQUADSIZE ] leaders " << totalLeadersWithMinions
+	          << " minions " << totalLeashedMinions
+	          << " per-squad " << minionsPerSquad
+	          << " floor " << kMinMinionsPerSquad << std::endl;
+	EXPECT_GE(minionsPerSquad, kMinMinionsPerSquad)
+	    << "squads averaged " << minionsPerSquad << " minions over L9-12 x 10 seeds, under the"
+	    << " floor " << kMinMinionsPerSquad << ": at squad_size 2 the measured mean is 1.98, and"
+	    << " a squad path that ignores squad_size (placing one minion per squad) reads exactly"
+	    << " 1.0. Check that the scatter loop still passes rosterParams->squadSize to PlaceGroup";
 }
 
 // Spec 6, acceptance row 6 names this case: G2 requires a squad minion to keep its OWN AI, so
@@ -701,9 +775,19 @@ TEST_F(SquadPlacementTest, SquadsAreAbsentWhenTheTableDisablesThem)
 	if (missingRetailTrn_)
 		GTEST_SKIP() << "retail/HF TRN (monsters\\monsters\\genrl.trn) not available - skipping test";
 
-	// The A side of the A/B: identical levels and seeds to
-	// SquadFormsAroundACoreLeader, only squad_chance = 0. Everything the squad
-	// branch produces must vanish here, which is what makes the B side's
+	// The A side of the A/B: identical levels and seeds to SquadFormsAroundACoreLeader, and
+	// the fixture differs from the shipped table in exactly ONE column - squad_chance, set to
+	// 0 on every level (the shipped value is 30, and 10 on L14).
+	//
+	// Fix review M1: the fixture used to zero squad_size as well, so the claim "A and B differ
+	// in one variable" - the premise every squad case argues from - was not true of the file
+	// it pointed at. squad_size is now held at the shipped 2. That is legal input (the loader
+	// only rejects the inverse, `squad_chance > 0 && squad_size == 0`, see
+	// Source/tables/level_roster.cpp) and it is also strictly better for this case: with
+	// squad_size still 2, a zero squad count here can only be attributed to squad_chance,
+	// whereas zeroing both left open which of the two suppressed the squads.
+	//
+	// Everything the squad branch produces must vanish here, which is what makes the B side's
 	// non-zero count attributable to the FEATURE rather than to unique boss
 	// packs - the pre-existing leashed-minion source that runs on these levels
 	// either way (PlaceUniqueMonsters, before the scatter loop).

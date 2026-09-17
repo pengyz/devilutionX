@@ -37,6 +37,8 @@ expected:
     - "[ SHIPPEDSQUAD ]"
     - "[ SQUADFALLBACK ]"
     - "[ SQUADFORM ]"
+    - "[ SQUADLEASH ]"
+    - "[ SQUADSIZE ]"
     - "[  PASSED  ] 10 tests."
 
 description: >
@@ -108,3 +110,22 @@ description: >
   同样判红（豁免只允许 squad_chance==0 即表自己关掉的层）。恢复后逐层数值与实测逐位一致。
   处置：实测最低 99.890% 远高于计划下限 50%，**各层 squad_leashed 保持 1，本轮无任何层需要
   §4.3.4 回退**，`level_roster_params.tsv` 零改动（RB17 L14 冻结、RB14 class_floors 均未触碰）。
+
+  Phase B 最终修复轮（I1/I2/M1，**用例数不变，仍为 10**：本轮只加断言与输出行，不加用例）：
+  I1 —— `minionsOutsideLeash` 原判据 `dx > 4` 恒真（通过钳制的候选必然 dx <= 4），指不出
+  什么改动会让它红。现改为具名常量 `kLeashedAxisBound = 4`（由钳制推导：接受条件
+  `|xp-x1| < 4` → <=3，而 x1 是 leader 的邻格 → 3+1=4），并新增计数 `minionsAtLeashBound`
+  断言**恰好落在界上的随从数 > 0**——这才让"不超过 4"成为紧界守卫。新增 `[ SQUADLEASH ]` 输出行。
+  实测：L9-12 x 10 seed 共 1275 只随从，其中 24 只正好在界上，越界 0。
+  反证：把 PlaceGroup 的钳制从 >= 4 放宽到 >= 8 → L11/L12 多个种子判红。
+  I2 —— `squad_size` 此前无任何守卫（把 PlaceGroup 第 2 参改成常量 1，10 条用例全绿）。
+  新增弱但可失败的断言：每支已成形小队的平均随从数 >= 1.5（`kMinMinionsPerSquad`）。
+  实测出厂配置 **1.989**（squad_size=2，与 SquadFormationRate 的 ~99.9% 形成率一致）；
+  改成常量 1 后实测恰为 **1.0**，必红。1.5 落在这两个值之间的空隙里，不把合法数据调整变成红灯。
+  新增 `[ SQUADSIZE ]` 输出行。反证：第 2 参改 1 → 判红（实测 per-squad 1）。
+  M1 —— `level_roster_params_squads_off.tsv` 此前同时改了 `squad_chance` 与 `squad_size` 两列，
+  而注释称"只差 squad_chance"；"A/B 只差一个变量"是这些用例的立论基础，故采用更强的修法：
+  把该夹具的 `squad_size` 改回出厂值 2，现在**真的只差 squad_chance** 一列（该输入合法：
+  加载器只拒绝反向组合 `squad_chance > 0 && squad_size == 0`）。反证：把该夹具 squad_chance
+  改回 30 → `SquadsAreAbsentWhenTheTableDisablesThem` 判红，确认这一列就是该用例真正测的东西。
+  出厂数据（assets/txtdata/**）与 `kRangedShareCeiling` / `kSquadFormationFloor` 阈值本轮零改动。
