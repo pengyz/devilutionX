@@ -50,6 +50,7 @@
 - **B1 采样反垄断已定稿（2026-08-13）**：Oracle 对抗评审 PASS（8/8 AC，cap 零 RNG 消费、1-8 层字节级 vanilla、L16 早退）；4 条非阻塞建议落地（BoneDemon 注记/quest 双计数单测/非 Boss 映射断言/L16 注释）。实现零回归——全量门禁 4 失败全部由 f474a64c0（开关移除）引入而非 B1，详见 [gotcha_vendor_predicate_seed_drift](gotcha_vendor_predicate_seed_drift.md) 与 [gotcha_timedemo_isOnActiveLevel_failure](gotcha_timedemo_isOnActiveLevel_failure.md)
 
 ## References
+- [`reference_leader_relation_states_and_consumers.md`](reference_leader_relation_states_and_consumers.md) — **leader 关系三态（None/Leashed/Separated）× 8 个消费者**必查清单；含"只过滤 Leashed 会漏 Separated 索引"的已知坑与蓝名着色语义
 <!-- 外部资源指针、关键文件位置 -->
 
 - [怪物配置图谱：各层段怪物池与密度诊断](analysis_monster_config_landscape.md) — 系统扫描 monstdat：教堂12类/墓穴13类/洞穴10类(远程垄断38%)/地狱6类(多样性骤降)；密度修复框架（A1/A2/A3/B1/C2/E1）各规格落地依据
