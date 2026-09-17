@@ -212,7 +212,11 @@ level   max_image   tail_draw   class_floors          squad_chance   squad_size
 
 ## 7. 状态
 
-**实施中**（2026-09-15 更新）。
+**实施中**（2026-09-16 更新）。
+
+- **阶段 B（核心小队）已实施**：计划 `plans/2026-09-15-level-rosters-phase-b.md` 的 5 个任务全部完成；门禁 **767/767** + drift A-F（含 2026-09-16 新增的检查 F：`run_tests.py` 必须构建 `Tests.cmake` 的每个测试目标）+ CI 绿；最终全分支评审"修复后可合并"→ 修掉 **S1（`ReleaseMinions` 漏 `Separated` 的悬挂索引）** 与 **S2（小队随从被染蓝名＝UI 宣称被强化）** 后，范围化复审裁决 **可合并**。实测：**L1-15 小队形成率 99.890-100%**（500 seed/层，最差 L10）；**L14 因 ceiling 挤压为 8.8%**（`squad_chance=10`）；验收 8 与 9c 均有本轮证据（L14 = 0.60512 ≤ 0.60876；unique 6/6）。
+- **阶段 A2 计划已就绪**：`plans/2026-09-15-level-rosters-phase-a2.md`（L17-24 名册 + **校验层范围化**，闭合红线 12「全层段定义」；设计为**单一表扩到 L24**，非另建 overlay 表，以避免双表漂移）。
+- **仍开放**：**L14 的取舍**（实测中：重塑 core 名单以容纳 `squad_chance=30`，成功则采纳、失败维持现状；已明确排除"提高 ceiling"）；**附录 D 预测 5**（引开 leader >4 格后脱队/归队）**无头不可覆盖，需人工试玩**（已写验证方法）；`Timedemo.WarriorLevel1to2` 夹具重录必要性上升（阶段 B 改了 L1/L2 放置序列与 RNG 流）；O2（加载期校验未含 quest 无条件预加）；`passed_min` 硬编码计数机制；范围外既存缺陷 `drlg_l2.cpp:2072`建议单独开单。
 
 - **阶段 A（逐层名册）已交付**：计划 `plans/2026-09-15-level-rosters-phase-a.md` 的 4 个任务全部完成，本地门禁 749/0/100% + drift 5/5，远端 CI 绿（`better-d1-ci.yml`）；评审链：任务评审 ×5、范围化复审 ×7、最终全分支评审（裁决"修复后可合并"）。
 - **阶段 B（核心小队）实施中**：计划 `plans/2026-09-15-level-rosters-phase-b.md`；前置 G1、G2 已完成（G1 已过 CI；G2 已提交待评审），小队机制与形成率守卫待做。
