@@ -40,9 +40,11 @@
 
 | 实验 | A（出厂） | B（对照） | 构造方式 |
 |---|---|---|---|
-| **小队** | `squad_chance=30` | `squad_chance=0` | 用 `test/fixtures/txtdata/monsters/level_roster_params_squads_off.tsv` 覆盖 `assets/txtdata/monsters/level_roster_params.tsv` → `ninja -C build devilutionx_mpq`；`git checkout --` 还原 |
+| **小队** | `squad_chance=30` | `squad_chance=0` | `python3 tools/make_playtest_variant.py`（从**当前**出厂表派生，只把 `squad_chance` 置 0）→ `ninja -C build devilutionx_mpq`；还原用 `python3 tools/make_playtest_variant.py --restore` |
 
-两个变体**必须**用同一提交构建，只有该表不同（构建后在报告中记录 `git rev-parse HEAD` 与表的 hash）。
+**为什么必须用生成器而不是现成夹具**：`test/fixtures/.../level_roster_params_squads_off.tsv` 生成于内容密度契约之前，实测它与当前出厂表有**四处**差异——`L13/L14 tail_draw`（4→1/2）、`L15 class_floors`、以及**缺失 L17-24 全部 8 行**。拿它做对照＝同时改四个变量，实验没有意义。生成器自带**单变量断言**（`--check`），对本仓库那份过期夹具会**报错并列出全部差异**（工具层面的可失败守卫）。
+
+两个变体**必须**用同一提交构建，只有该表不同；报告中记录 `git rev-parse HEAD`、出厂表与对照表的 hash。
 
 ## 5. L2 行为代理（准入规则，默认**不采**）
 
@@ -75,7 +77,7 @@ AI **不得**：代替玩家给出偏好、用"我认为玩家会喜欢"当证�
 
 1. 冻结本文件（记录其 hash）；
 2. `git rev-parse HEAD` 记录提交；构建 A（出厂）；
-3. 覆盖参数表为 `squads_off` → `ninja -C build devilutionx_mpq` → 构建 B，记录表的 hash；
+3. `python3 tools/make_playtest_variant.py`（派生对照表 B）→ `ninja -C build devilutionx_mpq` → 构建 B，记录两张表的 hash；随后 `python3 tools/make_playtest_variant.py --restore` 回到 A；
 4. **先跑 A/A 空对照**（20 分钟×2）→ 检查是否出现假偏好；
 5. 再跑 A/B/A（每人 3 轮，ABBA 顺序，首层冷读）；
 6. 填会话卡（见下）→ 按 §1 计算 → 写台账与知识条目；
