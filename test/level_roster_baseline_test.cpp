@@ -2079,8 +2079,11 @@ TEST_F(HellfireLevelBaselineTest, HellfireRangedCasterShareWithinBaseline)
 	}
 }
 
-// TEMP MEASUREMENT (task 3a) - removed before commit.
-TEST_F(HellfireLevelBaselineTest, TempPerSeedVarietyForHellfireLevels)
+// Per-seed variety guard for the Hellfire levels (content density contract §4.1 invariant:
+// no level may be deterministic). Each level must offer at least two distinct type sets
+// across seeds; the failure mode this catches is a tail pool that the level's caps and
+// tail_draw reduce to a single combination (L17 measured 1 before its core was reshaped).
+TEST_F(HellfireLevelBaselineTest, HellfirePerSeedVarietyHasAtLeastTwoCombinations)
 {
 	if (missingMpqAssets_)
 		GTEST_SKIP() << "MPQ assets not found";
@@ -2105,7 +2108,7 @@ TEST_F(HellfireLevelBaselineTest, TempPerSeedVarietyForHellfireLevels)
 			std::sort(key.begin(), key.end());
 			combinations.insert(key);
 		}
-		std::cout << "[ TEMPVAR ] level " << static_cast<int>(level)
+		std::cout << "[ HFVARIETY ] level " << static_cast<int>(level)
 		          << " combinations " << combinations.size()
 		          << " unionTypes " << unionTypes.size() << " (";
 		for (const _monster_id t : unionTypes)

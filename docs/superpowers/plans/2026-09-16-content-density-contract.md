@@ -367,6 +367,15 @@ git commit -m "test(roster): assert the content-density floors and the visibilit
 
 ---
 
+## Task 4 执行记录（2026-09-18）
+
+- **地板断言已落地**：`ContentDensityWithinVanillaFloor`（types/AI/并集三轴，逐层，地板 = Task 1 实测）→ 首跑即**精准抓到 L10/L11/L12**（并集 12<17、11<15、13<16），其余层全过。
+- **根因与处置**：caves 池子 **Kite 密集**（L10 候选 16 个里 7 个 Kite），而 **B1 的 caves kite cap（≤2 类型）已被 core 吃满** → 5-6 个 kite 类型永不可抽 ⇒ 并集塌陷。按契约 §4.4 的 R4 反转（②重推守卫）**退役该 cap** → 并集 **L10 17 ✓ / L11 15 ✓ / L12 16 ✓**（见外溢 A10）。
+- **份额**：退役后 L9-12 的 ranged share 0.462348/0.442413/0.436842/0.40646，**全部低于 vanilla**（0.528292/0.497895/0.466284/0.453762）与各自 ceiling ✓（L11 主线余量 2.9pp，为三者最薄，已记录）。
+- **D4（曝光率）退役**：实测率 >100%（L1 117%、L2 105%），因为落地并集含任务预加/Golem/unique base 而候选池不枚举它们 ⇒ 分母不适定；按附录 B 标准**不进契约**，其意图由 D3 并集地板承载（理由写在用例注释里）。
+- **偏差记录**：计划原本要求把 `RosterPerSeedVariety` 扩到 L1-24；实际改为**把 HF 的组合数测量升为永久断言**（`HellfirePerSeedVarietyHasAtLeastTwoCombinations`，在 HF 资产可用的 baseline 二进制里；L17-24 每层 ≥2 组合）——避免在两处重复实现 HF 门控。
+- **eval 同步**：`sampling-anti-monopoly.yaml` 的计数净额不变（退役 1 + 新增 1 = 33 ✓），但其**描述口径已按新契约重写**（风筝类型尾退役、放置份额守卫、密度地板）。
+
 ## Task 5: 既有契约改写（附录 A1-A6）
 
 **文件：** 修改 `test/sampling_behavior_test.cpp`（A1/A2）、`test/level_roster_baseline_test.cpp`（A4）、`eval/cases/rng/level-rosters.yaml`（A6）、`docs/knowledge/decision_save_format_policy.md`（A5）、新建 `docs/knowledge/decision_content_density_contract.md`（A3）

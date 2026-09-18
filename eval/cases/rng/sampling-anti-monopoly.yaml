@@ -39,55 +39,12 @@ expected:
   output_contains: ["[  PASSED  ] 33 tests."]
 
 description: >
-  B1 采样反垄断 harness（纯测试 + cap 实施后）：直接驱动真实 GetLevelMTypes
-  采样循环，断言 cap 后契约——地狱 L15/L14 全同类尾 4.13%/0.70% -> 0、
-  L13 0%、洞穴风筝尾 L10 2.4% / L12 2.6% -> 0（风筝类 <=2）、洞穴任意类尾
-  记录值（L9 1.7% / L10 1.02% / L11 1.32% / L12 0%——非 cap 目标）、
-  L16 硬编码保留、采样终止（AC3）、教堂/墓穴无约束（AC4）、
-  MP 同种子同构成（AC8）、Counselor 映射 + AIID 穷尽性（含非 Boss 映射断言）、
-  quest 预加重抽双计数不放大 cap（QuestPreAddRePickDoesNotDoubleCount，Oracle 建议落地）。
-  任务状态条件：Quests 零初始化（全 NOTAVAIL），L13/L14 基线为"无任务"条件值。
-  Pre-cap 基线（v5 引擎实测）：L15 4.13%（证伪 v3 的 27.8%）/ L14 0.70% / L13 0.00%。
-  Task 4 追加（review 遗留 O1）：RosterQuotaAllowanceIsBinding 从出厂名册发现饱和的
-  (level, 受限 class) 组合并断言配额是紧的；EnginePreAddExemptionTracksQuestAvailability
-  断言引擎预加豁免只覆盖 Golem 与「该层真实可用」的任务唯一怪 base，
-  quest 挂到别的层不产生额度。
-  Task 5 追加（final review R38，AC9b/9c）：RosterPerSeedVariety 断言 L2-15 每层
-  500 种子下实现构成的组合数 >= 2（L1 候选池仅 6 型、构成按算术固定，以 EXPECT_EQ 1
-  显式豁免并注明原因）；HellUniqueBasesRemainReachable 断言 L13-15 每个「base 在本层
-  可用」的唯一怪 base 至少在一个种子的实现集合里出现，L13 三个近战 base（受 Melee cap
-  结构性排除）以 EXPECT_FALSE 精确记账。两者是 S1 回归（L13/14/15 各塌缩为 1 种组合、
-  地狱唯一怪 base 全不可达）的直接守卫，已在回归数据上验证会红。
-  阶段 B Task 1 追加（G1，spec 2026-09-15-level-rosters-design §4.3.1）：
-  LeaderDeathReleasesMinions 走引擎真实死亡路径（MonsterDeath -> 推进死亡动画到末帧 ->
-  M_UpdateRelations）断言**普通**（非 unique）leader 死亡后随从不再是 Leashed 且 `leader`
-  索引被清为 Monster::NoLeader（旧实现以 hasLeashedMinions() 为门槛，对普通怪恒 false，
-  随从永远不被释放且留下悬挂索引，槽位复用后会指向一只活着的无关怪）；
-  UniqueLeaderDeathBehaviourUnchanged 是 unique 路径回归——relation 置 None、
-  索引**仍保留**（monhealthbar 蓝色随从着色依赖它）。已验证前者在修复前红、后者在修复前后皆绿。
-  阶段 B Task 2 追加（G2，spec 2026-09-15-level-rosters-design §4.3.1）：PlaceGroup 新增
-  MinionOptions{tough,inheritAi,inheritIntelligence} 参数，把随从 HP 加倍 / AI 继承 /
-  intelligence 继承三件事从硬编码行为改为可选。SquadMinionsUnbuffed 用一对 AI 类型不同的
-  leashed leader/minion（避免"两者 AI 相同导致断言恒真"这一已反复出现的缺陷）驱动 PlaceGroup
-  显式传入全 false 的 MinionOptions，断言 HP 落在未加倍的 [min,max] 区间内、minion 保留自己的
-  AI 而非被 setLeader() 覆盖、intelligence 不从 leader 继承；UniqueMinionsBehaviourUnchanged
-  是回归——PrepareUniqueMonst 调用 PlaceGroup 时从不显式构造 MinionOptions，因此默认值必须
-  让 Leashed 词条 unique 的随从依旧 HP 加倍且继承 leader 的 AI，与本任务改动之前字节对齐。
-  阶段 B 最终修复轮追加（RB26/RB27，用例数 30 -> 33）：
-  LeaderDeathReleasesSeparatedMinions / UniqueLeaderDeathKeepsSeparatedMinionIndex 覆盖
-  `LeaderRelation::Separated`——GroupUnity 在视线被挡时把随从置为该态并**保留 leader 索引**
-  （引开 leader 即触发的正常玩法），而 ReleaseMinions 原先只过滤 Leashed，于是普通 leader
-  死亡时该随从既不改 relation 也不清索引；槽位被 AddMonster 复用后，GroupUnity（入口只挡 None）
-  会解引用到一只无关的活怪并把随从重新拴上去。修法把过滤放宽到 `!= None`，但**只在普通怪路径清索引**，
-  unique 路径（relation 置 None、索引保留）索引保留（unique 路径的 relation 现统一置 None：旧码在 Separated+unique 时保持 Separated，新码改为 None 属**修正**，已被用例断言；"逐字节"仅对索引成立），由后一条回归用例守住。
-  BuffedMinionPredicateTracksToughening 覆盖新谓词 IsBuffedMinion：monhealthbar 的蓝名判据
-  从 `leader != NoLeader` 改为「真的被强化」（当前＝leader 为 unique），否则 tough=false 的
-  小队随从会被染蓝、与「只买构成不买数值」相反。用例两臂都断言 leader 索引已设置（证明旧判据
-  分辨不出），并用同种子 A/B 实测 HP 恰为 2 倍来确立「被强化」这一前提。
-  三条反证均实跑「改坏→红→恢复→绿」（过滤改回只 Leashed、unique 路径也清索引、谓词改回
-  `leader != NoLeader`），原始输出见
-  `.superpowers/sdd/2026-09-15-level-rosters-phase-b/final-fix-report.md`。
-  同时修掉夹具的一处真实缺陷：PrepareDeathPathPrerequisites 现按 diablo.cpp 的顺序补上
-  LoadSpellData()。死亡路径的掉落可以掉书，GetBookSpell 在 SpellsData 为空时
-  `while (rv > 0)` 永不收敛（rv 恒 1、`s++` 无法命中回绕），表现为挂死并在 items.cpp:648
-  报 UBSan 有符号溢出；命中与否只看掉落运气，所以是补依赖而不是换种子绕开。
+  B1 采样反垄断 harness（纯测试）：直接驱动真实 GetLevelMTypes 采样循环。
+  2026-09-18 内容密度契约后的口径：地狱 L13-15 的**远程类**尾受 cap=1 约束（实测 0）；
+  洞穴风筝**类型**尾不再受 cap 约束——caves kite cap 已按合同 R4 反转退役（它使 5-6 个
+  kite 类型永不可抽，L10 并集 12 < vanilla 17），其**放置**垄断症状由
+  PlacedClassMixWithinBaseline 守卫（ranged share 不高于 vanilla；L9-12 实测
+  0.462348/0.442413/0.436842/0.40646，均低于 vanilla）。洞穴任意类尾重钉为
+  L9 77.20% / L10-L12 100%（kite cap 退役后 L9 由 59.93% 升至 77.20%）。
+  内容密度地板由 ContentDensityWithinVanillaFloor 断言：L1-15 的单局种类、distinct AI
+  与跨局并集不得低于 vanilla（地板经“超范围单行”夹具实测导出）。

@@ -169,8 +169,15 @@ uint8_t BehaviorClassCapForLevel(uint8_t level, BehaviorClass cls)
 			return 1;
 		return 0;
 	}
-	if (level >= 9 && level <= 12 && cls == BehaviorClass::RangedKite)
-		return 2;
+	// L9-12 used to cap RangedKite at 2 to stop the B1 "all-kite level" symptom. With a
+	// roster that symptom is a composition question, and the cap turned into a content
+	// ration: the caves candidate pools are kite-heavy (L10 has 7 kite candidates of 16)
+	// while the level's cores already consume both kite slots, so five or six kite types
+	// could never be sampled and the union of encounterable types fell below vanilla
+	// (L10 12 vs 17, L11 11 vs 15, L12 13 vs 16). Per the density contract's R4 inversion
+	// the guard is retired here and the symptom stays guarded by the ranged-share alarm
+	// line instead (PlacedClassMixWithinBaseline, primary criterion "no worse than
+	// vanilla"), which has 16-28 points of headroom on these levels.
 	return 0;
 }
 

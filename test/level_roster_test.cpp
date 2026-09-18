@@ -140,14 +140,17 @@ TEST_F(LevelRosterTest, ValidationRejectsLevelWithNoCoreInSpawnMode)
 	EXPECT_NE(error->find("core"), std::string::npos);
 }
 
-TEST_F(LevelRosterTest, ValidationRejectsAClassFloorThatExceedsTheB1CapAtL10)
+TEST_F(LevelRosterTest, ValidationRejectsAClassFloorThatExceedsTheLevelsClassCap)
 {
-	// At level 10, RangedKite candidates (MT_BACID, MT_RSTORM, MT_YMAGMA, MT_BMAGMA,
-	// MT_WMAGMA, MT_STORM) number well above 2, but the B1 cap for L9-12 limits
-	// RangedKite to 2. A floor of 3 must be rejected even though the raw pool is bigger.
-	const std::vector<LevelRosterEntry> entries { { 10, MT_BACID, LevelRosterRole::Core, false } };
+	// A floor above the level's class cap must be rejected. The vehicle is L14's
+	// RangedTurret class: the asymmetric cap (content density contract, 2026-09-16) holds
+	// the ranged classes at 1 in L13-15 while leaving the non-ranged classes uncapped, so a
+	// RangedTurret floor of 2 cannot be satisfied. (Before the contract this case used L10's
+	// RangedKite cap of 2; the caves kite cap was retired by the same contract, see
+	// CavesAnyClassTailBaseline.)
+	const std::vector<LevelRosterEntry> entries { { 14, MT_VTEXLRD, LevelRosterRole::Core, false } };
 	const std::vector<LevelRosterParams> params {
-		{ 10, 6000, 2, { { BehaviorClass::RangedKite, 3 } } },
+		{ 14, 6000, 2, { { BehaviorClass::RangedTurret, 2 } } },
 	};
 	const auto error = ValidateLevelRoster(entries, params);
 	ASSERT_TRUE(error.has_value());
@@ -182,29 +185,30 @@ TEST_F(LevelRosterTest, ValidationRejectsAClassFloorThatExceedsTheB1CapAtL14)
 	EXPECT_NE(error->find("caps"), std::string::npos);
 }
 
-TEST_F(LevelRosterTest, ValidationRejectsThreeSameClassCoreMembersUnderTheB1CapAtL10)
+TEST_F(LevelRosterTest, ValidationRejectsThreeSameClassCoreMembersUnderTheLevelsClassCap)
 {
-	// R29: core members are pre-added before the sampling loop, so they bypass the B1
-	// cap entirely. A table listing 3 RangedKite cores at level 10 would therefore ship a
-	// level that violates the <= 2 guarantee no matter what the sampler does, and the
-	// acceptance test could not catch it (the realised roster is the input). The only place
-	// this can be blocked is load time, so validation must reject it here.
+	// R29: core members are pre-added before the sampling loop, so they bypass the cap
+	// entirely. A table listing 3 RangedTurret cores at L14 would therefore ship a level
+	// that violates the class cap no matter what the sampler does, and the acceptance test
+	// could not catch it (the realised roster is the input). The only place this can be
+	// blocked is load time, so validation must reject it here. (Before the contract this
+	// used 3 RangedKite cores at L10; the caves kite cap was retired by the same contract.)
 	const std::vector<LevelRosterEntry> entries {
-		{ 10, MT_BMAGMA, LevelRosterRole::Core, false },
-		{ 10, MT_WMAGMA, LevelRosterRole::Core, false },
-		{ 10, MT_RSTORM, LevelRosterRole::Core, false },
+		{ 14, MT_SUCCUBUS, LevelRosterRole::Core, false },
+		{ 14, MT_HLSPWN, LevelRosterRole::Core, false },
+		{ 14, MT_MAGISTR, LevelRosterRole::Core, false },
 	};
-	const std::vector<LevelRosterParams> params { { 10, 6000, 2, {} } };
+	const std::vector<LevelRosterParams> params { { 14, 6000, 2, {} } };
 	const auto error = ValidateLevelRoster(entries, params);
-	ASSERT_TRUE(error.has_value()) << "3 RangedKite cores at L10 must be rejected";
+	ASSERT_TRUE(error.has_value()) << "3 RangedTurret cores at L14 must be rejected";
 	EXPECT_NE(error->find("core roster has 3"), std::string::npos) << *error;
-	EXPECT_NE(error->find("RangedKite"), std::string::npos) << *error;
-	EXPECT_NE(error->find("level 10"), std::string::npos) << *error;
-	EXPECT_NE(error->find("cap for that level and class is 2"), std::string::npos) << *error;
+	EXPECT_NE(error->find("RangedTurret"), std::string::npos) << *error;
+	EXPECT_NE(error->find("level 14"), std::string::npos) << *error;
+	EXPECT_NE(error->find("cap for that level and class is 1"), std::string::npos) << *error;
 
 	// Prove the rejection is driven by the count against the cap, not by these three types
 	// being unacceptable on their own: dropping to exactly the cap must pass.
-	const std::vector<LevelRosterEntry> atCap { entries[0], entries[1] };
+	const std::vector<LevelRosterEntry> atCap { entries[0] };
 	EXPECT_FALSE(ValidateLevelRoster(atCap, params).has_value());
 }
 

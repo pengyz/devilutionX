@@ -232,26 +232,16 @@ TEST_F(SamplingBaselineTest, HellL13SameClassTailBaseline)
 	    << "expected the uncapped (non-ranged) side to reach >= 3 types at L13";
 }
 
-TEST_F(SamplingBaselineTest, CavesKiteTailBaseline)
-{
-	if (missingMpqAssets_)
-		GTEST_SKIP() << "MPQ assets not found - skipping test";
-
-	// Corrected faithful simulation (Golem occupies a LevelMonsterTypes slot
-	// AND counts as Boss-class in the composition, matching the real engine):
-	// all-kite (>=3 RangedKite) tails: L9 ~0.0% / L10 ~2.4% / L11 ~0.0% / L12 ~2.6%.
-	constexpr int kIterations = 10000;
-	const double l9 = KiteTailPercent(9, kIterations, 4000);
-	const double l10 = KiteTailPercent(10, kIterations, 5000);
-	const double l11 = KiteTailPercent(11, kIterations, 6000);
-	const double l12 = KiteTailPercent(12, kIterations, 7000);
-	// Pre-cap kite tails: L9 0% / L10 2.4% / L11 0% / L12 2.6%. The cap
-	// (Caves kite <=2) must drive all to 0.
-	EXPECT_EQ(l9, 0.0) << "Caves L9 kite-tail must be 0 after cap (was 0%)";
-	EXPECT_EQ(l10, 0.0) << "Caves L10 kite-tail must be 0 after cap (was 2.4%)";
-	EXPECT_EQ(l11, 0.0) << "Caves L11 kite-tail must be 0 after cap (was 0%)";
-	EXPECT_EQ(l12, 0.0) << "Caves L12 kite-tail must be 0 after cap (was 2.6%)";
-}
+// CavesKiteTailBaseline was RETIRED by the content density contract (2026-09-16) together
+// with the caves kite cap it guarded: the caves pools are kite-heavy, so capping RangedKite
+// at 2 types made five or six kite types unsamplable and pushed the level's union of
+// encounterable types below vanilla (L10 12 vs 17). With the cap retired the kite TYPE tail
+// measures 36.45 / 83.55 / 83.36 / 66.29 % for L9-12 (vanilla allowed ~0-2.6%), which is the
+// intended density gain, while the kite PLACEMENT share stays below vanilla on every level
+// (L9-12: 0.462348 / 0.442413 / 0.436842 / 0.40646 against vanilla 0.528292 / 0.497895 /
+// 0.466284 / 0.453762) - and that is what PlacedClassMixWithinBaseline asserts. The retired
+// metric is recorded here rather than asserted, because a type-count monopoly is no longer
+// part of the contract while the placement symptom still is.
 
 TEST_F(SamplingBaselineTest, CavesAnyClassTailBaseline)
 {
@@ -281,12 +271,13 @@ TEST_F(SamplingBaselineTest, CavesAnyClassTailBaseline)
 	// 100% there by construction, and L9 sits at the boundary (59.93%, the only
 	// level with enough distinct classes to sometimes fit).
 	//
-	// This is not a relaxed threshold: the B1 guarantees are asserted by
-	// CavesKiteTailBaseline (kite <= 2, the actual monopoly symptom) and by
-	// RosterQuotasSatisfied (caps hold for everything the loop adds). What
+	// This is not a relaxed threshold: the placement monopoly symptom is asserted by
+	// PlacedClassMixWithinBaseline (ranged share no worse than vanilla) and the remaining
+	// caps by RosterQuotasSatisfied. The former CavesKiteTailBaseline metric was retired
+	// with the caves kite cap - see the note above it. What
 	// changed is the total type count per level, which is the roster feature's
 	// whole point. Pinned exactly so any further drift is caught.
-	EXPECT_NEAR(l9, 59.93, 0.6) << "Caves L9 any-class tail with rosters (~59.9%)";
+	EXPECT_NEAR(l9, 77.20, 0.6) << "Caves L9 any-class tail after the kite cap was retired (~77.2%)";
 	EXPECT_EQ(l10, 100.0) << "Caves L10 cannot spread 8 types over its classes at <=2 each";
 	EXPECT_EQ(l11, 100.0) << "Caves L11 cannot spread 8 types over its classes at <=2 each";
 	EXPECT_EQ(l12, 100.0) << "Caves L12 cannot spread 8 types over its classes at <=2 each";
@@ -707,6 +698,68 @@ TEST_F(VanillaRosterFloorsTest, VanillaFloorBaseline)
 	}
 
 	// TearDown restores the shipped tables (after restoring the assets path).
+}
+
+// Vanilla (pre-roster) content density, measured 2026-09-18 on 200 seeds per level with
+// the same seed base this case uses (see VanillaRosterFloorsTest, which derives them by
+// loading an out-of-range roster so L1-15 have no core rows and no params rows at all).
+// Index by level; L0 unused. These are FLOORS, not targets: the content density contract
+// (approved 2026-09-16) forbids trading any of them away for a pressure guard.
+//
+//   level:      1     2     3     4     5     6     7     8     9    10    11    12    13    14    15
+//   types:    7.0   6.8   7.1   6.9   6.0   5.5   4.6   4.3   3.6   3.5   3.2   3.4   3.2   3.2   3.2
+//   distinctAI:5.0   5.2   5.2   5.5   5.4   5.2   4.3   4.1   3.6   3.3   3.1   3.3   3.1   3.1   3.0
+//   union:      7    21    25    23    21    17    16    17    17    17    15    16    16    16    10
+//
+// The exposure-rate axis (spec D4: union / candidate pool) is RETIRED here rather than
+// asserted: measured rates run above 100% (L1 117%, L2 105%) because a level's realised
+// union also contains quest pre-adds, the Golem and unique-base types that the candidate
+// pool does not enumerate, so the denominator is not well defined. The union floor below
+// carries the same intent without an ambiguous denominator (spec appendix B standard:
+// a metric whose definition is unsettled does not enter the contract).
+constexpr std::array<double, 16> kVanillaTypesFloor {
+	0.0, 7.0, 6.8, 7.1, 6.9, 6.0, 5.5, 4.6, 4.3, 3.6, 3.5, 3.2, 3.4, 3.2, 3.2, 3.2
+};
+constexpr std::array<double, 16> kVanillaAiFloor {
+	0.0, 5.0, 5.2, 5.2, 5.5, 5.4, 5.2, 4.3, 4.1, 3.6, 3.3, 3.1, 3.3, 3.1, 3.1, 3.0
+};
+constexpr std::array<size_t, 16> kVanillaUnionFloor {
+	0, 7, 21, 25, 23, 21, 17, 16, 17, 17, 17, 15, 16, 16, 16, 10
+};
+
+TEST_F(SamplingBaselineTest, ContentDensityWithinVanillaFloor)
+{
+	if (missingMpqAssets_)
+		GTEST_SKIP() << "MPQ assets not found - skipping test";
+
+	constexpr int kSeeds = 200;
+	for (uint8_t level = 1; level <= 15; level++) {
+		size_t typeSum = 0;
+		size_t aiSum = 0;
+		std::set<_monster_id> seen;
+		for (int seed = 0; seed < kSeeds; seed++) {
+			currlevel = level;
+			InitLevelMonsters();
+			SetRndSeed(51000 + static_cast<uint32_t>(seed));
+			ASSERT_TRUE(GetLevelMTypes().has_value());
+			typeSum += LevelMonsterTypeCount;
+			aiSum += RealisedDistinctAi();
+			for (size_t i = 0; i < LevelMonsterTypeCount; i++)
+				seen.insert(LevelMonsterTypes[i].type);
+		}
+		const double types = static_cast<double>(typeSum) / kSeeds;
+		const double ai = static_cast<double>(aiSum) / kSeeds;
+		std::cout << "[ DENSITY ] level " << static_cast<int>(level) << " types " << types
+		          << " ai " << ai << " union " << seen.size() << " floor "
+		          << kVanillaTypesFloor[level] << "/" << kVanillaAiFloor[level] << "/"
+		          << kVanillaUnionFloor[level] << std::endl;
+		EXPECT_GE(types + 1e-9, kVanillaTypesFloor[level])
+		    << "level " << static_cast<int>(level) << " realises fewer types per run than vanilla";
+		EXPECT_GE(ai + 1e-9, kVanillaAiFloor[level])
+		    << "level " << static_cast<int>(level) << " shows fewer distinct AIs per run than vanilla";
+		EXPECT_GE(seen.size(), kVanillaUnionFloor[level])
+		    << "level " << static_cast<int>(level) << " exposes fewer types across runs than vanilla";
+	}
 }
 
 TEST_F(SamplingBaselineTest, MeasurementBudgetFitBounds)
