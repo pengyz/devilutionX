@@ -1,3 +1,14 @@
+---
+name: decision_content_density_contract
+description: 内容密度契约——四轴地板（vanilla 实测）、非对称 cap、R4 反转（密度优先）、D4 退役、以及实施中踩到的 5 个坑
+type: decision
+created: 2026-09-18
+sources:
+  - docs/superpowers/specs/2026-09-16-content-density-contract-design.md
+  - docs/superpowers/plans/2026-09-16-content-density-contract.md
+  - .superpowers/sdd/2026-09-15-level-rosters-phase-a2/progress.md
+---
+
 # 决策：内容密度契约（四轴地板 + 非对称 cap + R4 反转）
 
 **决策（2026-09-16 批准，v4；2026-09-18 实施）**：把"内容密度"立为一等判据，并在它与压力守卫冲突时**以密度为先**。
@@ -36,3 +47,8 @@
 - 规格：`docs/superpowers/specs/2026-09-16-content-density-contract-design.md`（含附录 A 的 A1-A11 外溢清单）
 - 计划：`docs/superpowers/plans/2026-09-16-content-density-contract.md`
 - 相关：`reference_leader_relation_states_and_consumers.md`、`decision_minion_options_and_formed_counter.md`、`gotcha_tsv_edits_need_mpq_rebuild.md`
+
+**为什么：** 名册功能让"每局遇到的怪"变成被设计决定的名册，但判据只钉了防御性的"远程占比 ≤ 基线+5pp"，裁决 R4 被滥用成**砍内容过守卫**——实测发现地狱并集 15-25→9/16/8、L13 曝光率 60%、L17 每 seed 组合恒 1。密度必须成为一等判据，且冲突时以密度为先。
+
+**何时使用：** 任何要动 `level_roster*.tsv`、`BehaviorClassCapForLevel`、或评估"内容变多/变少"的改动之前：先看四轴地板与不变量，再决定用"扩池/重推守卫/写明损失"哪条路。
+
