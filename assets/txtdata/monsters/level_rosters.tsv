@@ -67,11 +67,8 @@ level	monster_id	role	allow_unique_boost
 18	MT_FELLTWIN	core	-
 18	MT_STINGER	core	-
 19	MT_VENMTAIL	core	-
-19	MT_LASHWORM	core	-
+19	MT_STINGER	core	-
 19	MT_TORCHANT	core	-
-20	MT_LASHWORM	core	-
-20	MT_TORCHANT	core	-
-20	MT_VENMTAIL	core	-
 21	MT_TOMBRAT	core	-
 21	MT_LICH	core	-
 21	MT_GRAVEDIG	core	-
@@ -83,3 +80,5 @@ level	monster_id	role	allow_unique_boost
 23	MT_CRYPTDMN	core	-
 24	MT_REAPER	core	-
 24	MT_HELLBAT	core	-
+20	MT_FELLTWIN	core	-
+20	MT_LASHWORM	core	-

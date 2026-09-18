@@ -34,9 +34,9 @@ run:
 expected:
   exit_code: 0
   failed: 0
-  passed_min: 33
+  passed_min: 36
   skipped_max: 1
-  output_contains: ["[  PASSED  ] 33 tests."]
+  output_contains: ["[  PASSED  ] 36 tests."]
 
 description: >
   B1 采样反垄断 harness（纯测试）：直接驱动真实 GetLevelMTypes 采样循环。
@@ -48,3 +48,6 @@ description: >
   L9 77.20% / L10-L12 100%（kite cap 退役后 L9 由 59.93% 升至 77.20%）。
   内容密度地板由 ContentDensityWithinVanillaFloor 断言：L1-15 的单局种类、distinct AI
   与跨局并集不得低于 vanilla（地板经“超范围单行”夹具实测导出）。
+  # 2026-09-18（密度收顶契约）：新增 3 条判据 —— RosterCoreSizeWithinIdentityBound（core ≤5）、
+  # PerRunTypesWithinBandCeiling（逐带单局种类上限）、AdjacentLevelCoresRemainDistinct（相邻层 core Jaccard ≤0.4）
+  # ⇒ 本 case 的用例数 33 → 36。

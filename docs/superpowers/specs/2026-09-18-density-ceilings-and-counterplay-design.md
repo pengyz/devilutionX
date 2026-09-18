@@ -1,6 +1,6 @@
 # 内容密度收顶与指名反制 设计规格
 
-**状态**：**已批准**（2026-09-18，作者批准草案 v1；含 B2 的带阈值 10/9/8/8 这一项设计判断）→ **实施中**。计划：`docs/superpowers/plans/2026-09-18-density-ceilings-and-counterplay.md`
+**状态**：**实施中**（2026-09-18 批准草案 v1，含 B2 带阈值 10/9/8/8；三条判据 B1/B2/B3 已落地并全绿：L2/L3/L8 数据整改、L19/L20 按作者裁决走 **(c) 扩池**（窗口 18→20 + core 重排）→ B3 1.0→0.0 且内容/多样性提升、压力下降）。计划：`docs/superpowers/plans/2026-09-18-density-ceilings-and-counterplay.md`
 **分类**：Expansion（数据与判据；无开关）
 **上位文档**：宪章 `2026-07-27-better-d1-design-charter.md`；**内容密度契约** `2026-09-16-content-density-contract-design.md`（已实施，本规格是其**收口**，不修改原文）
 
