@@ -226,12 +226,14 @@ ninja -C build devilutionx_mpq
 ```
 预期：L17 组合数 **≥2**（实测 3）；L17 的 placed 远程占比与其它 HF 层读数**不退化**（记下前后值）。L23/L24 若也偏薄（2/6），评估能否用**零风险**手段增厚（例如微调该层 `max_image` 让 1 个非远程类型进池）；**若会碰到占比红线，就只报告不改**。
 
-- [ ] **步骤 4：提交**
+- [x] **步骤 1-3 实测（2026-09-18）**
+  - 改前 L17-24 组合数：**L17 = 1**（结构性确定性）、L18/19=2、L20/21/22=2、L23=6、L24=2
+  - **L17 core 处置的变体对比（测量决定）**：删 `MT_STINGER` → 组合 2、施法者占比 0.259451（ceiling 0.263677，**余量仅 0.42pp**）；删 `MT_PSYCHORB` → **组合 3**、施法者占比 **0.169385**（**余量 9.4pp**）→ **采用删 PSYCHORB**（严格占优；Psychorb 仍经尾抽出现）
+  - 改后：**L17 = 3** ✓（C(3,2) 上界达成）；L18-22=2、L23=6、L24=2 → **全部 ≥2** ✓
+  - L20/21/22 的 ceiling 为 **0.05**（baseline 0）→ **无零风险增厚空间**，按计划**只报告不改**；L24 的 2 是预算剪枝所致，同样只报告
+  - 套件：`level_roster_test` 41/41、`sampling_behavior_test` HF 2/2、`HellfireLevelBaselineTest.*` 4/4（含 A2 基线、占比、施法者、组合数）
 
-```bash
-git add assets/txtdata/monsters/level_rosters.tsv
-git commit -m "fix(rosters): give the Hellfire L17 tail pool real variety"
-```
+- [x] **步骤 4：提交**（见 git log；同时修回 `test/level_roster_baseline_test.cpp` 的整文件 CRLF——存档的 T3a diff 是 LF 化的，`git apply` 后触发漂移 **C2**）
 
 ---
 
