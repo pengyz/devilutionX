@@ -181,12 +181,19 @@ SAMPLING_REPORT=/tmp/density.md ./build/sampling_behavior_test --gtest_filter='*
 ```
 预期（spike 已证）：L13/L14 单局种类 **7.0**、L15 **6.0**；placed 远程占比 L13 ≈0.17、L14 ≈0.27、L15 ≈0.20，**全部 ≤ 各自 ceiling**；L1-12 与 L16 读数不变。任何偏差都记录下来（这是规格验收 4/5 的原始证据）。
 
-- [ ] **步骤 5：提交**
+- [x] **步骤 4 实测（2026-09-18，已通过）**：单局种类 **L13 7.0 / L14 7.0 / L15 6.0** ✓；placed 远程占比 **0.171738 / 0.24515 / 0.208764**（全 ≤ ceiling）✓；unique 可达 **5/5、6/6、2/2** ✓；组合数 **295 / 243 / 5** ✓；套件 `sampling_behavior_test` 36/36、`level_roster_test` 41/41、`PlacedClassMixWithinBaseline` PASSED
 
-```bash
-git add Source/tables/level_roster.cpp assets/txtdata/monsters/level_roster_params.tsv
-git commit -m "feat(roster): asymmetric hell cap and the density tail_draw pairing"
-```
+- [x] **步骤 5：提交**（`a14fc220b`；同时含下列衍生决定的数据与测试同步）
+
+### Task 2 衍生决定（实现中实测发现）
+
+| # | 发现（违反的契约条款） | 处置 |
+|---|---|---|
+| D1 | **L15 组合数恒 1**（不变量①）：`class_floors: RangedTurret=1` 的补位是**确定性取候选**，抹平尾抽随机性 | 移除该 floor（且在此**冗余**：core 后尾池仅 2 条近战、`tail_draw=3` 必然含 ≥1 远程）→ **1 → 5** |
+| D2 | **L14 unique 掉到 4/6**（不变量②）：Turret core 吃满 cap1 → 两个 RangedTurret base 永不可抽 | L14 core `MT_SNOWWICH`(Turret) → **`MT_BALROG`(Melee)** → **6/6**，占比 0.267906 → **0.24515** |
+| D3 | L15 core 尾池塌缩（移除 Turret core 后尾池仅剩 2 条近战） | 与 D1 一并处理后 L15 类型仍 6.0、占比 0.208764 ✓ |
+
+**注**：附录 A 的 **A1/A2/A7/A8/A9 已在 Task 2 执行完毕**（契约变更必须与 cap 变更同一次提交才能保持绿），Task 5 只需处理 **A3/A4/A5/A6**。
 
 ---
 

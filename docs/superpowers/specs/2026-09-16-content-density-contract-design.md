@@ -152,6 +152,9 @@
 | A3 | B1 契约文档 / 阶段 A-B 验收表 | 描述"任意类 ≤2" | 语义已变 | 标注变更与理由（引用本规格） |
 | **A5** | `docs/knowledge/decision_save_format_policy.md` | 提到 cap/名册语义 | 非对称 cap 改变了"同层同类上限"的表述 | 同步描述并标注变更来源 |
 | **A6** | `eval/cases/rng/level-rosters.yaml` | 含 cap 相关说明/计数 | 同上 | 同步注释与计数 |
+| **A7** | `test/level_roster_test.cpp` 的三条 cap 语义用例 | 断言"任意类 ≤2" | 非对称后 L13-15 近战侧不再封顶，三条全红（实现中实测发现） | **改载体、留机制**：floor/core 超 cap 的载体换成 RangedTurret（cap1）；"按层作用域"用例同样换载体 |
+| **A8** | `QuestPreAddRePickDoesNotDoubleCount` | `EXPECT_LE(MaxSameClassCount(classes), 2)` | 同上，断言不再描述生产 | 改为**与 cap 无关的更强表达**（类型列表无重复）＋远程侧 cap 交叉校验 |
+| **A9** | `HellUniqueBasesRemainReachable`（9c）的 L13 例外清单与 `checkedUniques==10` 前提 | 3 个 L13 近战 base 记为结构性不可达 | 非对称后被抽到（**可达性提升**），例外清单过期、前提计数失效 | 清空例外清单（保留机制）、前提 10 → **13**；实测 L13 5/5、L14 6/6、L15 2/2 |
 | A4 | `PlacedClassMixWithinBaseline` | 绝对 ceiling（基线+5pp） | §4.4 把它降为**报警线** | 主判据改为"≤ vanilla 同层"，报警线保留 |
 
 ## 附录 B：测量口径 caveat（不得静默忽略）
