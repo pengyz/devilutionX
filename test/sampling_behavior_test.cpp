@@ -1071,6 +1071,45 @@ TEST_F(SamplingBaselineTest, RosterCoreAlwaysPresent)
 	}
 }
 
+TEST_F(SamplingBaselineTest, AdjacentLevelCoresRemainDistinct)
+{
+	if (missingMpqAssets_)
+		GTEST_SKIP() << "MPQ assets not found - skipping test";
+
+	// Identity needs neighbouring levels to be tellable apart. Measured 2026-09-18: the
+	// largest adjacent core-set Jaccard is 0.33 (L14-L15, L11-L12), so the bound of 0.4 has
+	// margin and fails only when two neighbours become near-copies of one another. The core
+	// sets come straight off the roster table, so this needs no Hellfire assets.
+	constexpr double kMaxAdjacentCoreJaccard = 0.4;
+	std::set<_monster_id> previous;
+	double worst = 0.0;
+	for (uint8_t level = 1; level <= 24; level++) {
+		std::set<_monster_id> cores;
+		for (const LevelRosterEntry &entry : GetLevelRoster(level)) {
+			if (entry.role == LevelRosterRole::Core)
+				cores.insert(entry.type);
+		}
+		if (level > 1 && (!previous.empty() || !cores.empty())) {
+			std::vector<_monster_id> shared;
+			std::set_intersection(previous.begin(), previous.end(), cores.begin(), cores.end(),
+			    std::back_inserter(shared));
+			std::vector<_monster_id> combined;
+			std::set_union(previous.begin(), previous.end(), cores.begin(), cores.end(),
+			    std::back_inserter(combined));
+			const double jaccard = static_cast<double>(shared.size()) / static_cast<double>(combined.size());
+			worst = std::max(worst, jaccard);
+			std::cout << "[ COREJACCARD ] levels " << static_cast<int>(level - 1) << "-"
+			          << static_cast<int>(level) << " " << jaccard << std::endl;
+			EXPECT_LE(jaccard, kMaxAdjacentCoreJaccard)
+			    << "levels " << static_cast<int>(level - 1) << " and " << static_cast<int>(level)
+			    << " have near-identical core sets, so their identities are indistinguishable";
+		}
+		previous = std::move(cores);
+	}
+	// Non-vacuity: if no adjacent pair shared a single type the bound above could never fire.
+	EXPECT_GT(worst, 0.0) << "no adjacent pair shares any core type, so the bound proves nothing";
+}
+
 TEST_F(SamplingBaselineTest, RosterTailDrawBounded)
 {
 	if (missingMpqAssets_)

@@ -115,3 +115,4 @@
 - 规格：`docs/superpowers/specs/2026-09-18-density-ceilings-and-counterplay-design.md`（草案 v1，待作者复核）
 - 顺带补齐：CI `443ed400b` **success** ✓（台账迁移 + 漂移修复远端已验证），本行随本提交进 git
 | 规格批准与计划 | 作者认可 `2026-09-18-density-ceilings-and-counterplay-design.md`（**含 B2 带阈值 10/9/8/8 这项设计判断**）→ 置「已批准/实施中」；实现计划 `docs/superpowers/plans/2026-09-18-density-ceilings-and-counterplay.md`（6 任务；检查点：任务 3 步骤 2、任务 4 步骤 6、任务 6 步骤 2）；**内联执行**（不用子 agent）；L2 若四约束无解 → 按契约附录 C 三选一回作者改判，**不得放宽阈值** |
+| 任务 1（B3 相邻层区分度） | **DONE（判据落地，红得有价值）**：`AdjacentLevelCoresRemainDistinct` 首次运行即抓到 **L19-L20 Jaccard = 1.0**（两层 core 集合完全相同 ✗，A2/T2 遗留）；其余最高 0.333 ✓。自纠：初版打印标签差一层（`level-(level+1)`）已修为 `(level-1)-level`。**可失败性由真实数据自证**，故未做人工反证（取舍已记）。计划修订：任务 4 整改目标扩为 **L2/L3/L8 + L19/L20** |

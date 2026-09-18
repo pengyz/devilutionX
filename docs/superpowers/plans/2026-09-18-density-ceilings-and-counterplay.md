@@ -85,14 +85,14 @@ TEST_F(SamplingBaselineTest, AdjacentLevelCoresRemainDistinct)
 ```
 若缺 `<algorithm>`/`<iterator>` 包含，一并补上（该文件已用 `std::set`、`std::vector`）。
 
-- [ ] **步骤 2：运行并确认通过**
+- [x] **步骤 2：运行（2026-09-18 实测：**红**，且是真实缺陷）**
 
 运行：`cmake --build build --target sampling_behavior_test -j20 && ./build/sampling_behavior_test --gtest_filter='SamplingBaselineTest.AdjacentLevelCoresRemainDistinct'`
-预期：PASS，输出 23 行 `[ COREJACCARD ]`，最大 0.33。
+**结果：FAIL —— `[ COREJACCARD ] levels 19-20 = 1`**（L19 与 L20 的 core 集合**完全相同**：VENMTAIL/LASHMORM… 见下）；其余最高 0.333（L11-12、L14-15）✓。另有一起自纠：初版把标签打成 `level-(level+1)`（差一层），已修为 `(level-1)-level`。
 
-- [ ] **步骤 3：反证（证明它可失败）**
+- [x] **步骤 3：可失败性证明（用真实数据，不做人工反证）**
 
-把 L15 的 core 行临时改成与 L14 完全相同的集合 → 运行 → 预期 **FAIL**（Jaccard 1.0 > 0.4）→ 还原 → 再跑 → PASS。**把两次输出内联记录**。
+本用例**在真实数据上就是红的**（L19-L20 = 1.0 > 0.4）⇒ 可失败性已由现实证明，比人工 sabotage 更强；**未**再做人造反证（记录该取舍）。
 
 - [ ] **步骤 4：提交**
 
@@ -240,7 +240,9 @@ git commit -m "test(roster): cap a single run's type count per band"
 
 ---
 
-## 任务 4：整改 L2/L3/L8（四条约束同时满足）
+## 任务 4：整改 L2/L3/L8 **+ L19/L20**（四条约束同时满足）
+
+> **计划修订（2026-09-18，证据驱动）**：任务 1 的 B3 守卫在真实数据上抓到 **L19 与 L20 的 core 集合完全相同（Jaccard 1.0）** ✗ —— 这是 A2/T2 时期 HF 数据留下的**身份缺陷**，必须与 L2/L3/L8 一起整改。HF 层的约束集与 L1-16 相同（B1 core ≤5、B2 带上限 ≤8、并集/种类地板、占比 ≤vanilla、unique 可达不降、组合数 ≥2）。
 
 **文件：** 修改 `assets/txtdata/monsters/level_rosters.tsv`（必要时 `level_roster_params.tsv`）
 **四条约束（缺一不可）**：B1 core ≤5、B2 种类 ≤带上限、并集与种类地板不破、占比主判据 ≤ 同种子 vanilla。
