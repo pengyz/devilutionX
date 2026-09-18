@@ -43,7 +43,7 @@
 
 ---
 
-## Task 1：vanilla 地板导出（物理空表夹具）
+## Task 1: vanilla 地板导出（物理空表夹具）
 
 **文件：** 新建 `test/fixtures/txtdata/monsters/level_rosters_empty.tsv`、`level_roster_params_empty.tsv`；修改 `test/Fixtures.cmake`、**`test/sampling_behavior_test.cpp`**（用例放这里，因为 `RealisedDistinctAi`/`RealisedDistinctClass` 是本文件内 static）
 **接口：** 产出**逐层地板常量**（D1/D2/D3），供 Task 2 直接引用
@@ -126,7 +126,7 @@ git commit -m "test(roster): derive the vanilla content-density floors from an e
 
 ---
 
-## Task 2：非对称 cap（L13-15）与密度参数
+## Task 2: 非对称 cap（L13-15）与密度参数
 
 **文件：** 修改 `Source/tables/level_roster.cpp`、`assets/txtdata/monsters/level_roster_params.tsv`
 **接口：** 依赖 Task 1 的 vanilla 地板；产出任务 2 以外的所有任务所依赖的新 cap 语义
@@ -188,7 +188,7 @@ git commit -m "feat(roster): asymmetric hell cap and the density tail_draw pairi
 
 ---
 
-## Task 3：L17 零随机性整改（含 L23/L24 厚度评估）
+## Task 3: L17 零随机性整改（含 L23/L24 厚度评估）
 
 **文件：** 修改 `assets/txtdata/monsters/level_rosters.tsv`（必要时 `level_roster_params.tsv`）
 
@@ -220,7 +220,7 @@ git commit -m "fix(rosters): give the Hellfire L17 tail pool real variety"
 
 ---
 
-## Task 4：密度断言落地
+## Task 4: 密度断言落地
 
 **文件：** 修改 **`test/sampling_behavior_test.cpp`**（三个新用例都必须在本文件，理由同上）
 **接口：** 依赖 Task 1 的地板常量（Task 1 的 `[ VANILLAFLOOR ]` 输出）与 Task 2/3 的数据
@@ -344,7 +344,7 @@ git commit -m "test(roster): assert the content-density floors and the visibilit
 
 ---
 
-## Task 5：既有契约改写（附录 A1-A6）
+## Task 5: 既有契约改写（附录 A1-A6）
 
 **文件：** 修改 `test/sampling_behavior_test.cpp`（A1/A2）、`test/level_roster_baseline_test.cpp`（A4）、`eval/cases/rng/level-rosters.yaml`（A6）、`docs/knowledge/decision_save_format_policy.md`（A5）、新建 `docs/knowledge/decision_content_density_contract.md`（A3）
 
@@ -405,7 +405,7 @@ git commit -m "test+docs: rewrite the contracts the asymmetric cap changes"
 
 ---
 
-## Task 6：收尾（T3a 残留、eval、门禁、CI）
+## Task 6: 收尾（T3a 残留、eval、门禁、CI）
 
 **文件：** 视取舍而定；`eval/cases/rng/*.yaml`
 
@@ -435,7 +435,7 @@ gh run watch -R pengyz/devilutionX <run-id> --exit-status
 
 ---
 
-## Task 7：状态与台账收口
+## Task 7: 状态与台账收口
 
 - [ ] **步骤 1：规格状态与实施记录**
 
