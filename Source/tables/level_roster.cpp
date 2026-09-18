@@ -162,6 +162,13 @@ uint8_t BehaviorClassCapForLevel(uint8_t level, BehaviorClass cls)
 	// legacy bound because its roster is registration-only: the hardcoded branch returns
 	// before the roster path runs, so its core set (2 Melee + 2 RangedTurret) must stay
 	// valid under the old cap or load-time validation refuses to start.
+	// L2 is the one Cathedral level whose roster-measured ranged share landed above vanilla
+	// (0.1048 vs 0.0916 with a same-seed A/B) even after its ranged core was swapped for a
+	// melee one. Capping its ranged classes at one type per level bounds the tail's ranged
+	// contribution; the level's extra non-ranged cores pay the union back, because the cap
+	// alone cost one encounterable type (L2's union sits exactly on its vanilla floor of 21).
+	if (level == 2 && (cls == BehaviorClass::RangedTurret || cls == BehaviorClass::RangedKite))
+		return 1;
 	if (level == 16)
 		return 2;
 	if (level >= 13 && level <= 15) {

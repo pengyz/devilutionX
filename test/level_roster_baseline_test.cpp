@@ -267,6 +267,44 @@ constexpr std::array<double, 25> kRangedShareCeiling {
 	kRangedShareBaseline[24] + kRangedShareTolerance,
 };
 
+// Same-seed vanilla ranged share: measured 2026-09-18 by VanillaRangedShareBaseline with the
+// out-of-range roster, 200 seeds per level and seed base 9000 - i.e. the EXACT fixture, seed
+// count and seed base PlacedClassMixWithinBaseline uses, which makes the two a same-seed A/B.
+// It is NOT kRangedShareBaseline: that array holds the historical pre-change measurement taken
+// with a different fixture and seed base (and, on L13-15, under A2 task 1's conventions), and
+// the two disagree by up to 14.6 points on a level (L15 0.4371 here vs 0.5835 there; L14 9.4,
+// L10 4.8, L9 3.9 points apart). The primary criterion must therefore use THIS array, while
+// kRangedShareCeiling stays the alarm line so the historical contract keeps its meaning.
+// L17-24 reuse kRangedShareBaseline by construction: no roster existed on those levels before
+// A2, so their pre-A2 measurement IS their vanilla value.
+constexpr std::array<double, 25> kVanillaShareBaseline {
+	kRangedShareUnconstrained,   // L0 (unused)
+	0.0 / 18585.0,               // L1  (no ranged type in the L1 pool at all)
+	2174.0 / 23724.0,            // L2
+	2862.0 / 25748.0,            // L3
+	4730.0 / 25313.0,            // L4
+	3460.0 / 23459.0,            // L5
+	4689.0 / 17651.0,            // L6
+	4973.0 / 18026.0,            // L7
+	4508.0 / 17226.0,            // L8
+	8135.0 / 16627.0,            // L9
+	7801.0 / 17341.0,            // L10
+	7706.0 / 16549.0,            // L11
+	8056.0 / 17256.0,            // L12
+	5560.0 / 23450.0,            // L13
+	10979.0 / 23601.0,           // L14
+	10164.0 / 23253.0,           // L15
+	kRangedShareUnconstrained,   // L16 (registration-only; never asserted)
+	kRangedShareBaseline[17],    // L17 (pre-A2 measurement == vanilla here)
+	kRangedShareBaseline[18],    // L18
+	kRangedShareBaseline[19],    // L19
+	kRangedShareBaseline[20],    // L20
+	kRangedShareBaseline[21],    // L21
+	kRangedShareBaseline[22],    // L22
+	kRangedShareBaseline[23],    // L23
+	kRangedShareBaseline[24],    // L24
+};
+
 std::array<size_t, static_cast<size_t>(BehaviorClass::Count)> MeasurePlacedClassMix()
 {
 	std::array<size_t, static_cast<size_t>(BehaviorClass::Count)> mix {};
@@ -682,8 +720,18 @@ TEST_F(LevelRosterBaselineTest, PlacedClassMixWithinBaseline)
 		// Always report the measurement: a passing run must still show how much
 		// headroom is left, otherwise the next roster edit has no reference point.
 		std::cout << "[ MEASURED ] level " << static_cast<int>(level) << " ranged share " << share
-		          << " (" << ranged << "/" << total << "), baseline " << kRangedShareBaseline[level]
+		          << " (" << ranged << "/" << total << "), vanilla " << kVanillaShareBaseline[level]
+		          << ", baseline " << kRangedShareBaseline[level]
 		          << ", ceiling " << kRangedShareCeiling[level] << std::endl;
+		// Primary criterion (contract §4.4, R4 inverted): the roster must not push a level's
+		// ranged share above VANILLA, where vanilla is the same-seed legacy measurement in
+		// kVanillaShareBaseline - see its comment: the historical kRangedShareBaseline array is
+		// NOT that value (they differ by up to 14.6 points on a level). kRangedShareCeiling
+		// stays as the ALARM line below: breaching it still fails, but it no longer authorises
+		// trimming content to pass, because the density floors
+		// (ContentDensityWithinVanillaFloor, HellfirePerSeedVariety*) are the first criterion.
+		EXPECT_LE(share, kVanillaShareBaseline[level])
+		    << "level " << static_cast<int>(level) << " ranged share is above vanilla";
 		EXPECT_LE(share, kRangedShareCeiling[level])
 		    << "level " << static_cast<int>(level) << " ranged share " << share
 		    << " exceeds baseline " << kRangedShareBaseline[level] << " + 5pp"
@@ -711,6 +759,69 @@ TEST_F(LevelRosterBaselineTest, PlacedClassMixWithinBaseline)
 // level_roster_params_squads_{off,always,unleashed}.tsv), so max_image,
 // tail_draw and class_floors - everything else that shapes a level - are held
 // identical across the A and B runs.
+// Vanilla (pre-roster) ranged share, for the density contract's A4 primary criterion. The
+// fixture loads the out-of-range roster exactly like VanillaRosterFloorsTest does (L1-15 get
+// no core rows and no params rows, so GetLevelMTypes() takes the R28 legacy path) and
+// restores the shipped tables in TearDown. Same fixture, seed count and seed base as
+// PlacedClassMixWithinBaseline, so the two runs are a same-seed A/B.
+class VanillaRangedShareTest : public LevelRosterBaselineTest {
+protected:
+	void SetUp() override
+	{
+		if (missingMpqAssets_)
+			return;
+		savedAssetsPath_ = paths::AssetsPath();
+		paths::SetAssetsPath(paths::BasePath() + "test/fixtures/");
+		LoadLevelRosterFromFiles("txtdata\\monsters\\level_rosters_out_of_range.tsv",
+		    "txtdata\\monsters\\level_roster_params_out_of_range.tsv");
+		paths::SetAssetsPath(savedAssetsPath_);
+	}
+
+	void TearDown() override
+	{
+		paths::SetAssetsPath(savedAssetsPath_);
+		if (!missingMpqAssets_)
+			LoadLevelRoster();
+	}
+
+private:
+	std::string savedAssetsPath_;
+};
+
+TEST_F(VanillaRangedShareTest, VanillaRangedShareBaseline)
+{
+	if (missingMpqAssets_)
+		GTEST_SKIP() << "MPQ assets not found - skipping test";
+	if (missingRetailTrn_)
+		GTEST_SKIP() << "retail/HF TRN (monsters\\monsters\\genrl.trn) not available - skipping test";
+
+	constexpr int kSeeds = 200;
+	std::cout << "\n[ VANILLASHARE ] level share numerator denominator" << std::endl;
+	for (uint8_t level = 1; level <= 15; level++) {
+		size_t total = 0;
+		size_t ranged = 0;
+		for (uint32_t seed = 0; seed < kSeeds; seed++) {
+			CreateDungeonForMeasurement(level, 9000 + seed);
+			{
+				const auto getTypesResult = GetLevelMTypes();
+				ASSERT_TRUE(getTypesResult.has_value()) << getTypesResult.error();
+			}
+			{
+				const auto initResult = InitMonsters();
+				ASSERT_TRUE(initResult.has_value()) << initResult.error();
+			}
+			const auto mix = MeasurePlacedClassMix();
+			total += ActiveMonsterCount;
+			ranged += mix[static_cast<size_t>(BehaviorClass::RangedTurret)]
+			    + mix[static_cast<size_t>(BehaviorClass::RangedKite)];
+		}
+		ASSERT_GT(total, 0u) << "level " << static_cast<int>(level) << " placed nothing";
+		std::cout << "[ VANILLASHARE ] " << static_cast<int>(level) << ' '
+		          << static_cast<double>(ranged) / static_cast<double>(total) << ' '
+		          << ranged << ' ' << total << std::endl;
+	}
+}
+
 class SquadPlacementTest : public LevelRosterBaselineTest {
 protected:
 	void SetUp() override
@@ -1898,8 +2009,18 @@ TEST_F(HellfireLevelBaselineTest, PlacedClassMixWithinBaselineForHellfireLevels)
 		// Seed base 61000 matches A2PreChangeBaselineForHellfireLevels, so the printed
 		// share is a same-seed A/B against the baseline printed beside it.
 		std::cout << "[ A2MEASURED ] level " << static_cast<int>(level) << " ranged share " << share
-		          << " (" << ranged << "/" << total << "), baseline " << kRangedShareBaseline[level]
+		          << " (" << ranged << "/" << total << "), vanilla " << kVanillaShareBaseline[level]
+		          << ", baseline " << kRangedShareBaseline[level]
 		          << ", ceiling " << kRangedShareCeiling[level] << std::endl;
+		// Primary criterion (contract §4.4, R4 inverted): the roster must not push a level's
+		// ranged share above VANILLA, where vanilla is the same-seed legacy measurement in
+		// kVanillaShareBaseline - see its comment: the historical kRangedShareBaseline array is
+		// NOT that value (they differ by up to 14.6 points on a level). kRangedShareCeiling
+		// stays as the ALARM line below: breaching it still fails, but it no longer authorises
+		// trimming content to pass, because the density floors
+		// (ContentDensityWithinVanillaFloor, HellfirePerSeedVariety*) are the first criterion.
+		EXPECT_LE(share, kVanillaShareBaseline[level])
+		    << "level " << static_cast<int>(level) << " ranged share is above vanilla";
 		EXPECT_LE(share, kRangedShareCeiling[level])
 		    << "level " << static_cast<int>(level) << " ranged share " << share
 		    << " exceeds baseline " << kRangedShareBaseline[level] << " + 5pp"

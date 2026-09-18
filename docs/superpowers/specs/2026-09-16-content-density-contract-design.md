@@ -156,6 +156,7 @@
 | **A8** | `QuestPreAddRePickDoesNotDoubleCount` | `EXPECT_LE(MaxSameClassCount(classes), 2)` | 同上，断言不再描述生产 | 改为**与 cap 无关的更强表达**（类型列表无重复）＋远程侧 cap 交叉校验 |
 | **A9** | `HellUniqueBasesRemainReachable`（9c）的 L13 例外清单与 `checkedUniques==10` 前提 | 3 个 L13 近战 base 记为结构性不可达 | 非对称后被抽到（**可达性提升**），例外清单过期、前提计数失效 | 清空例外清单（保留机制）、前提 10 → **13**；实测 L13 5/5、L14 6/6、L15 2/2 |
 | **A10** | **B1 的 caves kite cap**（`BehaviorClassCapForLevel` 的 `L9-12 RangedKite<=2`）及其两条守卫 | cap=2；`CavesKiteTailBaseline`（kite 类型尾=0%）；`CavesAnyClassTailBaseline`（L9 59.93%、L10-12 100% 钉值） | caves 池子 kite 密集且 core 吃满 cap → 5-6 个 kite 类型永不可抽，**并集低于 vanilla**（L10 12<17、L11 11<15、L12 13<16）→ 直接违反契约 D3 地板；另两条 `level_roster_test` 用例把 L10 的 kite cap 写进断言 | 按 §4.4 的 R4 反转**退役该 cap**（并集恢复 17/15/16；份额仍低于 vanilla）→ `CavesKiteTailBaseline` **退役**（类型数垄断已非契约，放置症状由 A4 守卫）并把最终值留档；`CavesAnyClassTailBaseline` 重钉 L9 59.93→**77.20**；两条 validator 用例**改载体到 L14 RangedTurret（cap1）并改名**（`...TheLevelsClassCap`） |
+| **A11** | `BehaviorClassCapForLevel` 新增 **L2 远程类 cap=1**；L2/L3/L5/L6/L7 的 core 组成 | 原为无 L2 特例；五层各有 1 个远程 core | A4 主判据（≤ 同种子 vanilla）首跑即发现这五层的 ranged share 高于 vanilla（+0.13~+3.47pp），此前被 +5pp 报警线默许；L2 单靠换 core 仍 +0.16pp，而只加 cap 会让并集 21→20（违反密度优先） | L3/L5/L6/L7 换成近战 core（1:1）；L2 = 换 core + **cap=1** + 补一条近战 core → 两项判据同时满足（占比 0.0361、并集 21） |
 | A4 | `PlacedClassMixWithinBaseline` | 绝对 ceiling（基线+5pp） | §4.4 把它降为**报警线** | 主判据改为"≤ vanilla 同层"，报警线保留 |
 
 ## 附录 B：测量口径 caveat（不得静默忽略）

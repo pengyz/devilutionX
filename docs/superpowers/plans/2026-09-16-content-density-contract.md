@@ -408,7 +408,13 @@ git commit -m "test(roster): assert the content-density floors and the visibilit
 ```
 实现方式（选一并在注释里说明理由）：**(a)** 把饱和判据改成"存在 (level,class) 使 `available > cap`"（cap 确实在限制可用池）——这仍可失败且不依赖 core；**(b)** 保留 core 饱和判据但把承载层换到 L9-12 的 RangedKite（该 cap 未变）。两条都要给出反证。
 
-- [ ] **步骤 3：A4——`PlacedClassMixWithinBaseline` 主判据改为"≤ vanilla"，ceiling 降为报警线**
+- [x] **步骤 3：A4——已改为"≤ vanilla"，ceiling 降为报警线**（2026-09-18）
+  - 新增 `VanillaRangedShareTest.VanillaRangedShareBaseline`（超范围夹具、200 seeds、**seed base 9000 与主用例完全一致** ⇒ 同种子 A/B），导出 `kVanillaShareBaseline`
+  - **关键发现**：历史数组 `kRangedShareBaseline` **不等于**同种子 vanilla（最大差 **14.6pp**：L15 0.4371 vs 0.5835；L14 −9.4、L10 −4.8、L9 −3.9）→ 主判据必须用新实测数组（计划里"不得复用"的告诫成立）
+  - **首跑即抓到 5 层真实越线**（被 +5pp 报警线长期默许）：**L2 +1.31pp、L3、L5 +3.47pp、L6 +0.13pp、L7 +1.42pp**；L1/L4/L8/L9-15 本就 ≤ vanilla ✓
+  - **修法（密度优先，全部实测验证）**：L3/L5/L6/L7 把"保证出现的远程 core"1:1 换成近战 core；**L2** 另需"换掉远程 core + 远程类 cap=1 + 补一条近战 core"（三者缺一不可：单换 core → +0.16pp ✗；加 cap 但留远程 core → 并集 21→20 ✗ 违反密度优先）
+  - 终值：L2 **0.0360678**、L3 0.0607254、L5 0.073729、L6 0.131717、L7 0.142761，全部 ≤ vanilla ✓；密度地板同时全绿（L2 并集 21 = 地板 ✓）
+  - **踩坑记录**：把 core 换成"某 unique 的 base"会被加载期校验拒绝（`needs allow_unique_boost`）→ 换 core 时必须挑非 unique base 的候选
 
 在该用例循环体内（`test/level_roster_baseline_test.cpp`，`for (uint8_t level = 1; level <= 15; level++)` 内）把单一 `EXPECT_LE(share, ceiling)` 改为：
 ```cpp
