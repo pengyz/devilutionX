@@ -29,7 +29,14 @@ BINARY_SUFFIXES = {
 # Suffixes that .editorconfig declares as LF. Everything else text falls under
 # [*] and must be CRLF.
 LF_SUFFIXES = {'.md', '.py', '.java', '.pot', '.po', '.rb', '.yml', '.yaml', '.sh',
-               '.xml', '.plist', '.desktop', '.json', '.lua'}
+               '.xml', '.plist', '.desktop', '.json', '.lua',
+               # Machine-generated patches (git diff output, archived under
+               # docs/superpowers/ledgers/**). Git emits them with LF and they must stay
+               # byte-faithful: rewriting one to CRLF makes `git apply` inject carriage
+               # returns into the sources it patches. Note that this set - not
+               # .editorconfig - is what check C2 actually enforces, so the matching
+               # [*.{diff,patch}] exception there only keeps editors from fighting.
+               '.diff', '.patch'}
 
 # Check E allowlist. Every entry was verified present in Source/ at the
 # merge-base, i.e. it is pre-existing upstream state and not this fork's doing.
