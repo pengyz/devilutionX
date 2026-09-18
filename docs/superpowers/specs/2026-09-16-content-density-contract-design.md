@@ -148,7 +148,7 @@
 | # | 契约 | 现形态 | 为何必须改写 | 改写成 |
 |---|---|---|---|---|
 | A1 | `HellL13/14/15SameClassTailBaseline` | `EXPECT_EQ(tail, 0.0)` | 它是**对称 cap**的产物；非对称后"非远程 tail"合法 | 远程类 tail ≤2（不变）；非远程 tail 受 roster/`tail_draw` 约束（给出新上界与实测） |
-| A2 | `RosterQuotaAllowanceIsBinding` | 依赖"存在贴限饱和层" | **已核实**：饱和由 **L15 的 Melee core（BALROG+GSNAKE = cap2）** 触发 → 非对称后 Melee 的 cap 变 0，`if (cap==0) continue;` 直接跳过 Melee → 该层退出饱和列表，**`ASSERT_FALSE(saturated.empty())` 有变红风险** | 改写为"存在**远程类**贴限层"**或**改为"tail 抽取使某类贴限"的度量；**注意**：L13 无 Turret/Kite core、L14/L15 各仅 1 个 Turret core → **当前没有任何层的远程类能靠 core 自然贴限** → 该守卫的"binding"性质必须**另建前提**（属本规格的实施项，不是顺手改注释） |
+| **A2（已执行）** | `RosterQuotaAllowanceIsBinding` | 依赖"存在贴限饱和层" | **已核实**：饱和由 **L15 的 Melee core（BALROG+GSNAKE = cap2）** 触发 → 非对称后 Melee 的 cap 变 0，`if (cap==0) continue;` 直接跳过 Melee → 该层退出饱和列表，**`ASSERT_FALSE(saturated.empty())` 有变红风险** | **已执行**：前提改为"**该层某受 cap 类的候选数 > cap**"（更强，直接证明 cap 在循环里咬住；承载 L13-15 远程类，cap=1）；**注意**：L13 无 Turret/Kite core、L14/L15 各仅 1 个 Turret core → **当前没有任何层的远程类能靠 core 自然贴限** → 该守卫的"binding"性质必须**另建前提**（属本规格的实施项，不是顺手改注释） |
 | A3 | B1 契约文档 / 阶段 A-B 验收表 | 描述"任意类 ≤2" | 语义已变 | 标注变更与理由（引用本规格） |
 | **A5** | `docs/knowledge/decision_save_format_policy.md` | 提到 cap/名册语义 | 非对称 cap 改变了"同层同类上限"的表述 | 同步描述并标注变更来源 |
 | **A6** | `eval/cases/rng/level-rosters.yaml` | 含 cap 相关说明/计数 | 同上 | 同步注释与计数 |

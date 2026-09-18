@@ -394,7 +394,10 @@ git commit -m "test(roster): assert the content-density floors and the visibilit
 （变量名以步骤 1 读到的为准；若该用例只统计"任意类 tail"，则改为分别统计 RangedTurret/RangedKite 与"其它类"两个增量。）
 反证：把 `BehaviorClassCapForLevel` 的远程分支临时改回 2 → 该用例应仍绿（因为 cap 变宽），把 L13-15 的 cap 临时改成 0 → 应红；**记录实际行为并据此确认断言的判别力**。
 
-- [ ] **步骤 2：A2——改写 `RosterQuotaAllowanceIsBinding`**
+- [x] **步骤 2：A2——已改写 `RosterQuotaAllowanceIsBinding`**（2026-09-18）
+  - 旧前提"某层 core 恰好占满某受 cap 的类"在契约后**不再成立**（caves kite cap 退役 + 地狱 core 变为纯近战；唯一仍饱和的 L16 走**硬编码分支**，cap 不在运行时生效）
+  - 新前提（更强）：**该层某受 cap 的类，其候选数 > cap** → 循环必须停在 cap 上；断言 allowance = cap（无任务时非 Boss 类无冗余）、循环**触到**该 allowance、且**从不越界**（承载：L13-15 的远程类，cap=1）
+  - 实测：`SamplingBaselineTest.RosterQuotaAllowanceIsBinding` **PASSED**
 
 先读实现（`test/sampling_behavior_test.cpp` 约 `:1042` 起）：它现在靠"某层 core 恰好把某 capped class 占满"（L15 的 Melee）找饱和层。**非对称后 Melee 不再 capped**，该前提失效。改为：
 ```cpp

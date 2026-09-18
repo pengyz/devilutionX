@@ -1235,6 +1235,22 @@ TEST_F(SamplingBaselineTest, RosterQuotaAllowanceIsBinding)
 	if (missingMpqAssets_)
 		GTEST_SKIP() << "MPQ assets not found - skipping test";
 
+	// What makes the cap binding (content density contract, 2026-09-16): the level offers
+	// MORE candidates of a capped class than the cap allows, so the sampling loop has to
+	// stop at the cap instead of taking everything available. Core saturation can no longer
+	// carry this case - the contract retired the caves kite cap (see
+	// CavesAnyClassTailBaseline) and gave the hell levels melee-only cores, while L16, whose
+	// cores do still saturate, runs a hardcoded branch that the cap never gates.
+	auto candidateClassCount = [](uint8_t level, BehaviorClass cls) {
+		size_t count = 0;
+		for (size_t i = 0; i < MonstersData.size(); i++) {
+			if (GetBehaviorClass(MonstersData[i].ai) != cls)
+				continue;
+			if (IsRosterEntryAvailableAt(level, static_cast<_monster_id>(i)))
+				count++;
+		}
+		return count;
+	};
 	std::vector<std::pair<uint8_t, BehaviorClass>> saturated;
 	for (uint8_t level = 1; level <= 15; level++) {
 		for (size_t i = 0; i < static_cast<size_t>(BehaviorClass::Count); i++) {
@@ -1242,12 +1258,12 @@ TEST_F(SamplingBaselineTest, RosterQuotaAllowanceIsBinding)
 			const uint8_t cap = BehaviorClassCapForLevel(level, cls);
 			if (cap == 0)
 				continue;
-			if (AvailableCoreClassCount(level, cls) == static_cast<size_t>(cap))
+			if (candidateClassCount(level, cls) > static_cast<size_t>(cap))
 				saturated.emplace_back(level, cls);
 		}
 	}
 	ASSERT_FALSE(saturated.empty())
-	    << "no level's core saturates a capped class, so RosterQuotasSatisfied's cap bound is never exercised at the limit";
+	    << "no capped class has more candidates than its cap, so RosterQuotasSatisfied's cap bound is never exercised at the limit";
 
 	for (const auto &[level, cls] : saturated) {
 		const uint8_t cap = BehaviorClassCapForLevel(level, cls);
