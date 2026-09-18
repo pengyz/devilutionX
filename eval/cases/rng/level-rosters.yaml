@@ -18,6 +18,8 @@ difficulty: "medium"
 tags: ["sampling", "monster-generation", "level-roster", "baseline"]
 
 setup:
+  # 2026-09-18（内容密度契约 A4）：PlacedClassMixWithinBaseline 的主判据已是
+  # "≤ 同种子 vanilla（kVanillaShareBaseline，超范围夹具导出）"，历史基线+5pp 降为报警线。
   mpq_required: true
   # U1（同类）：PlacedClassMix* 走真实建关放置，需 unique 怪染色 TRN（零售或 HF 提供）。
   retail_or_hf_required: true

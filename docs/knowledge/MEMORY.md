@@ -46,6 +46,7 @@
 <!-- 调试方法、关键日志位置、排查路径 -->
 
 ## Decisions
+- [decision_content_density_contract.md](decision_content_density_contract.md) — 内容密度四轴地板、非对称 cap、R4 反转（密度优先）、D4 退役
 - [`decision_minion_options_and_formed_counter.md`](decision_minion_options_and_formed_counter.md) — 小队**只买构成不买数值**（MinionOptions 全 false）；形成率用 leash 无关的 `formed`（否则合规回退会让守卫变红）；蓝名＝真的被强化
 - [`decision_save_format_policy.md`](decision_save_format_policy.md) — 存档格式策略（初版功能阶段不做兼容）+ **格式变更台账**（动序列化前先查、动完记一行）
 <!-- 已验证的取舍（含正反馈） -->
