@@ -105,3 +105,12 @@
 - `.editorconfig` 新增 `[*.{diff,patch}] end_of_line = lf`：机器生成的补丁由 git 产出即 LF，**改 CRLF 会让 `git apply` 把 CR 塞进源码**（区别于手写文本的 CRLF 默认）。
 - 过程中的自纠：我用 `write_text` 改 `.editorconfig` 时把它的 **CRLF 变成了 LF** → 被漂移检查 **C** 当场抓住（`line endings changed CRLF -> LF`）→ 已修回 CRLF，漂移复验 **6/6** ✓。
 | CI 失败与修复（`a2d65e702`） | 迁移台账后 CI **红在 C2** ✗。根因两层：① **`check_drift.py` 不读 `.editorconfig`**，C2 用硬编码 `LF_SUFFIXES` → 我的 `.editorconfig` 例外对漂移无效；② **C2 只看 HEAD 里的文件**，我"本地 6/6 通过"是**假绿**（只 `git add` 没 commit）。修法：把 `.diff/.patch` 加入 `LF_SUFFIXES`（commit `fix(drift): treat archived .diff/.patch files as LF`），**commit 后**复验 6/6 ✓；教训写入 `gotcha_drift_check_c2_whole_file_crlf.md` |
+
+## 新规格（方向 C+B）：内容密度收顶与指名反制（2026-09-18 草案 v1）
+- **作者取向**：先 C（红线 10 指名反制），再与 B（密度收顶 + 可读性）一起做。
+- **为什么要收顶**：密度契约**只设地板**，我实施时把 **L2 推到 13.0 种/局、core 8**（vanilla 7.0/4）→ "更多≠更好"（稀释身份与威胁可读性）。
+- **阈值来自实测**：core>5 的层 = **L2(8)/L3(6)/L8(6)**；单局种类偏高 = **L2 13.0/L3 10.9**（教堂拟设 ≤10 恰好抓这两个）；相邻 core Jaccard 当前最大 **0.33** → 拟设 ≤0.4（真守卫）。
+- **硬约束**：整改层（L2/L3/L8）整改后仍须满足并集地板（现状各层并集**恰好等于**地板 → 任何削减都要复测）；做不到则按契约附录 C 三选一回作者改判，**不得放宽阈值**。
+- **C**：红线 10 指名反制表——小队（引开 leader>4 格断链 / 先杀 leader 拆队，验证靠试玩协议预测 5 + 新增"先杀 leader"一条）；层身份（不新增压力：远程占比主判据 ≤ 同种子 vanilla）；L14/L15 core 调整（**降低**远程占比）。
+- 规格：`docs/superpowers/specs/2026-09-18-density-ceilings-and-counterplay-design.md`（草案 v1，待作者复核）
+- 顺带补齐：CI `443ed400b` **success** ✓（台账迁移 + 漂移修复远端已验证），本行随本提交进 git
