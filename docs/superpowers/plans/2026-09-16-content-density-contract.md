@@ -12,6 +12,8 @@
 
 ## 全局约束
 
+> **签名提示（已核实）**：`LoadLevelRoster()` 与 `LoadLevelRosterFromFiles(a,b)` **两者都返回 `void`**，不要用 `ASSERT_TRUE(...)` 包它们。
+
 - **不使用任何子 agent**（作者指示）：本计划由主 agent 内联执行；遇到阻塞直接停下来问，不得改走委派
 - 行尾：C++/TSV **CRLF**；`.md/.yaml/.py` **LF**；`test/level_roster_baseline_test.cpp` 相对 merge-base 是 **added** → 受漂移 **C2** 约束（**整文件** CRLF）
 - 改 `assets/txtdata/**.tsv` 后必须 `ninja devilutionx_mpq` 再测量（否则量到旧表）
@@ -29,8 +31,8 @@
 
 | 文件 | 职责 |
 |---|---|
-| `test/fixtures/txtdata/monsters/level_rosters_empty.tsv` | **新建**：只有表头的空名册表（vanilla 导出用） |
-| `test/fixtures/txtdata/monsters/level_roster_params_empty.tsv` | **新建**：只有表头的空参数表 |
+| `test/fixtures/txtdata/monsters/level_rosters_out_of_range.tsv` | **新建**：只含 level 99（超范围）一行的名册表——加载器拒绝仅表头的文件（`Source/data/file.cpp:53-57`），超范围行可让 L1-15 完全无名册行而文件仍有内容 |
+| `test/fixtures/txtdata/monsters/level_roster_params_out_of_range.tsv` | **新建**：只有表头的空参数表 |
 | `test/Fixtures.cmake` | 修改：注册上面两个夹具（`copy_files` 白名单，`:98-105` 一带） |
 | `test/level_roster_baseline_test.cpp` | 修改：改 `PlacedClassMixWithinBaseline` 主判据（A4） |
 | `test/sampling_behavior_test.cpp` | 修改：**新增 `VanillaFloorBaseline`（导出地板）、`ContentDensityWithinVanillaFloor`、`ContentVisibilityFloor`（三者必须在本文件——`RealisedDistinctAi`/`RealisedDistinctClass` 是本文件内 static，baseline 文件里没有）**；`RosterPerSeedVariety` 扩到 L1-24；改写 `HellL13/14/15SameClassTailBaseline`；改写 `RosterQuotaAllowanceIsBinding` |
@@ -45,16 +47,16 @@
 
 ## Task 1: vanilla 地板导出（物理空表夹具）
 
-**文件：** 新建 `test/fixtures/txtdata/monsters/level_rosters_empty.tsv`、`level_roster_params_empty.tsv`；修改 `test/Fixtures.cmake`、**`test/sampling_behavior_test.cpp`**（用例放这里，因为 `RealisedDistinctAi`/`RealisedDistinctClass` 是本文件内 static）
+**文件：** 新建 `test/fixtures/txtdata/monsters/level_rosters_out_of_range.tsv`、`level_roster_params_out_of_range.tsv`；修改 `test/Fixtures.cmake`、**`test/sampling_behavior_test.cpp`**（用例放这里，因为 `RealisedDistinctAi`/`RealisedDistinctClass` 是本文件内 static）
 **接口：** 产出**逐层地板常量**（D1/D2/D3），供 Task 2 直接引用
 
 - [ ] **步骤 1：建两个空夹具（只有表头，CRLF）**
 
-`level_rosters_empty.tsv`：
+`level_rosters_out_of_range.tsv`：
 ```
 level	monster_id	role	allow_unique_boost
 ```
-`level_roster_params_empty.tsv`：
+`level_roster_params_out_of_range.tsv`：
 ```
 level	max_image	tail_draw	class_floors	squad_chance	squad_size	squad_leashed
 ```
@@ -63,8 +65,8 @@ level	max_image	tail_draw	class_floors	squad_chance	squad_size	squad_leashed
 
 在 `txtdata/monsters/level_roster_params_no_hf.tsv` 之后加两行（保持既有缩进与 CRLF）：
 ```
-  txtdata/monsters/level_rosters_empty.tsv
-  txtdata/monsters/level_roster_params_empty.tsv
+  txtdata/monsters/level_rosters_out_of_range.tsv
+  txtdata/monsters/level_roster_params_out_of_range.tsv
 ```
 
 - [ ] **步骤 3：写 `VanillaFloorBaseline` 测量用例（先只打表，不设阈值）**
@@ -81,8 +83,8 @@ TEST_F(SamplingBaselineTest, VanillaFloorBaseline)
 	// Load a PHYSICALLY EMPTY roster: no core rows and no params rows. This is the
 	// R28 legacy path (maxImage 4000, tailDraw unbounded), i.e. pre-roster behaviour,
 	// which is what the density floors must be derived from (spec appendix B).
-	ASSERT_TRUE(LoadLevelRosterFromFiles("txtdata\\monsters\\level_rosters_empty.tsv",
-	    "txtdata\\monsters\\level_roster_params_empty.tsv"));
+	LoadLevelRosterFromFiles("txtdata\\monsters\\level_rosters_out_of_range.tsv",
+	    "txtdata\\monsters\\level_roster_params_out_of_range.tsv"));
 
 	constexpr int kSeeds = 200;
 	std::cout << "\n[ VANILLAFLOOR ] level types AI classes union\n";
@@ -108,7 +110,7 @@ TEST_F(SamplingBaselineTest, VanillaFloorBaseline)
 		          << static_cast<double>(classSum) / kSeeds << ' ' << seen.size() << std::endl;
 	}
 	// Restore the shipped tables for the rest of the binary.
-	ASSERT_TRUE(LoadLevelRoster());
+	LoadLevelRoster();
 }
 ```
 
@@ -120,7 +122,7 @@ TEST_F(SamplingBaselineTest, VanillaFloorBaseline)
 - [ ] **步骤 5：提交**
 
 ```bash
-git add test/fixtures/txtdata/monsters/level_rosters_empty.tsv test/fixtures/txtdata/monsters/level_roster_params_empty.tsv test/Fixtures.cmake test/sampling_behavior_test.cpp
+git add test/fixtures/txtdata/monsters/level_rosters_out_of_range.tsv test/fixtures/txtdata/monsters/level_roster_params_out_of_range.tsv test/Fixtures.cmake test/sampling_behavior_test.cpp
 git commit -m "test(roster): derive the vanilla content-density floors from an empty table"
 ```
 
@@ -194,8 +196,14 @@ git commit -m "feat(roster): asymmetric hell cap and the density tail_draw pairi
 
 - [ ] **步骤 1：先量化现状**（HF 资产门控）
 
-运行：`./build/level_roster_baseline_test --gtest_filter='HellfireLevelBaselineTest.TempPerSeedVarietyForHellfireLevels'`
-记录 L17-24 的每 seed 组合数。预期（复核实测）：**L17 = 1**（尾池恰 2 条、同类）、L23 = 6、L24 = 2。
+**该测量用例目前不在源码里**（它只存在于被中断任务的存档里）→ 先用存档作起点补齐：
+```bash
+git apply --3way .superpowers/sdd/2026-09-15-level-rosters-phase-a2/task-3a-partial-work.diff
+```
+（若补丁冲突：手工把存档里的 `TempPerSeedVarietyForHellfireLevels` 用例并入 `test/level_roster_baseline_test.cpp`；保留其 `TEMP` 注释，并在 Task 6 收尾时决定"留作永久守卫（改成正式名）或删除"。）
+
+运行：`cmake --build build --target level_roster_baseline_test -j20 && ./build/level_roster_baseline_test --gtest_filter='HellfireLevelBaselineTest.TempPerSeedVarietyForHellfireLevels'`
+记录 L17-24 的每 seed 组合数。预期（复核者的静态推算）：**L17 = 1**（尾池恰 2 条、同类）、L23 = 6、L24 = 2。
 
 - [ ] **步骤 2：改 L17 数据，使尾池 ≥3**
 
@@ -233,6 +241,12 @@ git commit -m "fix(rosters): give the Hellfire L17 tail pool real variety"
 // physically empty roster table (see VanillaFloorBaseline and spec appendix B).
 // Index by level; L0 unused. These are MEASURED FLOORS, not targets: the roster must
 // not push a level's density below vanilla (contract §4.1 C1).
+// Task 1 实测（2026-09-18，200 seeds/层，超范围单行夹具；格式：level types ai classes union）
+//  L1 7.0/5.0/3.0/7    L2 6.8/5.2/4.1/21   L3 7.1/5.2/4.2/25   L4 6.9/5.5/4.1/23   L5 6.0/5.4/4.0/21
+//  L6 5.5/5.2/4.1/17   L7 4.6/4.3/3.8/16   L8 4.3/4.1/3.6/17   L9 3.6/3.6/2.9/17   L10 3.5/3.3/2.7/17
+//  L11 3.2/3.1/2.5/15  L12 3.4/3.3/2.7/16  L13 3.2/3.1/2.7/16  L14 3.2/3.1/2.8/16  L15 3.2/3.0/2.6/10
+// 这组数字与名册规格 §1 记录的"改动前"分带值一致（教堂≈7.0 / 洞穴 3.3-3.6 / 地狱 3.2-3.3），
+// 即该夹具路径确等价于改动前行为——地板可直接取自本表。
 constexpr std::array<double, 25> kVanillaTypesFloor { /* 由步骤 4 的实测逐层填入 */ };
 constexpr std::array<double, 25> kVanillaAiFloor { /* 同上 */ };
 constexpr std::array<double, 25> kVanillaUnionFloor { /* 同上 */ };

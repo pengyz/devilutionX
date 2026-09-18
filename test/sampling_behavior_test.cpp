@@ -571,6 +571,77 @@ TEST_F(SamplingBaselineTest, MeasurementRealisedPerLevel)
 	AppendMeasurementReport(report);
 }
 
+// Vanilla (pre-roster) density floors. The measured tables live in test/fixtures/, so
+// this fixture switches the assets path for its own lifetime only (the phase-A lesson:
+// path switching belongs in the fixture lifecycle, never inside a TEST body) and reloads
+// the shipped tables in TearDown, after the path is restored.
+class VanillaRosterFloorsTest : public SamplingBaselineTest {
+protected:
+	void SetUp() override
+	{
+		savedAssetsPath_ = paths::AssetsPath();
+		paths::SetAssetsPath(paths::BasePath() + "test/fixtures/");
+	}
+
+	void TearDown() override
+	{
+		paths::SetAssetsPath(savedAssetsPath_); // restore before reloading the shipped tables
+		LoadLevelRoster();
+	}
+
+private:
+	std::string savedAssetsPath_;
+};
+
+TEST_F(VanillaRosterFloorsTest, VanillaFloorBaseline)
+{
+	if (missingMpqAssets_)
+		GTEST_SKIP() << "MPQ assets not found - skipping test";
+
+	// Content density contract (approved 2026-09-16), spec appendix B: the floors must
+	// come from PRE-ROSTER behaviour. A header-only roster cannot express that: the data
+	// loader rejects "empty or header-only" files outright (Source/data/file.cpp:53-57,
+	// Error::NoContent). Instead the fixture carries a SINGLE row at level 99, which is
+	// outside the active level range: every per-level check is scoped away and L1-15 get
+	// no core rows and no params rows, so GetLevelRosterParams() returns nullptr for all
+	// of them and GetLevelMTypes() takes the R28 legacy path (maxImage 4000, tailDraw
+	// unbounded) = pre-roster behaviour. The band ranges recorded in the roster spec are
+	// NOT precise enough to serve as per-level floors.
+	LoadLevelRosterFromFiles("txtdata\\monsters\\level_rosters_out_of_range.tsv",
+	    "txtdata\\monsters\\level_roster_params_out_of_range.tsv");
+
+	constexpr int kSeeds = 200;
+	std::cout << "\n[ VANILLAFLOOR ] level types ai classes union" << std::endl;
+	for (uint8_t level = 1; level <= 15; level++) {
+		size_t types = 0;
+		size_t ai = 0;
+		size_t classes = 0;
+		std::set<_monster_id> unionTypes;
+		for (int seed = 0; seed < kSeeds; seed++) {
+			currlevel = level;
+			InitLevelMonsters();
+			SetRndSeed(51000 + static_cast<uint32_t>(seed));
+			ASSERT_TRUE(GetLevelMTypes().has_value());
+			types += LevelMonsterTypeCount;
+			ai += RealisedDistinctAi();
+			classes += RealisedDistinctClass();
+			for (size_t i = 0; i < LevelMonsterTypeCount; i++)
+				unionTypes.insert(LevelMonsterTypes[i].type);
+		}
+		std::cout << "[ VANILLAFLOOR ] " << static_cast<int>(level) << ' '
+		          << FormatMeasurement(static_cast<double>(types) / kSeeds) << ' '
+		          << FormatMeasurement(static_cast<double>(ai) / kSeeds) << ' '
+		          << FormatMeasurement(static_cast<double>(classes) / kSeeds) << ' '
+		          << unionTypes.size() << std::endl;
+		// Guard against a degenerate measurement: a level that realises nothing would
+		// silently become a floor of 0 and make the later assertion vacuous.
+		EXPECT_GT(types, 0u) << "level " << static_cast<int>(level) << " realised no types";
+		EXPECT_GT(unionTypes.size(), 0u) << "level " << static_cast<int>(level) << " union empty";
+	}
+
+	// TearDown restores the shipped tables (after restoring the assets path).
+}
+
 TEST_F(SamplingBaselineTest, MeasurementBudgetFitBounds)
 {
 	if (missingMpqAssets_)
