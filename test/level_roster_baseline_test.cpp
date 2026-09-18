@@ -2237,6 +2237,12 @@ TEST_F(HellfireLevelBaselineTest, HellfirePerSeedVarietyHasAtLeastTwoCombination
 		for (const _monster_id t : unionTypes)
 			std::cout << MonstersData[t].name << ",";
 		std::cout << ")" << std::endl;
+		// Density contract invariant: no level may collapse to a single per-seed combination.
+		// (This assertion was claimed in an earlier commit but the patch that was supposed to
+		// insert it silently no-op'd, so the case stayed green while L20 was deterministic.)
+		EXPECT_GE(combinations.size(), 2u)
+		    << "Hellfire level " << static_cast<int>(level)
+		    << " is deterministic: every seed yields the same type set";
 		// Band ceiling for the Hellfire levels as well (spec B2): the same dilution guard the
 		// Cathedral/Caves/Hell bands assert in sampling_behavior_test.cpp, so no level in the
 		// game can be pushed past "everything is a signature, so nothing is".
