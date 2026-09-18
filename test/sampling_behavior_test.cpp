@@ -1071,6 +1071,68 @@ TEST_F(SamplingBaselineTest, RosterCoreAlwaysPresent)
 	}
 }
 
+TEST_F(SamplingBaselineTest, RosterCoreSizeWithinIdentityBound)
+{
+	if (missingMpqAssets_)
+		GTEST_SKIP() << "MPQ assets not found - skipping test";
+
+	// A level's signature set has to stay small enough to be recognisable. Measured
+	// 2026-09-18: every level held 2-5 cores except L2 (8), L3 (6) and L8 (6) - the three
+	// the density work had inflated - so the bound of 5 is precisely the line they crossed.
+	constexpr size_t kMaxCores = 5;
+	for (uint8_t level = 1; level <= 24; level++) {
+		size_t cores = 0;
+		std::set<_monster_id> distinct;
+		for (const LevelRosterEntry &entry : GetLevelRoster(level)) {
+			if (entry.role != LevelRosterRole::Core)
+				continue;
+			cores++;
+			distinct.insert(entry.type);
+		}
+		std::cout << "[ CORESIZE ] level " << static_cast<int>(level) << " cores " << cores << std::endl;
+		EXPECT_EQ(cores, distinct.size())
+		    << "level " << static_cast<int>(level) << " lists the same core type twice";
+		EXPECT_LE(cores, kMaxCores)
+		    << "level " << static_cast<int>(level) << " lists " << cores
+		    << " core types; a signature set that large stops being recognisable";
+	}
+}
+
+TEST_F(SamplingBaselineTest, PerRunTypesWithinBandCeiling)
+{
+	if (missingMpqAssets_)
+		GTEST_SKIP() << "MPQ assets not found - skipping test";
+
+	// Dilution guard: one run must not show so many kinds that nothing reads as a signature
+	// any more. The ceilings are design judgements anchored ABOVE every intentional level
+	// (caves currently 8, hell 7/7/6), so they only catch outliers; measured 2026-09-18 they
+	// flagged L2 (13.0) and L3 (10.9). The Hellfire band's ceiling lives in its own suite.
+	auto ceilingFor = [](uint8_t level) -> double {
+		if (level <= 8)
+			return 10.0; // Cathedral
+		if (level <= 12)
+			return 9.0; // Caves
+		return 8.0;     // Hell (L13-16)
+	};
+	constexpr int kSeeds = 200;
+	for (uint8_t level = 1; level <= 15; level++) {
+		size_t typeSum = 0;
+		for (int seed = 0; seed < kSeeds; seed++) {
+			currlevel = level;
+			InitLevelMonsters();
+			SetRndSeed(51000 + static_cast<uint32_t>(seed));
+			ASSERT_TRUE(GetLevelMTypes().has_value());
+			typeSum += LevelMonsterTypeCount;
+		}
+		const double types = static_cast<double>(typeSum) / kSeeds;
+		std::cout << "[ TYPECEILING ] level " << static_cast<int>(level) << " types " << types
+		          << " ceiling " << ceilingFor(level) << std::endl;
+		EXPECT_LE(types, ceilingFor(level))
+		    << "level " << static_cast<int>(level) << " realises " << types
+		    << " types per run, above the band ceiling";
+	}
+}
+
 TEST_F(SamplingBaselineTest, AdjacentLevelCoresRemainDistinct)
 {
 	if (missingMpqAssets_)

@@ -116,3 +116,6 @@
 - 顺带补齐：CI `443ed400b` **success** ✓（台账迁移 + 漂移修复远端已验证），本行随本提交进 git
 | 规格批准与计划 | 作者认可 `2026-09-18-density-ceilings-and-counterplay-design.md`（**含 B2 带阈值 10/9/8/8 这项设计判断**）→ 置「已批准/实施中」；实现计划 `docs/superpowers/plans/2026-09-18-density-ceilings-and-counterplay.md`（6 任务；检查点：任务 3 步骤 2、任务 4 步骤 6、任务 6 步骤 2）；**内联执行**（不用子 agent）；L2 若四约束无解 → 按契约附录 C 三选一回作者改判，**不得放宽阈值** |
 | 任务 1（B3 相邻层区分度） | **DONE（判据落地，红得有价值）**：`AdjacentLevelCoresRemainDistinct` 首次运行即抓到 **L19-L20 Jaccard = 1.0**（两层 core 集合完全相同 ✗，A2/T2 遗留）；其余最高 0.333 ✓。自纠：初版打印标签差一层（`level-(level+1)`）已修为 `(level-1)-level`。**可失败性由真实数据自证**，故未做人工反证（取舍已记）。计划修订：任务 4 整改目标扩为 **L2/L3/L8 + L19/L20** |
+| 任务 2（B1 core ≤5） | **DONE（判据落地并红）**：红在 **L2(8)、L3(6)、L8(6)** ✓，其余层 2-5 ✓ |
+| 任务 3（B2 带上限） | **DONE（判据落地并红）**：非 HF 红在 **L2 13.0、L3 10.865**（教堂界 10）✓；L4/L8 恰在界上通过、洞穴 8≤9、地狱 7/7/6 ✓；HF 侧在 `HellfirePerSeedVarietyHasAtLeastTwoCombinations` 加了 `typeSum` 与 ≤8 断言（预期 PASS）✓ |
+| 待整改清单（任务 4） | **L2、L3、L8**（B1/B2）+ **L19、L20**（B3）→ 四/六条约束同时满足 |

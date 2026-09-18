@@ -2215,12 +2215,14 @@ TEST_F(HellfireLevelBaselineTest, HellfirePerSeedVarietyHasAtLeastTwoCombination
 	for (uint8_t level = 17; level <= 24; level++) {
 		std::set<std::vector<_monster_id>> combinations;
 		std::set<_monster_id> unionTypes;
+		size_t typeSum = 0;
 		for (int seed = 0; seed < kSeeds; seed++) {
 			currlevel = level;
 			leveltype = GetLevelType(level);
 			InitLevelMonsters();
 			SetRndSeed(41000 + static_cast<uint32_t>(seed));
 			ASSERT_TRUE(GetLevelMTypes().has_value());
+			typeSum += LevelMonsterTypeCount;
 			std::vector<_monster_id> key;
 			for (size_t i = 0; i < LevelMonsterTypeCount; i++) {
 				key.push_back(LevelMonsterTypes[i].type);
@@ -2235,6 +2237,11 @@ TEST_F(HellfireLevelBaselineTest, HellfirePerSeedVarietyHasAtLeastTwoCombination
 		for (const _monster_id t : unionTypes)
 			std::cout << MonstersData[t].name << ",";
 		std::cout << ")" << std::endl;
+		// Band ceiling for the Hellfire levels as well (spec B2): the same dilution guard the
+		// Cathedral/Caves/Hell bands assert in sampling_behavior_test.cpp, so no level in the
+		// game can be pushed past "everything is a signature, so nothing is".
+		EXPECT_LE(static_cast<double>(typeSum) / kSeeds, 8.0)
+		    << "Hellfire level " << static_cast<int>(level) << " exceeds 8 types per run";
 		for (const auto &c : combinations) {
 			std::cout << "    combo:";
 			for (const _monster_id t : c)
