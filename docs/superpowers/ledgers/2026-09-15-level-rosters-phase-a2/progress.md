@@ -104,3 +104,4 @@
 - `.superpowers/sdd/` 降级为**草稿区**（仍被其 `.gitignore` 忽略）；约定写入 `docs/superpowers/ledgers/README.md` + 知识条目 `pattern_sdd_ledger_location.md`（已索引进 MEMORY.md）。
 - `.editorconfig` 新增 `[*.{diff,patch}] end_of_line = lf`：机器生成的补丁由 git 产出即 LF，**改 CRLF 会让 `git apply` 把 CR 塞进源码**（区别于手写文本的 CRLF 默认）。
 - 过程中的自纠：我用 `write_text` 改 `.editorconfig` 时把它的 **CRLF 变成了 LF** → 被漂移检查 **C** 当场抓住（`line endings changed CRLF -> LF`）→ 已修回 CRLF，漂移复验 **6/6** ✓。
+| CI 失败与修复（`a2d65e702`） | 迁移台账后 CI **红在 C2** ✗。根因两层：① **`check_drift.py` 不读 `.editorconfig`**，C2 用硬编码 `LF_SUFFIXES` → 我的 `.editorconfig` 例外对漂移无效；② **C2 只看 HEAD 里的文件**，我"本地 6/6 通过"是**假绿**（只 `git add` 没 commit）。修法：把 `.diff/.patch` 加入 `LF_SUFFIXES`（commit `fix(drift): treat archived .diff/.patch files as LF`），**commit 后**复验 6/6 ✓；教训写入 `gotcha_drift_check_c2_whole_file_crlf.md` |
