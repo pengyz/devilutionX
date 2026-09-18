@@ -154,8 +154,21 @@ uint8_t BehaviorClassCapForLevel(uint8_t level, BehaviorClass cls)
 	// Mirrors monster.cpp's B1 scatter-sampling cap (see :3513-3531): L9-12 caps the
 	// RangedKite class at 2, L13-16 caps any single class at 2, everything else is uncapped.
 	// The validator and the sampling loop share this single source of truth so they cannot drift.
-	if (level >= 13 && level <= 16)
+	// L9-12 caps the RangedKite class at 2; L13-16 used to cap ANY class at 2.
+	// Content density contract (approved 2026-09-16): that symmetric cap rationed the
+	// hell band's non-ranged types (the only non-ranged class present there is Melee),
+	// so every extra drawn type had to be ranged. L13-15 therefore become asymmetric -
+	// non-ranged classes uncapped, ranged classes tightened to 1 - while L16 keeps the
+	// legacy bound because its roster is registration-only: the hardcoded branch returns
+	// before the roster path runs, so its core set (2 Melee + 2 RangedTurret) must stay
+	// valid under the old cap or load-time validation refuses to start.
+	if (level == 16)
 		return 2;
+	if (level >= 13 && level <= 15) {
+		if (cls == BehaviorClass::RangedTurret || cls == BehaviorClass::RangedKite)
+			return 1;
+		return 0;
+	}
 	if (level >= 9 && level <= 12 && cls == BehaviorClass::RangedKite)
 		return 2;
 	return 0;

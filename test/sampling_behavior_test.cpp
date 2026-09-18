@@ -81,6 +81,22 @@ size_t MaxSameClassCount(const std::vector<BehaviorClass> &classes)
 	return maxCount;
 }
 
+// Max count over the RANGED classes only. Since the content density contract
+// (2026-09-16) the hell band caps the ranged classes at 1 and leaves the non-ranged
+// classes uncapped, so this - not MaxSameClassCount - is what the hell tail guard must
+// watch: a ranged class reaching 3 types is still the B1 monopoly symptom, while three
+// Melee types are a legitimate density outcome.
+size_t MaxRangedClassCount(const std::vector<BehaviorClass> &classes)
+{
+	size_t turret = 0;
+	size_t kite = 0;
+	for (BehaviorClass c : classes) {
+		if (c == BehaviorClass::RangedTurret) turret++;
+		if (c == BehaviorClass::RangedKite) kite++;
+	}
+	return std::max(turret, kite);
+}
+
 // RangedKite types on the level ("all-kite tail" = the Caves 38% monopoly symptom).
 size_t KiteClassCount(const std::vector<BehaviorClass> &classes)
 {
@@ -125,6 +141,30 @@ protected:
 		return 100.0 * static_cast<double>(tail) / static_cast<double>(iterations);
 	}
 
+	// Percent of sampled levels whose RANGED classes reach >= 3 types.
+	[[nodiscard]] double RangedTailPercent(uint8_t level, int iterations, uint32_t seedBase) const
+	{
+		int tail = 0;
+		for (int i = 0; i < iterations; i++) {
+			if (MaxRangedClassCount(RunSampling(level, seedBase + i)) >= 3)
+				tail++;
+		}
+		return 100.0 * static_cast<double>(tail) / static_cast<double>(iterations);
+	}
+
+	// Percent of sampled levels where ANY class reaches >= 3 types. Under the contract the
+	// non-ranged classes may legitimately do this, so the hell cases assert it happens at
+	// least once: that keeps the ranged-side assertion from being vacuously true.
+	[[nodiscard]] double AnyClassTailPercent(uint8_t level, int iterations, uint32_t seedBase) const
+	{
+		int tail = 0;
+		for (int i = 0; i < iterations; i++) {
+			if (MaxSameClassCount(RunSampling(level, seedBase + i)) >= 3)
+				tail++;
+		}
+		return 100.0 * static_cast<double>(tail) / static_cast<double>(iterations);
+	}
+
 	// Percent of sampled levels with >= 3 kite types (B1 Caves symptom).
 	[[nodiscard]] double KiteTailPercent(uint8_t level, int iterations, uint32_t seedBase) const
 	{
@@ -146,9 +186,17 @@ TEST_F(SamplingBaselineTest, HellL15SameClassTailBaseline)
 
 	// Pre-cap baseline was 4.13% (v3's 27.8% was a fake number from omitting
 	// the Golem budget). The B1 cap (Hell same-class <=2) must drive it to 0.
+	// Content density contract (2026-09-16): L13-15 cap the RANGED classes at 1 and leave
+	// the non-ranged classes uncapped, so the B1 monopoly symptom to guard here is a RANGED
+	// class reaching >= 3 types (at most core 1 + tail 1 = 2 is reachable). Three Melee
+	// types are a legitimate density outcome now and must NOT fail this case.
 	constexpr int kIterations = 10000;
-	const double tail = SameClassTailPercent(15, kIterations, 1000);
-	EXPECT_EQ(tail, 0.0) << "Hell L15 same-class tail must be 0 after cap (was 4.13%)";
+	const double rangedTail = RangedTailPercent(15, kIterations, 1000);
+	EXPECT_EQ(rangedTail, 0.0) << "Hell L15 ranged-class tail must be 0 (cap is 1)";
+	// Non-vacuity: the uncapped side really does exceed 2 types, so the assertion above is
+	// not passing merely because nothing happens.
+	EXPECT_GT(AnyClassTailPercent(15, kIterations, 1000), 0.0)
+	    << "expected the uncapped (non-ranged) side to reach >= 3 types at L15";
 }
 
 TEST_F(SamplingBaselineTest, HellL14SameClassTailBaseline)
@@ -157,9 +205,17 @@ TEST_F(SamplingBaselineTest, HellL14SameClassTailBaseline)
 		GTEST_SKIP() << "MPQ assets not found - skipping test";
 
 	// Pre-cap baseline was 0.70%. Cap (Hell same-class <=2) must drive it to 0.
+	// Content density contract (2026-09-16): L13-15 cap the RANGED classes at 1 and leave
+	// the non-ranged classes uncapped, so the B1 monopoly symptom to guard here is a RANGED
+	// class reaching >= 3 types (at most core 1 + tail 1 = 2 is reachable). Three Melee
+	// types are a legitimate density outcome now and must NOT fail this case.
 	constexpr int kIterations = 10000;
-	const double tail = SameClassTailPercent(14, kIterations, 2000);
-	EXPECT_EQ(tail, 0.0) << "Hell L14 same-class tail must be 0 after cap (was 0.70%)";
+	const double rangedTail = RangedTailPercent(14, kIterations, 2000);
+	EXPECT_EQ(rangedTail, 0.0) << "Hell L14 ranged-class tail must be 0 (cap is 1)";
+	// Non-vacuity: the uncapped side really does exceed 2 types, so the assertion above is
+	// not passing merely because nothing happens.
+	EXPECT_GT(AnyClassTailPercent(14, kIterations, 2000), 0.0)
+	    << "expected the uncapped (non-ranged) side to reach >= 3 types at L14";
 }
 
 TEST_F(SamplingBaselineTest, HellL13SameClassTailBaseline)
@@ -167,11 +223,13 @@ TEST_F(SamplingBaselineTest, HellL13SameClassTailBaseline)
 	if (missingMpqAssets_)
 		GTEST_SKIP() << "MPQ assets not found - skipping test";
 
-	// Pre-cap baseline was already 0.00% (no quest monsters under the harness's
-	// "no quest" condition); the cap keeps it at 0.
+	// Content density contract (2026-09-16): as for L14/L15, the guard is now the RANGED
+	// side (cap 1); the pre-cap baseline for any class was already 0.00% here.
 	constexpr int kIterations = 10000;
-	const double tail = SameClassTailPercent(13, kIterations, 3000);
-	EXPECT_EQ(tail, 0.0) << "Hell L13 same-class tail must be 0 after cap (was 0%)";
+	const double rangedTail = RangedTailPercent(13, kIterations, 3000);
+	EXPECT_EQ(rangedTail, 0.0) << "Hell L13 ranged-class tail must be 0 (cap is 1)";
+	EXPECT_GT(AnyClassTailPercent(13, kIterations, 3000), 0.0)
+	    << "expected the uncapped (non-ranged) side to reach >= 3 types at L13";
 }
 
 TEST_F(SamplingBaselineTest, CavesKiteTailBaseline)
@@ -408,7 +466,16 @@ TEST_F(SamplingBaselineTest, QuestPreAddRePickDoesNotDoubleCount)
 	for (uint32_t seed = 1; seed <= 5000; seed++) {
 		const auto classes = RunSampling(14, seed);
 		maxMelee = std::max(maxMelee, static_cast<size_t>(std::count(classes.begin(), classes.end(), BehaviorClass::Melee)));
-		EXPECT_LE(MaxSameClassCount(classes), 2) << "same-class cap must hold with quest pre-adds";
+		// The asymmetric cap (2026-09-16) leaves Melee uncapped in L13-15, so the old
+		// "no class above 2" assertion no longer describes production. The re-pick
+		// guarantee is stated directly instead: the pre-added type must not appear twice
+		// in the level's type list.
+		std::set<_monster_id> distinct;
+		for (size_t i = 0; i < LevelMonsterTypeCount; i++)
+			distinct.insert(LevelMonsterTypes[i].type);
+		EXPECT_EQ(distinct.size(), LevelMonsterTypeCount) << "quest pre-add re-pick double-counted a type";
+		// The ranged side keeps its cap, so this cross-check still catches a runaway loop.
+		EXPECT_LE(MaxRangedClassCount(classes), 2) << "ranged-class cap must hold with quest pre-adds";
 	}
 	EXPECT_GE(maxMelee, 2) << "a second Melee type must be sampleable despite the MT_RBLACK re-pick";
 
@@ -1308,6 +1375,8 @@ TEST_F(SamplingBaselineTest, RosterPerSeedVariety)
 			continue;
 		}
 
+		std::cout << "[ VARIETY ] level " << static_cast<int>(level) << " combinations "
+		          << combinations.size() << std::endl;
 		EXPECT_GE(combinations.size(), 2u)
 		    << "level " << static_cast<int>(level) << " realises the same composition on all "
 		    << kSeeds << " seeds: sampling there does not depend on the seed at all (S1 regression)";
@@ -1365,33 +1434,9 @@ TEST_F(SamplingBaselineTest, HellUniqueBasesRemainReachable)
 	// ranged-share headroom squad_chance 30 needs: RangedKite carries no L14 unique
 	// base, so removing it costs no reachability here.
 	//
-	// Bases that L13's Melee cap structurally excludes (see scope note 2). Every
-	// OTHER candidate base on L13-15 must be reachable.
-	//
-	// All three entries share ONE cause and ONE accepted-at-this-stage reason, and
-	// all three fail the moment that cause is removed:
-	//
-	//   Why accepted now: these are L13 Melee bases. L13's R4 ceiling (0.2775)
-	//   admits only 2 Melee + 1 ranged scatter types, so both Melee slots must be
-	//   core; the Melee class is then AT its B1 cap of 2 and the tail loop prunes
-	//   Melee entirely, so no Melee base can ever be drawn. Reaching them needs one
-	//   of three DESIGN decisions this fix wave is not chartered to take: raise the
-	//   ceiling (forbidden outright by R4), raise L13's Melee cap, or grant
-	//   allow_unique_boost to core one of them (spec 4.4.3 gates exactly the
-	//   spawn-rate increase that would cause).
-	//
-	//   What makes an entry fail: any change that frees an L13 Melee tail slot -
-	//   BehaviorClassCapForLevel raising L13's cap above 2, L13's core dropping to
-	//   one Melee type, or the base being cored under allow_unique_boost. The
-	//   assertion below is EXPECT_FALSE, so such a change turns this into a failure
-	//   and the entry must be deleted rather than silently outliving its reason.
-	//   The blockedSeen premise likewise fails if an entry stops naming a base this
-	//   loop actually checks.
-	const std::set<std::pair<uint8_t, _monster_id>> kCapBlocked {
-		{ 13, MT_BALROG },  // Blackskull
-		{ 13, MT_RTBLACK }, // Rustweaver
-		{ 13, MT_VTEXLRD }, // Gorefeast
-	};
+	// L13, L14 and L15 each contribute every candidate base to the reachability check;
+	// no level is exempt any more.
+	const std::set<std::pair<uint8_t, _monster_id>> kCapBlocked {};
 
 	constexpr int kSeeds = 500;
 	size_t checkedUniques = 0;
@@ -1445,8 +1490,8 @@ TEST_F(SamplingBaselineTest, HellUniqueBasesRemainReachable)
 		    << " with an empty denominator this guard would assert nothing";
 	}
 	// Premise guards: the loop must really have examined the uniques it claims to.
-	// L13 contributes 2 (Doomcloud, Witchmoon), L14 6, L15 2 in the shipped data.
-	EXPECT_EQ(checkedUniques, 10u)
+	// L13 contributes 5, L14 6, L15 2 in the shipped data (13 total).
+	EXPECT_EQ(checkedUniques, 13u)
 	    << "expected exactly 10 hell uniques whose base must be reachable; a different number means"
 	    << " the data moved and the exception list / this bound need re-deriving";
 	EXPECT_EQ(blockedSeen, kCapBlocked.size())

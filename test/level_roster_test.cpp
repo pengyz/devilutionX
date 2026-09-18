@@ -168,12 +168,13 @@ TEST_F(LevelRosterTest, ValidationAcceptsAClassFloorAtTheB1CapAtL10)
 
 TEST_F(LevelRosterTest, ValidationRejectsAClassFloorThatExceedsTheB1CapAtL14)
 {
-	// At level 14, Melee candidates (MT_VTEXLRD, MT_BALROG, MT_RSNAKE, MT_BSNAKE,
-	// MT_NBLACK, MT_RTBLACK, MT_BTBLACK, MT_RBLACK) number well above 2, but the B1 cap
-	// for L13-16 limits any single class to 2. A floor of 3 must be rejected.
+	// At level 14 the RangedTurret candidates (MT_SUCCUBUS, MT_SNOWWICH, MT_HLSPWN,
+	// MT_MAGISTR, MT_COUNSLR) number well above 1, but the asymmetric cap for L13-15
+	// (content density contract, 2026-09-16) limits the ranged classes to 1 while the
+	// non-ranged classes are uncapped. A RangedTurret floor of 2 must be rejected.
 	const std::vector<LevelRosterEntry> entries { { 14, MT_VTEXLRD, LevelRosterRole::Core, false } };
 	const std::vector<LevelRosterParams> params {
-		{ 14, 6000, 2, { { BehaviorClass::Melee, 3 } } },
+		{ 14, 6000, 2, { { BehaviorClass::RangedTurret, 2 } } },
 	};
 	const auto error = ValidateLevelRoster(entries, params);
 	ASSERT_TRUE(error.has_value());
@@ -209,12 +210,13 @@ TEST_F(LevelRosterTest, ValidationRejectsThreeSameClassCoreMembersUnderTheB1CapA
 
 TEST_F(LevelRosterTest, ValidationRejectsThreeSameClassCoreMembersInSpawnModeToo)
 {
-	// The core-vs-cap check sits before the spawn-mode relaxation, because the B1 guarantee
-	// is about the shipped table, not about which availability rules are in force.
+	// The core-vs-cap check sits before the spawn-mode relaxation, because the cap guarantee
+	// is about the shipped table, not about which availability rules are in force. The
+	// vehicle is the RangedTurret class, capped at 1 in L13-15 since the density contract.
 	const std::vector<LevelRosterEntry> entries {
-		{ 14, MT_RSNAKE, LevelRosterRole::Core, false },
-		{ 14, MT_BSNAKE, LevelRosterRole::Core, false },
-		{ 14, MT_NBLACK, LevelRosterRole::Core, false },
+		{ 14, MT_SUCCUBUS, LevelRosterRole::Core, false },
+		{ 14, MT_HLSPWN, LevelRosterRole::Core, false },
+		{ 14, MT_MAGISTR, LevelRosterRole::Core, false },
 	};
 	const std::vector<LevelRosterParams> params { { 14, 6000, 2, {} } };
 
@@ -224,7 +226,7 @@ TEST_F(LevelRosterTest, ValidationRejectsThreeSameClassCoreMembersInSpawnModeToo
 
 	ASSERT_TRUE(error.has_value());
 	EXPECT_NE(error->find("core roster has 3"), std::string::npos) << *error;
-	EXPECT_NE(error->find("Melee"), std::string::npos) << *error;
+	EXPECT_NE(error->find("RangedTurret"), std::string::npos) << *error;
 }
 
 // Phase A2 task 1: the roster table is a SINGLE table extended to L24, so a non-Hellfire
@@ -371,12 +373,13 @@ TEST_F(LevelRosterTest, CoreNonEmptyAndCoreVsCapAreScopedToTheActiveLevelRange)
 	ASSERT_TRUE(inRange.has_value());
 	EXPECT_NE(inRange->find("no core roster members"), std::string::npos) << *inRange;
 
-	// core-vs-cap: three Melee cores at L14 breaks the B1 cap of 2. Out of range (maxLevel
-	// 13) the level is unreachable; in range it must still be rejected.
+	// core-vs-cap: three RangedTurret cores at L14 exceed that class's cap of 1 (the
+	// non-ranged classes are uncapped in L13-15). Out of range (maxLevel 13) the level is
+	// unreachable; in range it must still be rejected.
 	const std::vector<LevelRosterEntry> threeMelee {
-		{ 14, MT_RSNAKE, LevelRosterRole::Core, false },
-		{ 14, MT_BSNAKE, LevelRosterRole::Core, false },
-		{ 14, MT_NBLACK, LevelRosterRole::Core, false },
+		{ 14, MT_SUCCUBUS, LevelRosterRole::Core, false },
+		{ 14, MT_HLSPWN, LevelRosterRole::Core, false },
+		{ 14, MT_MAGISTR, LevelRosterRole::Core, false },
 	};
 	const std::vector<LevelRosterParams> params14 { { 14, 6000, 2, {} } };
 	EXPECT_FALSE(ValidateLevelRoster(threeMelee, params14, 13).has_value());

@@ -58,9 +58,8 @@ level	monster_id	role	allow_unique_boost
 13	MT_NBLACK	core	-
 13	MT_GUARD	core	-
 14	MT_VTEXLRD	core	-
-14	MT_SNOWWICH	core	-
+14	MT_BALROG	core	-
 15	MT_BALROG	core	-
-15	MT_SNOWWICH	core	-
 15	MT_GSNAKE	core	-
 16	MT_GSNAKE	core	-
 16	MT_BTBLACK	core	-
