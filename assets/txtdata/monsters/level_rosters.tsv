@@ -4,16 +4,12 @@ level	monster_id	role	allow_unique_boost
 1	MT_RFALLSP	core	-
 1	MT_NSCAV	core	-
 2	MT_RSKELAX	core	-
-2	MT_TSKELSD	core	-
 2	MT_WSKELSD	core	-
 2	MT_GZOMBIE	core	-
 2	MT_DFALLSP	core	-
 2	MT_BZOMBIE	core	-
-2	MT_FIEND	core	-
-2	MT_SNEAK	core	-
 3	MT_RSKELAX	core	-
 3	MT_XSKELAX	core	-
-3	MT_TSKELAX	core	-
 3	MT_YZOMBIE	core	-
 3	MT_FIEND	core	-
 3	MT_BLINK	core	-
@@ -35,7 +31,6 @@ level	monster_id	role	allow_unique_boost
 7	MT_FAT	core	-
 7	MT_UNSEEN	core	-
 8	MT_TOAD	core	-
-8	MT_YMAGMA	core	-
 8	MT_UNSEEN	core	-
 8	MT_ILLWEAV	core	-
 8	MT_FAMILIAR	core	-
