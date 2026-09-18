@@ -1,0 +1,250 @@
+# Review package: 90a7c386f..HEAD
+
+## Commits
+504522f8a test(roster): skip when MPQ assets are missing and drop the cross-binary helper
+48dfd6f17 docs(plan): drop the cross-binary test helper claim (ruling R6)
+85a1da18a test(roster): measure the placed class-mix baseline per level
+
+## Files changed
+ CMake/Tests.cmake                                  |   1 +
+ .../plans/2026-09-15-level-rosters-phase-a.md      |  31 ++++-
+ test/level_roster_baseline_test.cpp                | 126 +++++++++++++++++++++
+ 3 files changed, 153 insertions(+), 5 deletions(-)
+
+## Diff
+diff --git a/CMake/Tests.cmake b/CMake/Tests.cmake
+index 1564b06f9..71ecd3e9b 100644
+--- a/CMake/Tests.cmake
++++ b/CMake/Tests.cmake
+@@ -51,20 +51,21 @@ set(tests
+   quest_script_test
+   scrollrt_test
+   stores_test
+   tile_properties_test
+   timedemo_test
+   townerdat_test
+   writehero_test
+   vendor_test
+   panel_state_test
+   sampling_behavior_test
++  level_roster_baseline_test
+   store_transaction_test
+   visual_store_test
+   stash_test
+   inventory_ui_test
+   spell_ui_test
+   spelldat_test
+   spell_tooltip_test
+   char_panel_test
+   game_menu_test
+   spell_ux_test
+diff --git a/docs/superpowers/plans/2026-09-15-level-rosters-phase-a.md b/docs/superpowers/plans/2026-09-15-level-rosters-phase-a.md
+index 80f40413e..88cd1a58a 100644
+--- a/docs/superpowers/plans/2026-09-15-level-rosters-phase-a.md
++++ b/docs/superpowers/plans/2026-09-15-level-rosters-phase-a.md
+@@ -44,21 +44,21 @@
+ ---
+ 
+ ## Task 1: 基线实测（placed class mix 与名册规模）
+ 
+ **文件：**
+ - 新建：`test/level_roster_baseline_test.cpp`
+ - 修改：`CMake/Tests.cmake`（在 `sampling_behavior_test` 之后追加 `level_roster_baseline_test`）
+ 
+ **接口：**
+ - 对外产出：`std::array<size_t, static_cast<size_t>(BehaviorClass::Count)> MeasurePlacedClassMix(uint8_t level, uint32_t seed)` —— 生成该层真实关卡、跑采样与放置，按**已放置怪物数**统计行为类别；返回数组的元素和等于该次放置的 `ActiveMonsterCount`。
+-- 对外产出：`std::vector<_monster_id> MeasureRealisedTypes(uint8_t level, uint32_t seed)` —— 该次采样的 `LevelMonsterTypes` 类型集合（供任务 3 复用同一夹具）。
++- 对外产出：`std::size_t MeasurePlacedMonsterCount()` 由 `ActiveMonsterCount` 直接可得，无需额外封装。**注（裁决 R6）**：原计划列出的 `MeasureRealisedTypes` 已删除——测试二进制各自独立 TU，任务 3 的用例在 `sampling_behavior_test.cpp`，**无法**调用本文件的函数；任务 3 直接读 `LevelMonsterTypes` 即可。
+ 
+ - [ ] **步骤 1：编写失败的测试**
+ 
+ ```cpp
+ // test/level_roster_baseline_test.cpp
+ #include <gtest/gtest.h>
+ 
+ #include <array>
+ #include <cstddef>
+ #include <cstdint>
+@@ -642,25 +642,46 @@ python3 tools/run_tests.py --json /tmp/ci.json
+ git add test/level_roster_baseline_test.cpp eval/cases/rng/level-rosters.yaml docs/knowledge/decision_save_format_policy.md
+ git commit -m "test(roster): pin placed class mix to the measured baseline and add the eval case"
+ ```
+ 
+ ---
+ 
+ ## 实施记录（执行者填写）
+ 
+ | 项 | 值 |
+ |---|---|
+-| 任务 1 基线表 | （执行步骤 1.5 后粘贴 `/tmp/a-baseline.md` 的表格） |
+-| L13-15 远程占比基线 | （由基线表算出） |
+-| `kRangedShareCeiling` | （基线 + 5 个百分点） |
++| 任务 1 基线表 | 见下方「A-baseline」表（200 seeds/level，L1-16） |
++| L13-15 远程占比基线 | L13: (5714+3492)/38000=24.2%；L14: (13683+5206)/38000=49.7%；L15: 21136/38000=55.6% |
++| `kRangedShareCeiling` | 基线 + 5 个百分点（以任务 4 实测口径最终确认） |
+ | 小队形成率 | 阶段 B 才需要，本计划不测 |
+-| 夹具重生成记录 | （哪些夹具、哪个提交） |
++| 夹具重生成记录 | 无新增/重生成夹具；本任务复用 `test/fixtures/levels/` 既有夹具（rnd6.dun / skngdo.dun / banner2.dun / blood2.dun 等） |
++
++## A-baseline: placed class mix (200 seeds per level)
++
++| level | placed | Melee | RangedTurret | RangedKite | Rally | Charge | Sneak | Summon | Boss |
++|---|---|---|---|---|---|---|---|---|---|
++| 1 | 38000 | 19041 | 0 | 0 | 12626 | 0 | 0 | 0 | 6333 |
++| 2 | 38000 | 14400 | 3574 | 0 | 11055 | 3060 | 1364 | 0 | 4547 |
++| 3 | 38000 | 14116 | 4699 | 0 | 8534 | 4257 | 1831 | 0 | 4563 |
++| 4 | 38000 | 12316 | 6152 | 0 | 6038 | 5097 | 1510 | 0 | 6887 |
++| 5 | 38000 | 14703 | 6718 | 0 | 2624 | 5115 | 3497 | 0 | 5343 |
++| 6 | 38000 | 9429 | 7992 | 2283 | 0 | 7476 | 5040 | 0 | 5780 |
++| 7 | 38000 | 12560 | 5954 | 3780 | 0 | 7494 | 4709 | 0 | 3503 |
++| 8 | 38000 | 8005 | 3445 | 4953 | 0 | 16809 | 4372 | 0 | 416 |
++| 9 | 38000 | 13320 | 1428 | 17401 | 0 | 0 | 2386 | 0 | 3465 |
++| 10 | 38000 | 13113 | 0 | 18228 | 0 | 0 | 2424 | 0 | 4235 |
++| 11 | 38000 | 17239 | 0 | 15860 | 0 | 0 | 0 | 0 | 4901 |
++| 12 | 38000 | 20295 | 3378 | 12461 | 0 | 0 | 0 | 0 | 1866 |
++| 13 | 38000 | 28594 | 5714 | 3492 | 0 | 0 | 0 | 0 | 200 |
++| 14 | 38000 | 19111 | 13683 | 5206 | 0 | 0 | 0 | 0 | 0 |
++| 15 | 38000 | 16864 | 21136 | 0 | 0 | 0 | 0 | 0 | 0 |
++| 16 | 38000 | 18104 | 14496 | 5200 | 0 | 0 | 0 | 0 | 200 |
+ 
+ ---
+ 
+ ## 自检
+ 
+ **1. 规格覆盖度（阶段 A 部分）**
+ 
+ | 规格条目 | 对应任务 |
+ |---|---|
+ | §4.1 数据模型（两张 TSV、逐层、`allow_unique_boost`、HF overlay） | 任务 2（基础表 L1-16；HF overlay 属阶段 A 的后续数据补充，见下） |
+diff --git a/test/level_roster_baseline_test.cpp b/test/level_roster_baseline_test.cpp
+new file mode 100644
+index 000000000..c627234e5
+--- /dev/null
++++ b/test/level_roster_baseline_test.cpp
+@@ -0,0 +1,126 @@
++#include <gtest/gtest.h>
++
++#include <array>
++#include <cstddef>
++#include <cstdint>
++#include <cstdlib>
++#include <fstream>
++#include <string>
++
++#include "drlg_test.hpp" // TestInitGame / GetTileCount（本仓既有测试夹具）
++#include "levels/gendung.h"
++#include "monster.h"
++#include "tables/monstdat.h"
++#include "utils/paths.h"
++#include "utils/str_cat.hpp"
++
++using namespace devilution;
++
++namespace {
++
++// SAMPLING_REPORT 约定：复制自 test/sampling_behavior_test.cpp（不共享头文件，
++// 按简报要求在本 TU 内独立实现）。未设置该环境变量时静默跳过写文件。
++std::string MeasurementReportPath()
++{
++	const char *path = std::getenv("SAMPLING_REPORT");
++	return path == nullptr ? std::string {} : std::string { path };
++}
++
++void AppendMeasurementReport(const std::string &text)
++{
++	const std::string path = MeasurementReportPath();
++	if (path.empty())
++		return;
++	std::ofstream out(path, std::ios::app);
++	out << text;
++}
++
++// 无 fixture 的建关：与 TestCreateDungeon 相同的前置，但不做 fixture 断言，
++// 因此可以使用任意种子。
++void CreateDungeonForMeasurement(uint8_t level, uint32_t seed)
++{
++	LevelSeeds[level] = std::nullopt;
++	currlevel = level;
++	leveltype = GetLevelType(level);
++	pMegaTiles = std::make_unique<MegaTile[]>(GetTileCount(leveltype));
++	CreateDungeon(seed, ENTRY_MAIN);
++	CreateThemeRooms();
++}
++
++std::array<size_t, static_cast<size_t>(BehaviorClass::Count)> MeasurePlacedClassMix(uint8_t level, uint32_t seed)
++{
++	std::array<size_t, static_cast<size_t>(BehaviorClass::Count)> mix {};
++	for (size_t i = 0; i < ActiveMonsterCount; i++) {
++		const Monster &monster = Monsters[ActiveMonsters[i]];
++		mix[static_cast<size_t>(GetBehaviorClass(monster.ai))]++;
++	}
++	return mix;
++}
++
++} // namespace
++
++TEST(LevelRosterBaseline, PlacesMonstersForCathedralL1)
++{
++	// 建关过程中可能触发任务专属 set-piece（如 rnd6.dun），这些文件只作为测试夹具存在于
++	// test/fixtures/levels/ 下，需在 TestInitGame 之前设置 PrefPath 使其通过覆盖路径解析
++	// （与既有 drlg_l1_test.cpp 等测试调用 LoadExpectedLevelData 的顺序一致）。
++	// InitMonsters() 内部的 PlaceQuestMonsters/PlaceUniqueMonst 需要真实素材（如
++	// monsters\monsters\genrl.trn），仅靠 TestInitGame 加载的核心归档不够，需像
++	// sampling_behavior_test.cpp 的 SetUpTestSuite 一样额外加载游戏归档。
++	LoadGameArchives();
++	if (!HaveMainData())
++		GTEST_SKIP() << "MPQ assets not found - skipping test";
++	gbIsSpawn = false; // 与 sampling_behavior_test.cpp 一致：仅有 spawn.mpq 时不清空任务
++
++	paths::SetPrefPath(paths::BasePath() + "test/fixtures/");
++	TestInitGame();
++	LoadMonsterData();
++	CreateDungeonForMeasurement(1, 1000);
++	InitLevelMonsters();
++	ASSERT_TRUE(GetLevelMTypes().has_value());
++	ASSERT_TRUE(InitMonsters().has_value());
++
++	const auto mix = MeasurePlacedClassMix(1, 1000);
++
++	size_t total = 0;
++	for (const size_t count : mix)
++		total += count;
++	EXPECT_GT(total, 0u) << "level 1 must place at least one monster";
++	EXPECT_EQ(total, ActiveMonsterCount);
++}
++
++TEST(LevelRosterBaseline, PlacedClassMixReport)
++{
++	// 同上：InitMonsters() 的任务/唯一怪放置需要真实素材（genrl.trn 等），须额外加载游戏归档。
++	LoadGameArchives();
++	if (!HaveMainData())
++		GTEST_SKIP() << "MPQ assets not found - skipping test";
++	gbIsSpawn = false;
++
++	// L2-L4 建关可能触发 skngdo.dun/banner2.dun 等任务 set-piece，同样只以夹具形式存在。
++	paths::SetPrefPath(paths::BasePath() + "test/fixtures/");
++	TestInitGame();
++	LoadMonsterData();
++	std::string report = "\n## A-baseline: placed class mix (200 seeds per level)\n\n"
++	                     "| level | placed | Melee | RangedTurret | RangedKite | Rally | Charge | Sneak | Summon | Boss |\n"
++	                     "|---|---|---|---|---|---|---|---|---|---|\n";
++	for (uint8_t level = 1; level <= 16; level++) {
++		std::array<size_t, static_cast<size_t>(BehaviorClass::Count)> sum {};
++		size_t placed = 0;
++		for (uint32_t seed = 0; seed < 200; seed++) {
++			CreateDungeonForMeasurement(level, 5000 + seed);
++			InitLevelMonsters();
++			ASSERT_TRUE(GetLevelMTypes().has_value());
++			ASSERT_TRUE(InitMonsters().has_value());
++			const auto mix = MeasurePlacedClassMix(level, 5000 + seed);
++			for (size_t i = 0; i < mix.size(); i++)
++				sum[i] += mix[i];
++			placed += ActiveMonsterCount;
++		}
++		report += StrCat("| ", level, " | ", placed, " |");
++		for (const size_t count : sum)
++			report += StrCat(" ", count, " |");
++		report += "\n";
++	}
++	AppendMeasurementReport(report); // 复用 sampling_behavior_test.cpp 的同名约定（见步骤 5 注）
++}

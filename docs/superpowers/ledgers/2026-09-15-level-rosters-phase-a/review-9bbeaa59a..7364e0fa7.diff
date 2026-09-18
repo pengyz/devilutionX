@@ -1,0 +1,283 @@
+# Review package: 9bbeaa59a..7364e0fa7
+
+## Commits
+7364e0fa7 fix(roster): bring L2/L3/L4/L8 ranged share back inside the R4 bound
+
+## Files changed
+ assets/txtdata/monsters/level_roster_params.tsv |  8 ++--
+ assets/txtdata/monsters/level_rosters.tsv       | 12 ++++-
+ eval/cases/rng/level-rosters.yaml               | 18 ++++---
+ test/level_roster_baseline_test.cpp             | 64 +++++--------------------
+ test/sampling_behavior_test.cpp                 | 20 ++++++++
+ 5 files changed, 58 insertions(+), 64 deletions(-)
+
+## Diff
+diff --git a/assets/txtdata/monsters/level_roster_params.tsv b/assets/txtdata/monsters/level_roster_params.tsv
+index 3428fdaef..0fbc29cd0 100644
+--- a/assets/txtdata/monsters/level_roster_params.tsv
++++ b/assets/txtdata/monsters/level_roster_params.tsv
+@@ -1,16 +1,16 @@
+ level	max_image	tail_draw	class_floors
+ 1	6000	2	Melee=2
+-2	6000	2	Melee=2
+-3	6000	2	Melee=2
+-4	6000	2	RangedTurret=1
++2	9000	4	Melee=2
++3	6000	4	Melee=2
++4	9000	4	RangedTurret=1
+ 5	9000	2	Melee=1
+ 6	9000	2	Sneak=1
+ 7	9000	2	Melee=1
+-8	9000	2	RangedKite=1
++8	12000	3	RangedKite=1
+ 9	16000	3	RangedKite=1
+ 10	16000	3	RangedKite=2
+ 11	16000	3	RangedKite=2
+ 12	16000	3	RangedKite=2,Melee=2
+ 13	18000	1	Melee=2
+ 14	18000	2	Melee=1
+ 15	18000	3	Melee=2,RangedTurret=1
+diff --git a/assets/txtdata/monsters/level_rosters.tsv b/assets/txtdata/monsters/level_rosters.tsv
+index ce4d6556c..7f14bdecc 100644
+--- a/assets/txtdata/monsters/level_rosters.tsv
++++ b/assets/txtdata/monsters/level_rosters.tsv
+@@ -1,43 +1,51 @@
+ level	monster_id	role	allow_unique_boost
+ 1	MT_WSKELAX	core	-
+ 1	MT_NZOMBIE	core	-
+ 1	MT_RFALLSP	core	-
+ 1	MT_NSCAV	core	-
+ 2	MT_RSKELAX	core	-
+ 2	MT_TSKELBW	core	-
+ 2	MT_GZOMBIE	core	-
+ 2	MT_DFALLSP	core	-
++2	MT_BZOMBIE	core	-
++2	MT_FIEND	core	-
++2	MT_SNEAK	core	-
+ 3	MT_RSKELAX	core	-
+ 3	MT_XSKELAX	core	-
+ 3	MT_RSKELBW	core	-
+ 3	MT_YZOMBIE	core	-
++3	MT_FIEND	core	-
++3	MT_BLINK	core	-
+ 4	MT_XSKELAX	core	-
+-4	MT_TSKELBW	core	-
+ 4	MT_XSKELBW	core	-
+ 4	MT_YFALLSD	core	-
++4	MT_GZOMBIE	core	-
++4	MT_YZOMBIE	core	-
+ 5	MT_XSKELAX	core	-
+ 5	MT_RSKELBW	core	-
+ 5	MT_FAT	core	-
+ 5	MT_STALKER	core	-
+ 6	MT_NGOATMC	core	-
+ 6	MT_NGOATBW	core	-
+ 6	MT_STALKER	core	-
+ 6	MT_UNSEEN	core	-
+ 7	MT_BGOATMC	core	-
+ 7	MT_BGOATBW	core	-
+ 7	MT_FAT	core	-
+ 7	MT_UNSEEN	core	-
+ 8	MT_TOAD	core	-
+-8	MT_GGOATBW	core	-
+ 8	MT_YMAGMA	core	-
+ 8	MT_UNSEEN	core	-
++8	MT_ILLWEAV	core	-
++8	MT_FAMILIAR	core	-
++8	MT_HORNED	core	-
+ 9	MT_BMAGMA	core	-
+ 9	MT_MUDMAN	core	-
+ 9	MT_GGOATBW	core	-
+ 9	MT_ILLWEAV	core	-
+ 10	MT_BACID	core	-
+ 10	MT_TOAD	core	-
+ 10	MT_STORM	core	-
+ 10	MT_ILLWEAV	core	-
+ 11	MT_STORML	core	-
+ 11	MT_BMAGMA	core	-
+diff --git a/eval/cases/rng/level-rosters.yaml b/eval/cases/rng/level-rosters.yaml
+index 1f888853f..86f1bd020 100644
+--- a/eval/cases/rng/level-rosters.yaml
++++ b/eval/cases/rng/level-rosters.yaml
+@@ -36,16 +36,22 @@ description: >
+   基线取自计划 A-baseline 表（200 seed、同一 fixture、放置怪分母）：
+   L13 (3249+2076)/23405 = 22.8%、L14 (9674+3425)/23443 = 55.9%、
+   L15 13533/23193 = 58.3%；阈值即 27.8% / 60.9% / 63.3%，以具名
+   constexpr 数组落在 test/level_roster_baseline_test.cpp 中，出处写在注释里。
+   用例无条件打印实测值（[ MEASURED ] 行，output_contains 断言其存在），
+   所以一旦名册数据改动把某层推向远程画廊，门禁不仅会红，还能直接读到数字。
+   R4：超标只允许改名册 / class_floors，不允许放宽这里的阈值。
+   Task 5 追加（final review I4）：断言范围从 L13-15 扩到 **L1-15**（L16 走硬编码
+   分支、在名册路径前 early-return，仍保留 unconstrained 哨兵），因为 max_image
+   从 4000 放宽到 16000/18000 的恰是 L1-12，此前没有任何量化守卫。L1-12 基线同样
+-  取自 A-baseline 表。扩范围后立即暴露 4 个**先于本次修复存在**的 R4 超标层：
+-  L2 17.43%（阈值 14.16%）、L3 18.90%（15.99%）、L4 36.12%（21.39%）、
+-  L8 45.80%（29.32%）。R4 禁止放宽阈值，故阈值不动，改为把这 4 层锁在今天实测值上
+-  （不得更差），并以 EXPECT_GT 断言它们「仍然超标」——名册修好后本用例会红，
+-  强制删掉锁条目而不是让豁免长期存活。名册整改是独立的平衡决策，不在本次修复波内。
+-  实测（本次改动后）：L13 23.6% / L14 60.5% / L15 50.1%，三层均在带内。
++  取自 A-baseline 表。扩范围后立即暴露 4 个 R4 超标层：L2 17.43%（阈值 14.16%）、
++  L3 18.90%（15.99%）、L4 36.12%（21.39%）、L8 45.80%（29.32%）。
++  Task 5 第二轮（final review R40）：这 4 层的超标由名册特性本身引入（基线是改动前
++  实测值），按 R4 只能改数据、不能动阈值，因此**已整改名册数据**：L2/L3 补入
++  Charge/Melee 等廉价 core，L4 去掉两个 RangedTurret core 之一并补 2 个 Melee core，
++  L8 去掉 RangedTurret core 并补 Sneak/Charge/Melee core，core 集装不下时同步抬高
++  tail_draw / max_image（max_image 是逐层预算参数、非 R4 阈值，spec §4.1 已记载留有余量）。
++  整改后实测：L2 10.17% / L3 12.83% / L4 18.94% / L8 25.88%，全部落回带内，
++  用例里**不再保留任何超标豁免表**，L1-15 每层都受真实阈值约束。
++  同时复核了组合数（500 seed）以确认没有为压占比而把某层压成固定组合：
++  L2 117→360、L3 184→439、L4 147→448、L8 66→116，均显著上升。
++  实测：L13 23.6% / L14 60.5% / L15 50.1%，三层同样在带内。
+diff --git a/test/level_roster_baseline_test.cpp b/test/level_roster_baseline_test.cpp
+index 48e838219..f70113eb0 100644
+--- a/test/level_roster_baseline_test.cpp
++++ b/test/level_roster_baseline_test.cpp
+@@ -321,54 +321,34 @@ TEST_F(LevelRosterBaselineTest, PlacedClassMixWithinBaseline)
+ 	// AC (spec §4.5): the roster must not push a level's ranged share more than 5
+ 	// points above the pre-change baseline. This drives the PRODUCTION fixture
+ 	// (CreateDungeonForMeasurement -> GetLevelMTypes -> InitMonsters) and counts
+ 	// the monsters the engine actually placed, so the measurement comes from real
+ 	// placement rather than a re-simulation of the sampling rules.
+ 	//
+ 	// Range (I4, task 5 review): L1-15, the full roster range - not just L13-15.
+ 	// L16 is excluded because its hardcoded branch returns before the roster path
+ 	// runs (spec 4.2.7), so its mix is a property of that fixed list, not of the
+ 	// roster; its baseline stays the unconstrained sentinel.
+-	// PRE-EXISTING R4 BREACHES, found the moment L1-12 stopped being unmeasured
+-	// (I4). These four levels already exceed baseline + 5pp on the CURRENT shipped
+-	// roster - the defect predates this fix wave, which was chartered to add the
+-	// missing guard, not to re-balance six cathedral/catacomb levels:
++	// There is deliberately NO exception list here: every level in the asserted
++	// range is held to its real R4 ceiling.
+ 	//
+-	//   L2  0.174287 vs ceiling 0.141630  (+3.3pp over)
+-	//   L3  0.189022 vs ceiling 0.159937  (+2.9pp over)
+-	//   L4  0.361194 vs ceiling 0.213892  (+14.7pp over)
+-	//   L8  0.457950 vs ceiling 0.293231  (+16.5pp over)
+-	//
+-	// R4 forbids fixing a breach by loosening the ceiling, so the R4 ceiling above
+-	// is NOT touched. Instead each breach is locked at the value measured today: it
+-	// cannot get worse, the number is in the source where a reviewer sees it, and
+-	// the roster fix is escalated as a separate decision rather than being buried.
+-	// The lock is not a second ceiling - the EXPECT_GT below asserts each listed
+-	// level really is still over its R4 ceiling, so once its roster is fixed this
+-	// case FAILS and forces the entry to be deleted instead of quietly outliving
+-	// the defect.
+-	//
+-	// The 0.005 margin covers placement jitter only; the fixture is seeded
+-	// (9000 + seed) and otherwise deterministic.
+-	struct KnownBreach {
+-		uint8_t level;
+-		double lock;
+-	};
+-	constexpr std::array<KnownBreach, 4> kKnownR4Breaches {
+-		KnownBreach { 2, 0.174287 + 0.005 },
+-		KnownBreach { 3, 0.189022 + 0.005 },
+-		KnownBreach { 4, 0.361194 + 0.005 },
+-		KnownBreach { 8, 0.457950 + 0.005 },
+-	};
+-
++	// History (round 2 of the task-5 fix wave): extending this case from L13-15 to
++	// L1-15 exposed four levels whose roster pushed the ranged share past
++	// baseline + 5pp - L2 (+3.3pp), L3 (+2.9pp), L4 (+14.7pp), L8 (+16.5pp). Those
++	// breaches were introduced by the roster feature itself (the baselines are
++	// pre-change measurements), so per R4 the DATA was fixed, never the ceiling:
++	// L2/L3 gained cheap Charge/Melee cores, L4 dropped one of its two
++	// RangedTurret cores and gained two Melee cores, L8 dropped its RangedTurret
++	// core and gained Sneak/Charge/Melee cores, with tail_draw / max_image raised
++	// where the core set no longer fit. Post-fix measurements are in the
++	// [ MEASURED ] lines below; all four now sit under their ceilings with margin.
+ 	constexpr int kSeeds = 200;
+-	size_t breachesSeen = 0;
+ 	for (uint8_t level = 1; level <= 15; level++) {
+ 		// A level inside the asserted range must have a real baseline: with the
+ 		// sentinel its ceiling is 1.0 and the EXPECT_LE below can never fail, so
+ 		// the level would look guarded while being unguarded - exactly the I4
+ 		// defect. Fail loudly instead.
+ 		ASSERT_LT(kRangedShareBaseline[level], kRangedShareUnconstrained)
+ 		    << "level " << static_cast<int>(level) << " is asserted but still holds the unconstrained"
+ 		    << " sentinel; fill its A-baseline row before adding it to this loop";
+ 
+ 		size_t total = 0;
+@@ -382,36 +362,16 @@ TEST_F(LevelRosterBaselineTest, PlacedClassMixWithinBaseline)
+ 			ranged += mix[static_cast<size_t>(BehaviorClass::RangedTurret)]
+ 			    + mix[static_cast<size_t>(BehaviorClass::RangedKite)];
+ 		}
+ 		ASSERT_GT(total, 0u) << "level " << static_cast<int>(level) << " placed nothing - the fixture is broken";
+ 		const double share = static_cast<double>(ranged) / static_cast<double>(total);
+ 		// Always report the measurement: a passing run must still show how much
+ 		// headroom is left, otherwise the next roster edit has no reference point.
+ 		std::cout << "[ MEASURED ] level " << static_cast<int>(level) << " ranged share " << share
+ 		          << " (" << ranged << "/" << total << "), baseline " << kRangedShareBaseline[level]
+ 		          << ", ceiling " << kRangedShareCeiling[level] << std::endl;
+-		const auto breach = std::find_if(kKnownR4Breaches.begin(), kKnownR4Breaches.end(),
+-		    [level](const KnownBreach &b) { return b.level == level; });
+-		if (breach != kKnownR4Breaches.end()) {
+-			breachesSeen++;
+-			// Premise: this level must still BE a breach. If its roster was fixed,
+-			// this fails and the entry must be removed rather than left as a
+-			// permanently satisfied loophole.
+-			EXPECT_GT(share, kRangedShareCeiling[level])
+-			    << "level " << static_cast<int>(level) << " no longer breaches its R4 ceiling ("
+-			    << share << " <= " << kRangedShareCeiling[level]
+-			    << "): delete its kKnownR4Breaches entry so the real ceiling applies again";
+-			EXPECT_LE(share, breach->lock)
+-			    << "level " << static_cast<int>(level) << " ranged share " << share
+-			    << " got WORSE than the locked pre-existing breach " << breach->lock
+-			    << " (" << ranged << "/" << total << "); R4 ceiling is " << kRangedShareCeiling[level];
+-			continue;
+-		}
+-
+ 		EXPECT_LE(share, kRangedShareCeiling[level])
+ 		    << "level " << static_cast<int>(level) << " ranged share " << share
+ 		    << " exceeds baseline " << kRangedShareBaseline[level] << " + 5pp"
+ 		    << " (" << ranged << "/" << total << ")";
+ 	}
+-	EXPECT_EQ(breachesSeen, kKnownR4Breaches.size())
+-	    << "every kKnownR4Breaches entry must name a level this loop actually measures";
+ }
+diff --git a/test/sampling_behavior_test.cpp b/test/sampling_behavior_test.cpp
+index 622f535f5..d52cc8d4b 100644
+--- a/test/sampling_behavior_test.cpp
++++ b/test/sampling_behavior_test.cpp
+@@ -1275,20 +1275,40 @@ TEST_F(SamplingBaselineTest, RosterPerSeedVariety)
+ // being skipped. The expectation is exact (EXPECT_EQ, not >=), so if a later change
+ // frees a Melee slot this case fails and forces the number to be re-derived rather
+ // than letting a silent regression hide under a loose bound.
+ TEST_F(SamplingBaselineTest, HellUniqueBasesRemainReachable)
+ {
+ 	if (missingMpqAssets_)
+ 		GTEST_SKIP() << "MPQ assets not found - skipping test";
+ 
+ 	// Bases that L13's Melee cap structurally excludes (see scope note 2). Every
+ 	// OTHER candidate base on L13-15 must be reachable.
++	//
++	// All three entries share ONE cause and ONE accepted-at-this-stage reason, and
++	// all three fail the moment that cause is removed:
++	//
++	//   Why accepted now: these are L13 Melee bases. L13's R4 ceiling (0.2775)
++	//   admits only 2 Melee + 1 ranged scatter types, so both Melee slots must be
++	//   core; the Melee class is then AT its B1 cap of 2 and the tail loop prunes
++	//   Melee entirely, so no Melee base can ever be drawn. Reaching them needs one
++	//   of three DESIGN decisions this fix wave is not chartered to take: raise the
++	//   ceiling (forbidden outright by R4), raise L13's Melee cap, or grant
++	//   allow_unique_boost to core one of them (spec 4.4.3 gates exactly the
++	//   spawn-rate increase that would cause).
++	//
++	//   What makes an entry fail: any change that frees an L13 Melee tail slot -
++	//   BehaviorClassCapForLevel raising L13's cap above 2, L13's core dropping to
++	//   one Melee type, or the base being cored under allow_unique_boost. The
++	//   assertion below is EXPECT_FALSE, so such a change turns this into a failure
++	//   and the entry must be deleted rather than silently outliving its reason.
++	//   The blockedSeen premise likewise fails if an entry stops naming a base this
++	//   loop actually checks.
+ 	const std::set<std::pair<uint8_t, _monster_id>> kCapBlocked {
+ 		{ 13, MT_BALROG },  // Blackskull
+ 		{ 13, MT_RTBLACK }, // Rustweaver
+ 		{ 13, MT_VTEXLRD }, // Gorefeast
+ 	};
+ 
+ 	constexpr int kSeeds = 500;
+ 	size_t checkedUniques = 0;
+ 	size_t blockedSeen = 0;
+ 	for (uint8_t level = 13; level <= 15; level++) {

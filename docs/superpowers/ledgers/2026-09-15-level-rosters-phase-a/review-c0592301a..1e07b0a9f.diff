@@ -1,0 +1,740 @@
+# Review package: c0592301a..HEAD
+
+## Commits
+1e07b0a9f test(roster): cover class-floor parsing, uniqueness rejection, and e2e load
+dce5b1aac feat(roster): export a file-path loader/parser and add two uniqueness checks
+8859ab4b9 feat(roster): ship the L1-16 core roster tables and wire the loader
+
+## Files changed
+ CMake/Assets.cmake                                 |   2 +
+ Source/diablo.cpp                                  |   2 +
+ Source/lua/lua_global.cpp                          |   2 +
+ Source/tables/level_roster.cpp                     |  67 +++++++++++--
+ Source/tables/level_roster.h                       |  28 +++++-
+ assets/txtdata/monsters/level_roster_params.tsv    |  17 ++++
+ assets/txtdata/monsters/level_rosters.tsv          |  65 ++++++++++++
+ test/Fixtures.cmake                                |   2 +
+ .../monsters/level_roster_params_interleaved.tsv   |   3 +
+ .../txtdata/monsters/level_rosters_interleaved.tsv |   4 +
+ test/level_roster_test.cpp                         | 110 ++++++++++++++++++++-
+ 11 files changed, 293 insertions(+), 9 deletions(-)
+
+## Diff
+diff --git a/CMake/Assets.cmake b/CMake/Assets.cmake
+index f81028db1..aa22b2e0f 100644
+--- a/CMake/Assets.cmake
++++ b/CMake/Assets.cmake
+@@ -201,20 +201,22 @@ set(devilutionx_assets
+   txtdata/classes/warrior/sounds.tsv
+   txtdata/classes/warrior/sprites.tsv
+   txtdata/classes/warrior/starting_loadout.tsv
+   txtdata/classes/classdat.tsv
+   txtdata/items/item_prefixes.tsv
+   txtdata/items/item_suffixes.tsv
+   txtdata/items/itemdat.tsv
+   txtdata/items/unique_itemdat.tsv
+   txtdata/missiles/misdat.tsv
+   txtdata/missiles/missile_sprites.tsv
++  txtdata/monsters/level_rosters.tsv
++  txtdata/monsters/level_roster_params.tsv
+   txtdata/monsters/monstdat.tsv
+   txtdata/monsters/unique_monstdat.tsv
+   txtdata/objects/objdat.tsv
+   txtdata/quests/questdat.tsv
+   txtdata/sound/effects.tsv
+   txtdata/spells/spelldat.tsv
+   txtdata/spells/spelldesc.tsv
+   txtdata/text/textdat.tsv
+   txtdata/towners/quest_dialog.tsv
+   txtdata/towners/towners.tsv
+diff --git a/Source/diablo.cpp b/Source/diablo.cpp
+index cc5d27cfa..08a0c6d7d 100644
+--- a/Source/diablo.cpp
++++ b/Source/diablo.cpp
+@@ -95,20 +95,21 @@
+ #include "qol/itemlabels.h"
+ #include "qol/monhealthbar.h"
+ #include "qol/stash.h"
+ #include "qol/visual_store.h"
+ #include "qol/xpbar.h"
+ #include "quick_messages.hpp"
+ #include "restrict.h"
+ #include "stores.h"
+ #include "storm/storm_net.hpp"
+ #include "storm/storm_svid.h"
++#include "tables/level_roster.h"
+ #include "tables/monstdat.h"
+ #include "tables/playerdat.hpp"
+ #include "towners.h"
+ #include "track.h"
+ #include "utils/console.h"
+ #include "utils/display.h"
+ #include "utils/format.hpp"
+ #include "utils/is_of.hpp"
+ #include "utils/language.h"
+ #include "utils/parse_int.hpp"
+@@ -2802,20 +2803,21 @@ int DiabloMain(int argc, char **argv)
+ 	LoadTextData();
+ 
+ 	// Load dynamic data before we go into the menu as we need to initialise player characters in memory pretty early.
+ 	LoadPlayerDataFiles();
+ 
+ 	// TODO: We can probably load this much later (when the game is starting).
+ 	LoadSpellData();
+ 	LoadSpellDescData();
+ 	LoadMissileData();
+ 	LoadMonsterData();
++	LoadLevelRoster();
+ 	LoadItemData();
+ 	LoadObjectData();
+ 	LoadQuestData();
+ 
+ 	DiabloInit();
+ #ifdef __UWP__
+ 	onInitialized();
+ #endif
+ 	if (!demo::IsRunning()) SaveOptions();
+ 
+diff --git a/Source/lua/lua_global.cpp b/Source/lua/lua_global.cpp
+index b4110665e..2f97cbb15 100644
+--- a/Source/lua/lua_global.cpp
++++ b/Source/lua/lua_global.cpp
+@@ -35,20 +35,21 @@
+ #include "lua/modules/monsters.hpp"
+ #include "lua/modules/player.hpp"
+ #include "lua/modules/render.hpp"
+ #include "lua/modules/spells.hpp"
+ #include "lua/modules/system.hpp"
+ #include "lua/modules/towners.hpp"
+ #include "lua/modules/world.hpp"
+ #include "options.h"
+ #include "plrmsg.h"
+ #include "stores.h"
++#include "tables/level_roster.h"
+ #include "utils/console.h"
+ #include "utils/log.hpp"
+ #include "utils/str_cat.hpp"
+ 
+ #ifdef _DEBUG
+ #include "lua/modules/dev.hpp"
+ #include "lua/repl.hpp"
+ #endif
+ 
+ namespace devilution {
+@@ -268,20 +269,21 @@ void LuaReloadActiveMods()
+ 		sound_init();
+ 	else
+ 		ui_sound_init();
+ 
+ 	// Reload game data (this can probably be done later in the process to avoid having to reload it)
+ 	LoadTextData();
+ 	LoadPlayerDataFiles();
+ 	LoadSpellData();
+ 	LoadMissileData();
+ 	LoadMonsterData();
++	LoadLevelRoster();
+ 	LoadItemData();
+ 	LoadObjectData();
+ 	LoadQuestData();
+ 
+ 	lua::LoadModsComplete();
+ }
+ 
+ void LuaInitialize()
+ {
+ 	CurrentLuaState.emplace();
+diff --git a/Source/tables/level_roster.cpp b/Source/tables/level_roster.cpp
+index 5b7dcad16..e22b6fb2c 100644
+--- a/Source/tables/level_roster.cpp
++++ b/Source/tables/level_roster.cpp
+@@ -16,20 +16,21 @@
+ #include <utility>
+ #include <vector>
+ 
+ #include <magic_enum/magic_enum.hpp>
+ 
+ #include "appfat.h"
+ #include "data/file.hpp"
+ #include "data/record_reader.hpp"
+ #include "game_mode.hpp"
+ #include "tables/monstdat.h"
++#include "utils/log.hpp"
+ #include "utils/str_cat.hpp"
+ #include "utils/str_split.hpp"
+ 
+ namespace devilution {
+ 
+ namespace {
+ 
+ std::vector<LevelRosterEntry> Entries;
+ std::vector<LevelRosterParams> Params;
+ 
+@@ -47,20 +48,22 @@ bool IsAvailableAt(uint8_t level, _monster_id type)
+ 
+ bool IsUniqueBaseForLevel(uint8_t level, _monster_id type)
+ {
+ 	for (const UniqueMonsterData &unique : UniqueMonstersData) {
+ 		if (unique.mlevel == level && unique.mtype == type)
+ 			return true;
+ 	}
+ 	return false;
+ }
+ 
++} // namespace
++
+ std::vector<std::pair<BehaviorClass, uint8_t>> ParseClassFloors(std::string_view value)
+ {
+ 	std::vector<std::pair<BehaviorClass, uint8_t>> result;
+ 	if (value.empty())
+ 		return result;
+ 	for (const std::string_view part : SplitByChar(value, ',')) {
+ 		const size_t eq = part.find('=');
+ 		if (eq == std::string_view::npos)
+ 			app_fatal(StrCat("Invalid class_floors entry (missing '='): \"", part, "\""));
+ 		const std::string_view clsName = part.substr(0, eq);
+@@ -70,20 +73,22 @@ std::vector<std::pair<BehaviorClass, uint8_t>> ParseClassFloors(std::string_view
+ 			app_fatal(StrCat("Invalid class_floors entry (unknown BehaviorClass): \"", clsName, "\""));
+ 		uint8_t floor = 0;
+ 		const std::from_chars_result parsed = std::from_chars(floorStr.data(), floorStr.data() + floorStr.size(), floor);
+ 		if (parsed.ec != std::errc() || parsed.ptr != floorStr.data() + floorStr.size())
+ 			app_fatal(StrCat("Invalid class_floors entry (bad integer): \"", floorStr, "\""));
+ 		result.emplace_back(*cls, floor);
+ 	}
+ 	return result;
+ }
+ 
++namespace {
++
+ void LoadLevelRosterEntriesFromFile(DataFile &dataFile, std::string_view filename)
+ {
+ 	dataFile.skipHeaderOrDie(filename);
+ 	Entries.reserve(Entries.size() + dataFile.numRecords());
+ 	for (DataFileRecord record : dataFile) {
+ 		RecordReader reader { record, filename };
+ 		LevelRosterEntry entry {};
+ 		reader.readInt("level", entry.level);
+ 		reader.read("monster_id", entry.type, [](std::string_view value) -> std::expected<_monster_id, std::string> {
+ 			const std::optional<_monster_id> id = magic_enum::enum_cast<_monster_id>(value);
+@@ -174,20 +179,44 @@ std::optional<std::string> ValidateLevelRoster(std::span<const LevelRosterEntry>
+ 		if (param.maxImage <= 0)
+ 			return StrCat("level ", param.level, " has a non-positive max_image (", param.maxImage, ")");
+ 		if (param.tailDraw < 0)
+ 			return StrCat("level ", param.level, " has a negative tail_draw (", param.tailDraw, ")");
+ 		for (const auto &[cls, floor] : param.classFloors) {
+ 			if (cls == BehaviorClass::Count)
+ 				return StrCat("level ", param.level, " class floor names the sentinel BehaviorClass::Count, which is not a real category");
+ 		}
+ 	}
+ 
++	// Uniqueness checks (R21 + 2a rulings): a duplicate params row for the same level would
++	// have its second occurrence silently ignored by GetLevelRosterParams() (linear
++	// find_if returns the first match); a duplicate (level, monster_id) entry row would
++	// silently double-count that monster in caps/floor bookkeeping. Both apply in both modes
++	// since they are structural, not availability-related.
++	{
++		std::vector<uint8_t> paramLevels;
++		for (const LevelRosterParams &param : params)
++			paramLevels.push_back(param.level);
++		std::sort(paramLevels.begin(), paramLevels.end());
++		const auto dup = std::adjacent_find(paramLevels.begin(), paramLevels.end());
++		if (dup != paramLevels.end())
++			return StrCat("level ", *dup, " has more than one params row");
++	}
++	{
++		std::vector<std::pair<uint8_t, _monster_id>> entryKeys;
++		for (const LevelRosterEntry &entry : entries)
++			entryKeys.emplace_back(entry.level, entry.type);
++		std::sort(entryKeys.begin(), entryKeys.end());
++		const auto dup = std::adjacent_find(entryKeys.begin(), entryKeys.end());
++		if (dup != entryKeys.end())
++			return StrCat("level ", dup->first, " has more than one roster row for monster ", static_cast<int>(dup->second));
++	}
++
+ 	// Core-non-empty check: every distinct level appearing in entries or params must have
+ 	// at least one core member. This is enforced in both modes.
+ 	std::vector<uint8_t> levels;
+ 	for (const LevelRosterEntry &entry : entries)
+ 		levels.push_back(entry.level);
+ 	for (const LevelRosterParams &param : params)
+ 		levels.push_back(param.level);
+ 	std::sort(levels.begin(), levels.end());
+ 	levels.erase(std::unique(levels.begin(), levels.end()), levels.end());
+ 	for (const uint8_t level : levels) {
+@@ -225,44 +254,68 @@ std::optional<std::string> ValidateLevelRoster(std::span<const LevelRosterEntry>
+ 			}
+ 			const uint8_t cap = BehaviorClassCapForLevel(param.level, cls);
+ 			const size_t effective = cap == 0 ? available : std::min(available, static_cast<size_t>(cap));
+ 			if (effective < floor)
+ 				return StrCat("level ", param.level, " class floor ", static_cast<int>(cls), " needs ", floor, " but only ", effective, " candidates exist (", available, " raw candidates, B1 sampling caps this class to ", static_cast<int>(cap), ")");
+ 		}
+ 	}
+ 	return std::nullopt;
+ }
+ 
+-void LoadLevelRoster()
++namespace {
++
++// Verbose-only load-time diagnostic: reports each Phase A level's roster size and params so a
++// missing/short level shows up in a verbose log instead of only surfacing later as a silent
++// empty span at GetLevelRoster() call sites. This is the production caller for
++// GetLevelRoster()/GetLevelRosterParams() (Task 3's sampling loop is its own, separate caller,
++// out of this task's scope); it does not affect gameplay.
++void LogLoadedRosterSummary()
++{
++	for (uint8_t level = 1; level <= 16; level++) {
++		const std::span<const LevelRosterEntry> roster = GetLevelRoster(level);
++		const LevelRosterParams *params = GetLevelRosterParams(level);
++		LogVerbose("Level roster: level {} has {} entries, params {}", level, roster.size(),
++		    params != nullptr ? "present" : "missing");
++	}
++}
++
++} // namespace
++
++void LoadLevelRosterFromFiles(std::string_view rosterFile, std::string_view paramsFile)
+ {
+ 	Entries.clear();
+ 	Params.clear();
+ 
+-	const std::string_view rosterFilename = "txtdata\\monsters\\level_rosters.tsv";
+-	DataFile rosterFile = DataFile::loadOrDie(rosterFilename);
+-	LoadLevelRosterEntriesFromFile(rosterFile, rosterFilename);
++	DataFile rosterDataFile = DataFile::loadOrDie(rosterFile);
++	LoadLevelRosterEntriesFromFile(rosterDataFile, rosterFile);
+ 
+-	const std::string_view paramsFilename = "txtdata\\monsters\\level_roster_params.tsv";
+-	DataFile paramsFile = DataFile::loadOrDie(paramsFilename);
+-	LoadLevelRosterParamsFromFile(paramsFile, paramsFilename);
++	DataFile paramsDataFile = DataFile::loadOrDie(paramsFile);
++	LoadLevelRosterParamsFromFile(paramsDataFile, paramsFile);
+ 
+ 	// GetLevelRoster() relies on same-level rows being physically contiguous. Nothing
+ 	// guarantees the TSV rows are grouped by level, so sort them here (stably, so rows
+ 	// sharing a level keep their file order, which matters for tail draw ordering).
+ 	SortRosterByLevel(Entries);
+ 
+ 	Entries.shrink_to_fit();
+ 	Params.shrink_to_fit();
+ 
+ 	const std::optional<std::string> error = ValidateLevelRoster(Entries, Params);
+ 	if (error.has_value())
+ 		app_fatal(StrCat("Level roster validation failed: ", *error));
++
++	LogLoadedRosterSummary();
++}
++
++void LoadLevelRoster()
++{
++	LoadLevelRosterFromFiles("txtdata\\monsters\\level_rosters.tsv", "txtdata\\monsters\\level_roster_params.tsv");
+ }
+ 
+ std::span<const LevelRosterEntry> GetLevelRoster(uint8_t level)
+ {
+ 	return FindLevelRoster(Entries, level);
+ }
+ 
+ const LevelRosterParams *GetLevelRosterParams(uint8_t level)
+ {
+ 	const auto it = std::find_if(Params.begin(), Params.end(), [level](const LevelRosterParams &p) { return p.level == level; });
+diff --git a/Source/tables/level_roster.h b/Source/tables/level_roster.h
+index 90a6fb6a1..b5acfe32d 100644
+--- a/Source/tables/level_roster.h
++++ b/Source/tables/level_roster.h
+@@ -2,20 +2,21 @@
+  * @file level_roster.h
+  *
+  * Interface of the per-level monster roster tables (types, loader, validation).
+  */
+ #pragma once
+ 
+ #include <cstdint>
+ #include <optional>
+ #include <span>
+ #include <string>
++#include <string_view>
+ #include <utility>
+ #include <vector>
+ 
+ #include "tables/monstdat.h"
+ 
+ namespace devilution {
+ 
+ enum class LevelRosterRole : uint8_t {
+ 	Core,
+ 	Tail,
+@@ -31,41 +32,66 @@ struct LevelRosterEntry {
+ struct LevelRosterParams {
+ 	uint8_t level;
+ 	int maxImage;
+ 	int tailDraw;
+ 	std::vector<std::pair<BehaviorClass, uint8_t>> classFloors;
+ };
+ 
+ /**
+  * @brief Loads and validates the shipped level roster tables. Fatal on any validation failure.
+  *
+- * Not wired to any production call site yet (see Task 2b).
++ * Must be called after LoadMonsterData(): validation reads MonstersData/UniqueMonstersData,
++ * which LoadMonsterData() populates.
+  *
+  * Each call clears and rebuilds the internal Entries/Params storage, so any std::span or
+  * pointer previously returned by GetLevelRoster()/GetLevelRosterParams() is invalidated the
+  * moment this runs again; callers must not retain those views across a reload.
+  */
+ void LoadLevelRoster();
+ 
++/**
++ * @brief Loads and validates the level roster tables from the given file paths (instead of the
++ * shipped `txtdata\monsters\level_rosters.tsv`/`level_roster_params.tsv`). Fatal on any
++ * validation failure.
++ *
++ * `LoadLevelRoster()` calls this with the shipped paths; tests use it directly against
++ * `test/fixtures/` tables so this has a production caller.
++ */
++void LoadLevelRosterFromFiles(std::string_view rosterFile, std::string_view paramsFile);
++
++/**
++ * @brief Parses a `class_floors` cell (e.g. "Melee=2,Ranged=1") into class/floor pairs.
++ *
++ * Fatal (`app_fatal`) on a malformed entry: missing '=', an unknown BehaviorClass name, or a
++ * non-integer floor. An empty `value` yields an empty result (no floors for that level).
++ */
++std::vector<std::pair<BehaviorClass, uint8_t>> ParseClassFloors(std::string_view value);
++
+ /**
+  * @brief Stable-sorts `entries` by level, preserving each level's relative file order.
+  *
+  * GetLevelRoster()/FindLevelRoster() rely on same-level rows being physically contiguous,
+  * which the source TSV does not guarantee, so LoadLevelRoster() calls this before use.
+  */
+ void SortRosterByLevel(std::span<LevelRosterEntry> entries);
+ 
+ /**
+  * @brief Returns the contiguous run of rows for `level` from an already sorted table.
+  *
+  * `entries` must already be sorted by level (see SortRosterByLevel()); otherwise rows for
+  * `level` that are not contiguous will not all be included.
++ *
++ * The returned span is a view into `entries` and shares its lifetime: it is only valid as long
++ * as the backing storage is not reallocated, resized, or destroyed. In particular, a span
++ * returned from GetLevelRoster() (which is backed by LoadLevelRoster()'s internal storage) is
++ * invalidated by the next LoadLevelRoster()/LoadLevelRosterFromFiles() call; callers must not
++ * retain it across a reload.
+  */
+ std::span<const LevelRosterEntry> FindLevelRoster(std::span<const LevelRosterEntry> entries, uint8_t level);
+ 
+ std::span<const LevelRosterEntry> GetLevelRoster(uint8_t level);
+ const LevelRosterParams *GetLevelRosterParams(uint8_t level);
+ 
+ /**
+  * @brief Validates a candidate roster against the currently loaded MonstersData/UniqueMonstersData.
+  * @return An error description, or an empty optional when the roster is valid.
+  */
+diff --git a/assets/txtdata/monsters/level_roster_params.tsv b/assets/txtdata/monsters/level_roster_params.tsv
+new file mode 100644
+index 000000000..02618f525
+--- /dev/null
++++ b/assets/txtdata/monsters/level_roster_params.tsv
+@@ -0,0 +1,17 @@
++level	max_image	tail_draw	class_floors
++1	6000	2	Melee=2
++2	6000	2	Melee=2
++3	6000	2	Melee=2
++4	6000	2	RangedTurret=1
++5	9000	2	Melee=1
++6	9000	2	Sneak=1
++7	9000	2	Melee=1
++8	9000	2	RangedKite=1
++9	16000	3	RangedKite=1
++10	16000	3	RangedKite=2
++11	16000	3	RangedKite=2
++12	16000	3	RangedKite=2,Melee=2
++13	18000	3	Melee=2,RangedKite=1
++14	18000	3	Melee=2,RangedKite=1
++15	18000	3	Melee=2,RangedTurret=2
++16	18000	3	Melee=2,RangedTurret=2
+diff --git a/assets/txtdata/monsters/level_rosters.tsv b/assets/txtdata/monsters/level_rosters.tsv
+new file mode 100644
+index 000000000..f04582bf6
+--- /dev/null
++++ b/assets/txtdata/monsters/level_rosters.tsv
+@@ -0,0 +1,65 @@
++level	monster_id	role	allow_unique_boost
++1	MT_WSKELAX	core	-
++1	MT_NZOMBIE	core	-
++1	MT_RFALLSP	core	-
++1	MT_NSCAV	core	-
++2	MT_RSKELAX	core	-
++2	MT_TSKELBW	core	-
++2	MT_GZOMBIE	core	-
++2	MT_DFALLSP	core	-
++3	MT_RSKELAX	core	-
++3	MT_XSKELAX	core	-
++3	MT_RSKELBW	core	-
++3	MT_YZOMBIE	core	-
++4	MT_XSKELAX	core	-
++4	MT_TSKELBW	core	-
++4	MT_XSKELBW	core	-
++4	MT_YFALLSD	core	-
++5	MT_XSKELAX	core	-
++5	MT_RSKELBW	core	-
++5	MT_FAT	core	-
++5	MT_STALKER	core	-
++6	MT_NGOATMC	core	-
++6	MT_NGOATBW	core	-
++6	MT_STALKER	core	-
++6	MT_UNSEEN	core	-
++7	MT_BGOATMC	core	-
++7	MT_BGOATBW	core	-
++7	MT_FAT	core	-
++7	MT_UNSEEN	core	-
++8	MT_TOAD	core	-
++8	MT_GGOATBW	core	-
++8	MT_YMAGMA	core	-
++8	MT_UNSEEN	core	-
++9	MT_BMAGMA	core	-
++9	MT_MUDMAN	core	-
++9	MT_GGOATBW	core	-
++9	MT_ILLWEAV	core	-
++10	MT_BACID	core	-
++10	MT_TOAD	core	-
++10	MT_STORM	core	-
++10	MT_ILLWEAV	core	-
++11	MT_STORML	core	-
++11	MT_BMAGMA	core	-
++11	MT_MEGA	core	-
++11	MT_BACID	core	-
++12	MT_STORML	core	-
++12	MT_MEGA	core	-
++12	MT_NSNAKE	core	-
++12	MT_BACID	core	-
++13	MT_STORML	core	-
++13	MT_NBLACK	core	-
++13	MT_SUCCUBUS	core	-
++13	MT_GUARD	core	-
++14	MT_VTEXLRD	core	-
++14	MT_BALROG	core	-
++14	MT_SUCCUBUS	core	-
++14	MT_XACID	core	-
++15	MT_BALROG	core	-
++15	MT_SNOWWICH	core	-
++15	MT_MAGISTR	core	-
++15	MT_GSNAKE	core	-
++16	MT_GSNAKE	core	-
++16	MT_BTBLACK	core	-
++16	MT_CABALIST	core	-
++16	MT_ADVOCATE	core	-
+diff --git a/test/Fixtures.cmake b/test/Fixtures.cmake
+index 203c21ef1..dd0d873d3 100644
+--- a/test/Fixtures.cmake
++++ b/test/Fixtures.cmake
+@@ -87,20 +87,22 @@ set(devilutionx_fixtures
+   timedemo/WarriorLevel1to2/demo_0_reference_spawn_0.sv
+   timedemo/WarriorLevel1to2/spawn_0.sv
+   txtdata/cr.tsv
+   txtdata/crlf.tsv
+   txtdata/empty.tsv
+   txtdata/empty_with_utf8_bom.tsv
+   txtdata/lf.tsv
+   txtdata/lf_no_trail.tsv
+   txtdata/sample.tsv
+   txtdata/utf8_bom.tsv
++  txtdata/monsters/level_rosters_interleaved.tsv
++  txtdata/monsters/level_roster_params_interleaved.tsv
+ )
+ 
+ copy_files(
+   FILES ${devilutionx_fixtures}
+   SRC_PREFIX test/fixtures/
+   OUTPUT_DIR "${DEVILUTIONX_TEST_FIXTURES_OUTPUT_DIRECTORY}"
+   OUTPUT_VARIABLE DEVILUTIONX_OUTPUT_TEST_FIXTURES_FILES
+ )
+ 
+ add_custom_target(devilutionx_copied_fixtures DEPENDS ${DEVILUTIONX_OUTPUT_TEST_FIXTURES_FILES})
+diff --git a/test/fixtures/txtdata/monsters/level_roster_params_interleaved.tsv b/test/fixtures/txtdata/monsters/level_roster_params_interleaved.tsv
+new file mode 100644
+index 000000000..59dfd8475
+--- /dev/null
++++ b/test/fixtures/txtdata/monsters/level_roster_params_interleaved.tsv
+@@ -0,0 +1,3 @@
++level	max_image	tail_draw	class_floors
++1	6000	2	
++2	6000	2	
+diff --git a/test/fixtures/txtdata/monsters/level_rosters_interleaved.tsv b/test/fixtures/txtdata/monsters/level_rosters_interleaved.tsv
+new file mode 100644
+index 000000000..ee55d14f1
+--- /dev/null
++++ b/test/fixtures/txtdata/monsters/level_rosters_interleaved.tsv
+@@ -0,0 +1,4 @@
++level	monster_id	role	allow_unique_boost
++1	MT_WSKELAX	core	-
++2	MT_SNEAK	core	-
++1	MT_NZOMBIE	core	-
+diff --git a/test/level_roster_test.cpp b/test/level_roster_test.cpp
+index 48efc429d..ddc9e7368 100644
+--- a/test/level_roster_test.cpp
++++ b/test/level_roster_test.cpp
+@@ -1,21 +1,23 @@
+ #include <gtest/gtest.h>
+ 
+ #include <algorithm>
+ #include <span>
+ #include <string>
++#include <utility>
+ #include <vector>
+ 
+ #include "engine/assets.hpp"
+ #include "game_mode.hpp"
+ #include "tables/level_roster.h"
+ #include "tables/monstdat.h"
++#include "utils/paths.h"
+ 
+ using namespace devilution;
+ 
+ namespace {
+ 
+ class LevelRosterTest : public ::testing::Test {
+ protected:
+ 	static void SetUpTestSuite()
+ 	{
+ 		LoadCoreArchives();
+@@ -199,21 +201,21 @@ TEST_F(LevelRosterTest, ValidationRejectsAParamsLevelWithNoCoreInRetailMode)
+ 	const std::vector<LevelRosterEntry> entries {};
+ 	const std::vector<LevelRosterParams> params { { 1, 6000, 2, {} } };
+ 	const auto error = ValidateLevelRoster(entries, params);
+ 	ASSERT_TRUE(error.has_value());
+ 	EXPECT_NE(error->find("no core"), std::string::npos);
+ }
+ 
+ TEST_F(LevelRosterTest, ValidationRejectsAnEntryLevelWithNoCoreAndNoParamsRow)
+ {
+ 	// A level with a roster entry (tail only, no params row at all) but no core member
+-	// must be rejected: the check is driven by entries ∪ params, not just params rows.
++	// must be rejected: the check is driven by (entries union params), not just params rows.
+ 	const std::vector<LevelRosterEntry> entries { { 1, MT_NZOMBIE, LevelRosterRole::Tail, false } };
+ 	const std::vector<LevelRosterParams> params {};
+ 	const auto error = ValidateLevelRoster(entries, params);
+ 	ASSERT_TRUE(error.has_value());
+ 	EXPECT_NE(error->find("no core"), std::string::npos);
+ }
+ 
+ TEST_F(LevelRosterTest, ValidationRejectsANonPositiveMaxImage)
+ {
+ 	const std::vector<LevelRosterEntry> entries { { 1, MT_WSKELAX, LevelRosterRole::Core, false } };
+@@ -237,10 +239,116 @@ TEST_F(LevelRosterTest, ValidationRejectsTheClassFloorCountSentinel)
+ 	// BehaviorClass::Count is a sentinel value, not a real category, but magic_enum's
+ 	// enum_cast would otherwise resolve the string "Count" as if it were a valid class.
+ 	const std::vector<LevelRosterEntry> entries { { 1, MT_WSKELAX, LevelRosterRole::Core, false } };
+ 	const std::vector<LevelRosterParams> params {
+ 		{ 1, 6000, 2, { { BehaviorClass::Count, 1 } } },
+ 	};
+ 	const auto error = ValidateLevelRoster(entries, params);
+ 	ASSERT_TRUE(error.has_value());
+ 	EXPECT_NE(error->find("Count"), std::string::npos);
+ }
++
++TEST_F(LevelRosterTest, ValidationRejectsADuplicateParamsLevel)
++{
++	const std::vector<LevelRosterEntry> entries { { 1, MT_WSKELAX, LevelRosterRole::Core, false } };
++	const std::vector<LevelRosterParams> params {
++		{ 1, 6000, 2, {} },
++		{ 1, 9000, 3, {} },
++	};
++	const auto error = ValidateLevelRoster(entries, params);
++	ASSERT_TRUE(error.has_value());
++	EXPECT_NE(error->find("more than one"), std::string::npos);
++}
++
++TEST_F(LevelRosterTest, ValidationRejectsADuplicateEntryLevelAndMonsterId)
++{
++	// Same (level, monster_id) pair appearing twice must be rejected even though each row
++	// individually is a valid, available roster entry.
++	const std::vector<LevelRosterEntry> entries {
++		{ 1, MT_WSKELAX, LevelRosterRole::Core, false },
++		{ 1, MT_WSKELAX, LevelRosterRole::Tail, false },
++	};
++	const std::vector<LevelRosterParams> params { { 1, 6000, 2, {} } };
++	const auto error = ValidateLevelRoster(entries, params);
++	ASSERT_TRUE(error.has_value());
++	EXPECT_NE(error->find("more than one"), std::string::npos);
++}
++
++TEST(ParseClassFloorsTest, ParsesTwoValidEntries)
++{
++	// BehaviorClass has no enumerator literally named "Ranged"; the two real ranged
++	// categories are RangedTurret/RangedKite, so both positive entries here use real names.
++	const auto result = ParseClassFloors("Melee=2,RangedTurret=1");
++	const std::vector<std::pair<BehaviorClass, uint8_t>> expected {
++		{ BehaviorClass::Melee, 2 },
++		{ BehaviorClass::RangedTurret, 1 },
++	};
++	EXPECT_EQ(result, expected);
++}
++
++TEST(ParseClassFloorsTest, EmptyValueYieldsAnEmptyResult)
++{
++	EXPECT_TRUE(ParseClassFloors("").empty());
++}
++
++TEST(ParseClassFloorsTest, FatalsOnAnEntryMissingTheEqualsSign)
++{
++	EXPECT_EXIT(ParseClassFloors("Melee2"), ::testing::ExitedWithCode(1), "missing");
++}
++
++TEST(ParseClassFloorsTest, FatalsOnAnUnknownClassName)
++{
++	EXPECT_EXIT(ParseClassFloors("Ranged=1"), ::testing::ExitedWithCode(1), "unknown BehaviorClass");
++}
++
++TEST(ParseClassFloorsTest, FatalsOnANonNumericFloor)
++{
++	EXPECT_EXIT(ParseClassFloors("Melee=abc"), ::testing::ExitedWithCode(1), "bad integer");
++}
++
++TEST(ParseClassFloorsTest, FatalsOnAnEmptyFloorValue)
++{
++	// "Melee=" has an '=' but nothing after it: from_chars must fail to parse the floor.
++	EXPECT_EXIT(ParseClassFloors("Melee="), ::testing::ExitedWithCode(1), "bad integer");
++}
++
++namespace {
++
++class LevelRosterFixtureLoadTest : public ::testing::Test {
++protected:
++	static void SetUpTestSuite()
++	{
++		LoadCoreArchives();
++		gbIsSpawn = false;
++		LoadMonsterData();
++		paths::SetAssetsPath(paths::BasePath() + "/test/fixtures/");
++	}
++};
++
++} // namespace
++
++TEST_F(LevelRosterFixtureLoadTest, LoadingAnInterleavedFixtureGathersAllMembersOfALevel)
++{
++	// The fixture's rows are deliberately out of level order (L1, L2, L1) to prove the
++	// production loader (not just SortRosterByLevel() in isolation) still collects every
++	// level-1 row via LoadLevelRosterFromFiles() -> GetLevelRoster().
++	LoadLevelRosterFromFiles(
++	    "txtdata\\monsters\\level_rosters_interleaved.tsv",
++	    "txtdata\\monsters\\level_roster_params_interleaved.tsv");
++
++	const std::span<const LevelRosterEntry> level1 = GetLevelRoster(1);
++	ASSERT_EQ(level1.size(), 2u);
++	EXPECT_TRUE(std::any_of(level1.begin(), level1.end(), [](const LevelRosterEntry &e) { return e.type == MT_WSKELAX; }));
++	EXPECT_TRUE(std::any_of(level1.begin(), level1.end(), [](const LevelRosterEntry &e) { return e.type == MT_NZOMBIE; }));
++}
++
++TEST_F(LevelRosterFixtureLoadTest, LoadsTheShippedRosterAndValidatesIt)
++{
++	// Reset back to the real assets directory (the fixture test above pointed AssetsPath at
++	// test/fixtures/) before exercising the production LoadLevelRoster() entry point.
++	paths::SetAssetsPath(paths::BasePath() + "assets/");
++	LoadLevelRoster();
++
++	const std::span<const LevelRosterEntry> level9 = GetLevelRoster(9);
++	EXPECT_FALSE(level9.empty());
++	EXPECT_NE(GetLevelRosterParams(9), nullptr);
++}

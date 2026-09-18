@@ -1,0 +1,201 @@
+# Review package: 1e07b0a9f..HEAD
+
+## Commits
+33a656a7e test(roster): assert parsed values and make the assets path switch order-independent
+
+## Files changed
+ Source/tables/level_roster.cpp | 11 +++---
+ Source/tables/level_roster.h   |  7 ++++
+ test/level_roster_test.cpp     | 76 +++++++++++++++++++++++++++++++++++++-----
+ 3 files changed, 81 insertions(+), 13 deletions(-)
+
+## Diff
+diff --git a/Source/tables/level_roster.cpp b/Source/tables/level_roster.cpp
+index e22b6fb2c..2dcfaf44a 100644
+--- a/Source/tables/level_roster.cpp
++++ b/Source/tables/level_roster.cpp
+@@ -263,24 +263,27 @@ std::optional<std::string> ValidateLevelRoster(std::span<const LevelRosterEntry>
+ 
+ namespace {
+ 
+ // Verbose-only load-time diagnostic: reports each Phase A level's roster size and params so a
+ // missing/short level shows up in a verbose log instead of only surfacing later as a silent
+ // empty span at GetLevelRoster() call sites. This is the production caller for
+ // GetLevelRoster()/GetLevelRosterParams() (Task 3's sampling loop is its own, separate caller,
+ // out of this task's scope); it does not affect gameplay.
+ void LogLoadedRosterSummary()
+ {
+-	for (uint8_t level = 1; level <= 16; level++) {
+-		const std::span<const LevelRosterEntry> roster = GetLevelRoster(level);
+-		const LevelRosterParams *params = GetLevelRosterParams(level);
+-		LogVerbose("Level roster: level {} has {} entries, params {}", level, roster.size(),
++	// Iterate the levels actually present in Params (rather than a hardcoded Phase A range like
++	// 1..16) so this diagnostic keeps covering every loaded level once Phase A2 adds the L17-24
++	// HF overlay rows, with no edit required here.
++	for (const LevelRosterParams &param : Params) {
++		const std::span<const LevelRosterEntry> roster = GetLevelRoster(param.level);
++		const LevelRosterParams *params = GetLevelRosterParams(param.level);
++		LogVerbose("Level roster: level {} has {} entries, params {}", param.level, roster.size(),
+ 		    params != nullptr ? "present" : "missing");
+ 	}
+ }
+ 
+ } // namespace
+ 
+ void LoadLevelRosterFromFiles(std::string_view rosterFile, std::string_view paramsFile)
+ {
+ 	Entries.clear();
+ 	Params.clear();
+diff --git a/Source/tables/level_roster.h b/Source/tables/level_roster.h
+index b5acfe32d..c3e403931 100644
+--- a/Source/tables/level_roster.h
++++ b/Source/tables/level_roster.h
+@@ -81,20 +81,27 @@ void SortRosterByLevel(std::span<LevelRosterEntry> entries);
+  * `level` that are not contiguous will not all be included.
+  *
+  * The returned span is a view into `entries` and shares its lifetime: it is only valid as long
+  * as the backing storage is not reallocated, resized, or destroyed. In particular, a span
+  * returned from GetLevelRoster() (which is backed by LoadLevelRoster()'s internal storage) is
+  * invalidated by the next LoadLevelRoster()/LoadLevelRosterFromFiles() call; callers must not
+  * retain it across a reload.
+  */
+ std::span<const LevelRosterEntry> FindLevelRoster(std::span<const LevelRosterEntry> entries, uint8_t level);
+ 
++/**
++ * This function does not filter by monster availability (spawn/retail/hellfire): under spawn
++ * data most core rows are `availability=Retail` and therefore unavailable, so a caller that
++ * samples from this roster (Task 3's sampling loop) must apply its own availability filter
++ * against the currently loaded MonstersData before treating a returned entry as usable; a
++ * non-empty span here is not itself a guarantee of spawn-mode availability.
++ */
+ std::span<const LevelRosterEntry> GetLevelRoster(uint8_t level);
+ const LevelRosterParams *GetLevelRosterParams(uint8_t level);
+ 
+ /**
+  * @brief Validates a candidate roster against the currently loaded MonstersData/UniqueMonstersData.
+  * @return An error description, or an empty optional when the roster is valid.
+  */
+ std::optional<std::string> ValidateLevelRoster(std::span<const LevelRosterEntry> entries, std::span<const LevelRosterParams> params);
+ 
+ /**
+diff --git a/test/level_roster_test.cpp b/test/level_roster_test.cpp
+index ddc9e7368..6a97e6955 100644
+--- a/test/level_roster_test.cpp
++++ b/test/level_roster_test.cpp
+@@ -306,49 +306,107 @@ TEST(ParseClassFloorsTest, FatalsOnANonNumericFloor)
+ }
+ 
+ TEST(ParseClassFloorsTest, FatalsOnAnEmptyFloorValue)
+ {
+ 	// "Melee=" has an '=' but nothing after it: from_chars must fail to parse the floor.
+ 	EXPECT_EXIT(ParseClassFloors("Melee="), ::testing::ExitedWithCode(1), "bad integer");
+ }
+ 
+ namespace {
+ 
+-class LevelRosterFixtureLoadTest : public ::testing::Test {
++// Base fixture: LoadCoreArchives()/LoadMonsterData() only need to run once per binary (they are
++// expensive and idempotent-enough for repeated calls to just log a benign "already registered"
++// warning), so they stay in SetUpTestSuite(). AssetsPath is process-global mutable state that a
++// single test's body previously mutated directly; that made the two tests below only pass in a
++// specific run order (e.g. under --gtest_filter='LevelRosterFixtureLoadTest.LoadsTheShipped*'
++// alone, or under --gtest_shuffle) since nothing ever restored the original path. Each concrete
++// fixture below now saves/restores AssetsPath per-test in SetUp()/TearDown(), mirroring
++// HasLooseLogicAssetsTest in test/assets_test.cpp, so the two tests are independent of each
++// other and of execution order.
++class LevelRosterFixtureLoadTestBase : public ::testing::Test {
+ protected:
+ 	static void SetUpTestSuite()
+ 	{
+ 		LoadCoreArchives();
+ 		gbIsSpawn = false;
+ 		LoadMonsterData();
+-		paths::SetAssetsPath(paths::BasePath() + "/test/fixtures/");
++	}
++
++	void SetUp() override
++	{
++		savedAssetsPath_ = paths::AssetsPath();
++	}
++
++	void TearDown() override
++	{
++		paths::SetAssetsPath(savedAssetsPath_);
++	}
++
++private:
++	std::string savedAssetsPath_;
++};
++
++class LevelRosterFixtureLoadTest : public LevelRosterFixtureLoadTestBase {
++protected:
++	void SetUp() override
++	{
++		LevelRosterFixtureLoadTestBase::SetUp();
++		paths::SetAssetsPath(paths::BasePath() + "test/fixtures/");
++	}
++};
++
++class LevelRosterShippedLoadTest : public LevelRosterFixtureLoadTestBase {
++protected:
++	void SetUp() override
++	{
++		LevelRosterFixtureLoadTestBase::SetUp();
++		paths::SetAssetsPath(paths::BasePath() + "assets/");
+ 	}
+ };
+ 
+ } // namespace
+ 
+ TEST_F(LevelRosterFixtureLoadTest, LoadingAnInterleavedFixtureGathersAllMembersOfALevel)
+ {
+ 	// The fixture's rows are deliberately out of level order (L1, L2, L1) to prove the
+ 	// production loader (not just SortRosterByLevel() in isolation) still collects every
+ 	// level-1 row via LoadLevelRosterFromFiles() -> GetLevelRoster().
+ 	LoadLevelRosterFromFiles(
+ 	    "txtdata\\monsters\\level_rosters_interleaved.tsv",
+ 	    "txtdata\\monsters\\level_roster_params_interleaved.tsv");
+ 
+ 	const std::span<const LevelRosterEntry> level1 = GetLevelRoster(1);
+ 	ASSERT_EQ(level1.size(), 2u);
+-	EXPECT_TRUE(std::any_of(level1.begin(), level1.end(), [](const LevelRosterEntry &e) { return e.type == MT_WSKELAX; }));
+-	EXPECT_TRUE(std::any_of(level1.begin(), level1.end(), [](const LevelRosterEntry &e) { return e.type == MT_NZOMBIE; }));
++	const auto wskelax = std::find_if(level1.begin(), level1.end(), [](const LevelRosterEntry &e) { return e.type == MT_WSKELAX; });
++	const auto nzombie = std::find_if(level1.begin(), level1.end(), [](const LevelRosterEntry &e) { return e.type == MT_NZOMBIE; });
++	ASSERT_NE(wskelax, level1.end());
++	ASSERT_NE(nzombie, level1.end());
++	// Both rows are `core	-` in the fixture TSV (see test/fixtures/txtdata/monsters/
++	// level_rosters_interleaved.tsv): role Core, allow_unique_boost false.
++	EXPECT_EQ(wskelax->role, LevelRosterRole::Core);
++	EXPECT_FALSE(wskelax->allowUniqueBoost);
++	EXPECT_EQ(nzombie->role, LevelRosterRole::Core);
++	EXPECT_FALSE(nzombie->allowUniqueBoost);
+ }
+ 
+-TEST_F(LevelRosterFixtureLoadTest, LoadsTheShippedRosterAndValidatesIt)
++TEST_F(LevelRosterShippedLoadTest, LoadsTheShippedRosterAndValidatesIt)
+ {
+-	// Reset back to the real assets directory (the fixture test above pointed AssetsPath at
+-	// test/fixtures/) before exercising the production LoadLevelRoster() entry point.
+-	paths::SetAssetsPath(paths::BasePath() + "assets/");
+ 	LoadLevelRoster();
+ 
++	// Real values from the shipped tables (assets/txtdata/monsters/level_roster_params.tsv row
++	// "9	16000	3	RangedKite=1"): assert the parsed numbers rather than just non-null/non-empty,
++	// so swapping the maxImage/tailDraw columns (both valid positive ints) would be caught.
++	const LevelRosterParams *params9 = GetLevelRosterParams(9);
++	ASSERT_NE(params9, nullptr);
++	EXPECT_EQ(params9->maxImage, 16000);
++	EXPECT_EQ(params9->tailDraw, 3);
++
+ 	const std::span<const LevelRosterEntry> level9 = GetLevelRoster(9);
+ 	EXPECT_FALSE(level9.empty());
+-	EXPECT_NE(GetLevelRosterParams(9), nullptr);
++	// assets/txtdata/monsters/level_rosters.tsv has "9	MT_BMAGMA	core	-": role Core,
++	// allow_unique_boost false. Pin this specific row's parsed fields, not just the roster's
++	// non-emptiness.
++	const auto bmagma = std::find_if(level9.begin(), level9.end(), [](const LevelRosterEntry &e) { return e.type == MT_BMAGMA; });
++	ASSERT_NE(bmagma, level9.end());
++	EXPECT_EQ(bmagma->role, LevelRosterRole::Core);
++	EXPECT_FALSE(bmagma->allowUniqueBoost);
+ }

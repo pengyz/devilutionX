@@ -1,0 +1,306 @@
+# Review package: 297e71dba..HEAD
+
+## Commits
+154bc017c docs(spec): record task D (L14 core reshape) and lift its freeze
+080963871 feat(rosters): give L14 a melee-leaning core so squads fit the ranged ceiling
+
+## Files changed
+ assets/txtdata/monsters/level_roster_params.tsv    |  2 +-
+ assets/txtdata/monsters/level_rosters.tsv          |  1 -
+ .../specs/2026-09-15-level-rosters-design.md       |  4 ++--
+ eval/cases/rng/level-rosters.yaml                  | 21 ++++++++++++++++--
+ test/level_roster_baseline_test.cpp                | 25 ++++++++++++++++++----
+ test/sampling_behavior_test.cpp                    | 10 +++++++++
+ 6 files changed, 53 insertions(+), 10 deletions(-)
+
+## Diff
+diff --git a/assets/txtdata/monsters/level_roster_params.tsv b/assets/txtdata/monsters/level_roster_params.tsv
+index 8ee50f097..6d4e79591 100644
+--- a/assets/txtdata/monsters/level_roster_params.tsv
++++ b/assets/txtdata/monsters/level_roster_params.tsv
+@@ -5,12 +5,12 @@ level	max_image	tail_draw	class_floors	squad_chance	squad_size	squad_leashed
+ 4	9000	4	RangedTurret=1	30	2	1
+ 5	9000	2	Melee=1	30	2	1
+ 6	9000	2	Sneak=1	30	2	1
+ 7	9000	2	Melee=1	30	2	1
+ 8	12000	3	RangedKite=1	30	2	1
+ 9	16000	3	RangedKite=1	30	2	1
+ 10	16000	3	RangedKite=2	30	2	1
+ 11	16000	3	RangedKite=2	30	2	1
+ 12	16000	3	RangedKite=2,Melee=2	30	2	1
+ 13	18000	1	Melee=2	30	2	1
+-14	18000	2	Melee=1	10	2	1
++14	18000	2	Melee=1	30	2	1
+ 15	18000	3	Melee=2,RangedTurret=1	30	2	1
+diff --git a/assets/txtdata/monsters/level_rosters.tsv b/assets/txtdata/monsters/level_rosters.tsv
+index 7f14bdecc..86b579d13 100644
+--- a/assets/txtdata/monsters/level_rosters.tsv
++++ b/assets/txtdata/monsters/level_rosters.tsv
+@@ -52,18 +52,17 @@ level	monster_id	role	allow_unique_boost
+ 11	MT_MEGA	core	-
+ 11	MT_OBLORD	core	-
+ 12	MT_STORML	core	-
+ 12	MT_MEGA	core	-
+ 12	MT_NSNAKE	core	-
+ 12	MT_BACID	core	-
+ 13	MT_NBLACK	core	-
+ 13	MT_GUARD	core	-
+ 14	MT_VTEXLRD	core	-
+ 14	MT_SNOWWICH	core	-
+-14	MT_XACID	core	-
+ 15	MT_BALROG	core	-
+ 15	MT_SNOWWICH	core	-
+ 15	MT_GSNAKE	core	-
+ 16	MT_GSNAKE	core	-
+ 16	MT_BTBLACK	core	-
+ 16	MT_CABALIST	core	-
+ 16	MT_ADVOCATE	core	-
+diff --git a/docs/superpowers/specs/2026-09-15-level-rosters-design.md b/docs/superpowers/specs/2026-09-15-level-rosters-design.md
+index 9c1cf5b7e..2e765287a 100644
+--- a/docs/superpowers/specs/2026-09-15-level-rosters-design.md
++++ b/docs/superpowers/specs/2026-09-15-level-rosters-design.md
+@@ -207,21 +207,21 @@ level   max_image   tail_draw   class_floors          squad_chance   squad_size
+ | 9 | 身份守卫：相邻层名册 Jaccard < 0.9 | `IdentityGuard`（P0-D 度量） |
+ | 9b | **多样性守卫（2026-09-15 最终评审新增，R38）**：L2-15 每层的**每 seed 组合数 ≥ 2**（500 seeds 实测；L1 因候选池仅 6 个允许例外，须在用例内注释说明） | `RosterPerSeedVariety` |
+ | 9c | **unique 可达性守卫（R38）**：`mlevel ∈ 13-15` 的每个 unique，其 base 类型必须在至少一个 seed 的 realized 集合中出现（地狱段强制；本条是 S1 回归的直接守卫） | `HellUniqueBasesRemainReachable` |
+ | 10 | A1/A3 的变体出现在其所属层的 core 中 | `A1A3VariantsAreCore` |
+ | 11 | eval + 全量门禁 + 夹具 + 台账 + 协议声明 | `eval/cases/rng/level-rosters.yaml`、`python3 -m tools.eval.backend --smoke`、`python3 tools/run_tests.py --json /tmp/ci.json`（100%/0/drift ok）、`timedemo` 等按决策 35 重生成、`docs/knowledge/decision_save_format_policy.md` 记账；**明确声明：名册改变 `DSpawnedMonster.typeIndex` 的含义 → 不同版本不可互联（不提供跨版本兼容）** |
+ 
+ ## 7. 状态
+ 
+ **实施中**（2026-09-16 更新）。
+ 
+-- **阶段 B（核心小队）已实施**：计划 `plans/2026-09-15-level-rosters-phase-b.md` 的 5 个任务全部完成；门禁 **767/767** + drift A-F（含 2026-09-16 新增的检查 F：`run_tests.py` 必须构建 `Tests.cmake` 的每个测试目标）+ CI 绿；最终全分支评审"修复后可合并"→ 修掉 **S1（`ReleaseMinions` 漏 `Separated` 的悬挂索引）** 与 **S2（小队随从被染蓝名＝UI 宣称被强化）** 后，范围化复审裁决 **可合并**。实测：**L1-15 小队形成率 99.890-100%**（500 seed/层，最差 L10）；**L14 因 ceiling 挤压为 8.8%**（`squad_chance=10`）；验收 8 与 9c 均有本轮证据（L14 = 0.60512 ≤ 0.60876；unique 6/6）。
++- **阶段 B（核心小队）已实施**：计划 `plans/2026-09-15-level-rosters-phase-b.md` 的 5 个任务全部完成；门禁 **767/767** + drift A-F（含 2026-09-16 新增的检查 F：`run_tests.py` 必须构建 `Tests.cmake` 的每个测试目标）+ CI 绿；最终全分支评审"修复后可合并"→ 修掉 **S1（`ReleaseMinions` 漏 `Separated` 的悬挂索引）** 与 **S2（小队随从被染蓝名＝UI 宣称被强化）** 后，范围化复审裁决 **可合并**。实测：**L1-15 小队形成率 99.890-100%**（500 seed/层，最差 L10）；**L14 经任务 D 重塑 core 名单后亦为 30**（占比重塑后 0.543672 ≤ 0.60876、9c 6/6；rollRate 0.313406）；验收 8 与 9c 均有本轮证据（L14 = 0.60512 ≤ 0.60876；unique 6/6）。
+ - **阶段 A2 计划已就绪**：`plans/2026-09-15-level-rosters-phase-a2.md`（L17-24 名册 + **校验层范围化**，闭合红线 12「全层段定义」；设计为**单一表扩到 L24**，非另建 overlay 表，以避免双表漂移）。
+ - **仍开放**：**L14 的取舍**（实测中：重塑 core 名单以容纳 `squad_chance=30`，成功则采纳、失败维持现状；已明确排除"提高 ceiling"）；**附录 D 预测 5**（引开 leader >4 格后脱队/归队）**无头不可覆盖，需人工试玩**（已写验证方法）；`Timedemo.WarriorLevel1to2` 夹具重录必要性上升（阶段 B 改了 L1/L2 放置序列与 RNG 流）；O2（加载期校验未含 quest 无条件预加）；`passed_min` 硬编码计数机制；范围外既存缺陷 `drlg_l2.cpp:2072`建议单独开单。
+ 
+ - **阶段 A（逐层名册）已交付**：计划 `plans/2026-09-15-level-rosters-phase-a.md` 的 4 个任务全部完成，本地门禁 749/0/100% + drift 5/5，远端 CI 绿（`better-d1-ci.yml`）；评审链：任务评审 ×5、范围化复审 ×7、最终全分支评审（裁决"修复后可合并"）。
+ - **阶段 B（核心小队）实施中**：计划 `plans/2026-09-15-level-rosters-phase-b.md`；前置 G1、G2 已完成（G1 已过 CI；G2 已提交待评审），小队机制与形成率守卫待做。
+ - **未完成部分（原草案遗留，均为既定范围）**：阶段 A2（HF overlay 的 L17-24 名册表——**红线 12「全层段定义」因此目前只对 L1-16 + L16 特例成立**，L17-24 仍走 R28 legacy）；附录 E 第 1/2 条的阶段 B 待决项（地狱段多样性与 O2 校验语义）。
+ 
+ ---
+ 
+ ## 附录 A：复核发现的处置
+@@ -285,15 +285,15 @@ level   max_image   tail_draw   class_floors          squad_chance   squad_size
+ 
+ **若实现后 1/2/4 未出现 → 规格失败；3/5 未出现 → 阶段 B 的小队卖点失败（回到阶段 A 的交付水平）。**
+ 
+ ## 附录 E：阶段 B / A2 待决问题（本规格记录，不在阶段 A 范围）
+ 
+ 1. **地狱段名册曾退化为"零随机性"（最终评审核正后的严重度，2026-09-15）**：为压住远程占比 ceiling，任务 4 的 R4 数据调整把 L13/L14/L15 压成**每 seed 完全相同的固定组合**（500 seeds 实测各 1 种组合；改动前 20-175 种），并因 `PlaceUniqueMonsters` 要求 base 已在池中而使 **12 只 unique 永久不可达**（L13 5/9→0、L14 6/6→0、L15 2/3→0）。根因：L15 四个 core 把两个类别双双顶到 cap 2（尾池被清空）、L13/L14 `tail_draw=1` 且 floors 在 RNG 之前取第一个匹配项。**裁决更正（R37）**：原文"物种数 4-5 低于目标"低估了严重度；R32/R34 据此撤销/调整——采纳 L14 `tail_draw=2`（实测 0.5964 < ceiling 0.60876，余量 1.2pp 值得为恢复随机性支付），并新增 §6 的多样性守卫（9b）与 unique 可达性守卫（9c）。可选出路仍是：① 放宽 cap；② 提高占比上限；③ 扩充 Melee 池；④ 阶段 B 编组层。
+ 2. **O2**：加载期校验目前只看 core 是否超 cap，未把"quest 无条件预加的 base"计入合计；L13 的实际组合仍可能破 cap。属 §4.2.2 预算语义问题，留阶段 B。
+ 3. **阶段 B 前置**：G1（非 unique leader 死亡不释放随从 → 悬挂索引）、G2（`setLeader` 覆写随从 AI）必须先修，见 §4.3。
+ 4. **阶段 A2**：HF overlay 的 L17-24 名册表；L17-24 现走 R28 legacy fallback（保持旧行为，无身份）。
+ 5. **`tail_draw` 存在隐式上界 ≈4（跨任务耦合，2026-09-15 合并前复审记录）**：`test/sampling_behavior_test.cpp` 的 `HellfireNoParamsSamplingTest.NoParamsTailExceedsTheParameterisedCap` 以"无参数层的散布类型数 > 表内最大 `tail_draw`"来量化"不设上限"，因此把某层的 `tail_draw` 提到 ≥5 会让该守卫失败。将来确有需要时，应**重新论证该守卫的表述**（例如改成比较"是否达到候选上限"），而不是放宽它。
+-7b. **小队形成率实测与阈值（2026-09-16，Task 4）**：出厂表（`squad_chance=30`，L14=10）**500 seed/层**实测形成率 **99.890-100%**（最差 L10 99.890），统一 floor **0.95**（用例内具名数组 `kSquadFormationFloor`，按层索引、L16 为 unconstrained 哨兵；注释列全 15 层实测值与余量说明，并声明"**实测分隔线、非紧界、非规格常量**"）；逐层实测值无条件打印 `[ SQUADFORM ]`。**无任何层需要 §4.3.4 回退**，`level_roster_params.tsv` 零改动。分子用**leash 无关**的 `SquadRollCounters::formed`（若用带 `squadLeashed && packSize>0` 的 `realised`，任何采用回退的层会恒读 0% —— 即守卫因它自己要求的补救而变红）。运行时：该用例 500seed×15层 ≈290s（该二进制 ~475s），eval case `timeout: 900` 余量不宽，**再加长用例须同步上调**。
++7b. **小队形成率实测与阈值（2026-09-16，Task 4）**：出厂表（**全 15 层 `squad_chance=30`**，2026-09-16 起 L14 亦为 30）**500 seed/层**实测形成率 **99.890-100%**（最差 L10 99.890），统一 floor **0.95**（用例内具名数组 `kSquadFormationFloor`，按层索引、L16 为 unconstrained 哨兵；注释列全 15 层实测值与余量说明，并声明"**实测分隔线、非紧界、非规格常量**"）；逐层实测值无条件打印 `[ SQUADFORM ]`。**无任何层需要 §4.3.4 回退**，`level_roster_params.tsv` 零改动。分子用**leash 无关**的 `SquadRollCounters::formed`（若用带 `squadLeashed && packSize>0` 的 `realised`，任何采用回退的层会恒读 0% —— 即守卫因它自己要求的补救而变红）。运行时：该用例 500seed×15层 ≈290s（该二进制 ~475s），eval case `timeout: 900` 余量不宽，**再加长用例须同步上调**。
+ 
+ 7. **小队回退邻近性守卫的界与三个参数绑定（2026-09-16，RB18）**：`SquadPlacementTest` 的邻近性上界取 **32**（实测分隔线：出厂路径 max 17 / 去掉 leader 后 max 66；代码可证的 101 不可失败，因散布区 `[16,96)` 内任意两格距离 ≤80）。该界与 `PlaceGroup` 的 `try2` 上限、散布区范围、`squad_size` **绑定**——任一变化都必须重新实测并复核此界（用例无条件打印 `[ SQUADFALLBACK ]` 便于发现漂移）。
+ 6. **既存缺陷（非本规格引入，建议单独开单）**：`Source/levels/drlg_l2.cpp:2072`（`FixTilesPatterns` 一带）存在未加边界的 `dungeon[i][j+1]`/`dungeon[i+1][j]` 访问，在 `j+1 == DMAXY` 时越界；最后一次改动 `53b91fd7a`。合并前复审的全量日志中有 1 条 UBSan 记录，是在**抬高 L8 的 `max_image` 后曝光**（非本功能引入）。
+ 5. **L14 `tail_draw` 1 → 2 的替代解（任务 4 评审实测，裁决 R34 暂不采纳）**：把 L14 的 `tail_draw` 从 1 提到 2，远程占比实测 **0.5964**，仍低于 ceiling **0.60876**，物种数 **4 → 5**，零代码改动、全部测试绿——即阶段 A 的"L14 只有一个数据解"并非绝对，只是"在 ≥5pp 余量标准下唯一"。控制器裁决 R34 **本阶段不采纳**，理由：① 该解余量仅 **1.2pp**（现状 11.7pp），会让 `PlacedClassMixWithinBaseline` 这道守卫变脆，一次无关的采样微调就可能把它推翻；② 与阶段 A 内部一致性冲突——任务 4 曾以"太贴边"为由否掉过同等余量的 `MT_BALROG` 方案，采纳这个会自相矛盾；③ R32 精神是"阶段 A 守卫优先，多样性归阶段 B"。**阶段 B 需要决的取舍**：是否值得用 1.2pp 的守卫余量换 L14 一个物种？若阶段 B 按第 1 条的出路①/②放宽了 cap 或占比上限，本项自然消解（余量重新变宽后 `tail_draw=2` 不再贴边）；若阶段 B 决定守卫余量必须 ≥5pp，则本项应正式关闭为"不采纳"。
+diff --git a/eval/cases/rng/level-rosters.yaml b/eval/cases/rng/level-rosters.yaml
+index 17e2a1f41..1511473fb 100644
+--- a/eval/cases/rng/level-rosters.yaml
++++ b/eval/cases/rng/level-rosters.yaml
+@@ -72,22 +72,23 @@ description: >
+   Phase B Task 3 追加：filter 覆盖同一二进制里的 SquadPlacementTest（5 个用例，
+   故计数 3 → 8，filter 同步扩为 LevelRosterBaselineTest.*:SquadPlacementTest.*，timeout 300 → 900s），跑的仍是真实 CreateDungeon -> GetLevelMTypes -> InitMonsters 链路。
+   用例无条件打印 [ SQUADRATE ]（squad_chance=100 下逐层实测成队率）与
+   [ SHIPPEDSQUAD ]（出厂表 squad_chance=30 下逐层实测成队率），output_contains
+   断言两行存在，因此小队一旦不成形，门禁不仅会红，还能直接读到逐层数字。
+   实测（出厂表、50 seed/层）：逐层 roll 率 26.8%-31.1%（名义 30%），
+   realisation 99.6%-100%，leader 放置失败与无 partner 计数全为 0。
+   同时记录：均匀 squad_chance=30 会把 L14 远程占比从 60.49% 推到 61.51%、越过
+   60.88% 阈值。按 R4 只改数据、不动阈值：先试 class_floors Melee=1 → Melee=2（占比
+   60.45% 达标），但全量门禁判红——该改动使 L14 的 unique base 可达性从 6/6 掉到 2/6，
+-  违反验收 9c（HellUniqueBasesRemainReachable），故回退。最终采用 **L14 squad_chance
+-  30 → 10**（占比 60.51% 达标，9c 恢复 6/6），其余各层保持 30。
++  违反验收 9c（HellUniqueBasesRemainReachable），故回退。Task 3 当时采用 **L14 squad_chance
++  30 → 10**（占比 60.51% 达标，9c 恢复 6/6），其余各层保持 30。**该让步已由 Phase B Task D
++  取消**（见下）。
+ 
+   Phase B Task 3 修复轮次 1（评审必须修项）：为两条此前**无守卫**的规格要求补上可失败断言，
+   用例数 8 → 9（新增具名用例 `SquadMinionsKeepOwnAi`，规格 §6 验收第 6 行点名）。
+   同时 `UnleashedFallbackPlacesNeighboursWithoutLeashing` 从"只测拴系数为 0"改为**真正断言邻近性**：
+   §4.3.4 回退的核心保证是"仍把 leader 传给 PlaceGroup"，此前把 `&leader` 改成 `nullptr` 全部用例仍绿。
+   unleashed 随从的 leaderRelation 是 None、无 leader 反向指针，放置后无法重新配对，
+   因此邻近性在**放置那一刻**由 `SquadRollCounters::{partnersPlaced,maxPartnerLeaderDistance}` 记录。
+   新增 `[ SQUADFALLBACK ]` 输出行（output_contains 断言其存在）报告实测最大距离与界。
+   另加"随从类型 ≠ leader 类型"断言（此前删掉 PickCorePartnerTypeIndex 的同类型跳过后 8 条用例全绿）。
+   四条反证均实跑"改坏→红→恢复→绿"。squad_leashed 解析器的拒绝拼写错误用例落在
+@@ -122,10 +123,26 @@ description: >
+   新增弱但可失败的断言：每支已成形小队的平均随从数 >= 1.5（`kMinMinionsPerSquad`）。
+   实测出厂配置 **1.989**（squad_size=2，与 SquadFormationRate 的 ~99.9% 形成率一致）；
+   改成常量 1 后实测恰为 **1.0**，必红。1.5 落在这两个值之间的空隙里，不把合法数据调整变成红灯。
+   新增 `[ SQUADSIZE ]` 输出行。反证：第 2 参改 1 → 判红（实测 per-squad 1）。
+   M1 —— `level_roster_params_squads_off.tsv` 此前同时改了 `squad_chance` 与 `squad_size` 两列，
+   而注释称"只差 squad_chance"；"A/B 只差一个变量"是这些用例的立论基础，故采用更强的修法：
+   把该夹具的 `squad_size` 改回出厂值 2，现在**真的只差 squad_chance** 一列（该输入合法：
+   加载器只拒绝反向组合 `squad_chance > 0 && squad_size == 0`）。反证：把该夹具 squad_chance
+   改回 30 → `SquadsAreAbsentWhenTheTableDisablesThem` 判红，确认这一列就是该用例真正测的东西。
+   出厂数据（assets/txtdata/**）与 `kRangedShareCeiling` / `kSquadFormationFloor` 阈值本轮零改动。
++
++  Phase B Task D（取消 L14 的 squad_chance 让步，**用例数不变，仍为 10**：本轮只改出厂数据与注释）：
++  目标是在**不放宽任何守卫**（`kRangedShareCeiling` / `kSquadFormationFloor` / class_floors 一律不动）
++  的前提下让 L14 也用统一的 `squad_chance=30`。结构判据：小队 partner 从**其他 core**抽取，
++  所以 3 个 core 里有 2 个是远程会让每支小队都偏远程；而 L14 的 6 个 unique base 是
++  **4 Melee + 2 RangedTurret**、B1 cap 为 2/类，因此**任何一类的 core 增到 2 都会关掉该类尾抽**
++  并打掉 9c（这正是 Task 3 抬 Melee floor 掉到 2/6 的原因）。**RangedKite 在 L14 没有 unique base**，
++  故唯一可动的杠杆是去掉 kite core `MT_XACID`，使 core 变为 1 Melee + 1 RangedTurret。
++  实测（200 seed，真实建关放置链路）：
++  对照 A@30（原 3 core）**0.615081 > 0.60876 判红**（复现 Task 3 的失败）；
++  采纳配置 B@30（去掉 kite core）**0.543672 ≤ 0.60876 通过**，余量由原来的 0.36pp 扩到 **6.5pp**；
++  9c 维持 **6/6**（`[ MEASURED ] level 14 unique bases reachable 6/6`）；
++  `[ SHIPPEDSQUAD ] level 14` rollRate **0.088 → 0.313406**（名义 30%）；
++  L14 每 seed 组合数 **51**（500 seed，RosterPerSeedVariety 通过）；其余各层占比与形成率逐位不变。
++  因此 `level_roster_params.tsv` 现在**全 15 层统一 squad_chance=30**，RB17 的 L14 冻结让步解除；
++  `class_floors` 仍为 Melee=1（RB14：不是自由杠杆，本轮未触碰）。
+diff --git a/test/level_roster_baseline_test.cpp b/test/level_roster_baseline_test.cpp
+index ac990d25e..daef4237d 100644
+--- a/test/level_roster_baseline_test.cpp
++++ b/test/level_roster_baseline_test.cpp
+@@ -517,20 +517,34 @@ TEST_F(LevelRosterBaselineTest, PlacedClassMixWithinBaseline)
+ 	// History (round 2 of the task-5 fix wave): extending this case from L13-15 to
+ 	// L1-15 exposed four levels whose roster pushed the ranged share past
+ 	// baseline + 5pp - L2 (+3.3pp), L3 (+2.9pp), L4 (+14.7pp), L8 (+16.5pp). Those
+ 	// breaches were introduced by the roster feature itself (the baselines are
+ 	// pre-change measurements), so per R4 the DATA was fixed, never the ceiling:
+ 	// L2/L3 gained cheap Charge/Melee cores, L4 dropped one of its two
+ 	// RangedTurret cores and gained two Melee cores, L8 dropped its RangedTurret
+ 	// core and gained Sneak/Charge/Melee cores, with tail_draw / max_image raised
+ 	// where the core set no longer fit. Post-fix measurements are in the
+ 	// [ MEASURED ] lines below; all four now sit under their ceilings with margin.
++	//
++	// History (task D, L14): L14 wanted the standard squad_chance of 30 but measured
++	// 0.615081 with its original 3-core set (1 Melee + 1 RangedTurret + 1 RangedKite),
++	// breaching the 0.60876 ceiling - squad partners are drawn from the OTHER cores,
++	// so 2 of the 3 cores being ranged biased every squad ranged. Per R4 the DATA
++	// changed again: L14's RangedKite core (MT_XACID) was dropped, leaving a
++	// melee-leaning 1 Melee + 1 RangedTurret core, which measures 0.543672 at
++	// squad_chance 30 (6.5pp of headroom, versus 0.36pp at the old chance of 10).
++	// The kite core is the ONLY one that could go: L14's six unique bases are 4 Melee
++	// + 2 RangedTurret, and the B1 cap is 2 per class, so a second core in either of
++	// those classes shuts that class's tail draw and costs AC9c reachability - which
++	// is exactly what raising L14's Melee floor to 2 did (6/6 -> 2/6, reverted).
++	// RangedKite carries no L14 unique base, so dropping it costs no reachability;
++	// HellUniqueBasesRemainReachable still measures L14 at 6/6.
+ 	constexpr int kSeeds = 200;
+ 	for (uint8_t level = 1; level <= 15; level++) {
+ 		// A level inside the asserted range must have a real baseline: with the
+ 		// sentinel its ceiling is 1.0 and the EXPECT_LE below can never fail, so
+ 		// the level would look guarded while being unguarded - exactly the I4
+ 		// defect. Fail loudly instead.
+ 		ASSERT_LT(kRangedShareBaseline[level], kRangedShareUnconstrained)
+ 		    << "level " << static_cast<int>(level) << " is asserted but still holds the unconstrained"
+ 		    << " sentinel; fill its A-baseline row before adding it to this loop";
+ 
+@@ -770,21 +784,21 @@ TEST_F(SquadPlacementTest, SquadMinionsKeepOwnAi)
+ 
+ TEST_F(SquadPlacementTest, SquadsAreAbsentWhenTheTableDisablesThem)
+ {
+ 	if (missingMpqAssets_)
+ 		GTEST_SKIP() << "MPQ assets not found - skipping test";
+ 	if (missingRetailTrn_)
+ 		GTEST_SKIP() << "retail/HF TRN (monsters\\monsters\\genrl.trn) not available - skipping test";
+ 
+ 	// The A side of the A/B: identical levels and seeds to SquadFormsAroundACoreLeader, and
+ 	// the fixture differs from the shipped table in exactly ONE column - squad_chance, set to
+-	// 0 on every level (the shipped value is 30, and 10 on L14).
++	// 0 on every level (the shipped value is 30 on every level).
+ 	//
+ 	// Fix review M1: the fixture used to zero squad_size as well, so the claim "A and B differ
+ 	// in one variable" - the premise every squad case argues from - was not true of the file
+ 	// it pointed at. squad_size is now held at the shipped 2. That is legal input (the loader
+ 	// only rejects the inverse, `squad_chance > 0 && squad_size == 0`, see
+ 	// Source/tables/level_roster.cpp) and it is also strictly better for this case: with
+ 	// squad_size still 2, a zero squad count here can only be attributed to squad_chance,
+ 	// whereas zeroing both left open which of the two suppressed the squads.
+ 	//
+ 	// Everything the squad branch produces must vanish here, which is what makes the B side's
+@@ -1097,22 +1111,25 @@ TEST_F(SquadPlacementTest, ShippedSquadChanceRealisesSquadsOnEveryLevel)
+ // Two things about the metric matter for the guard to mean anything:
+ //
+ //   * numerator = SquadRollCounters::formed, which counts a roll that placed
+ //     >= 1 minion whether or not the squad is leashed. The older `realised`
+ //     counter is gated on leader.packSize > 0, and PlaceGroup only writes
+ //     packSize when leashed, so a `realised`-based guard would read 0% on any
+ //     level that took the §4.3.4 fallback - i.e. it would fail precisely
+ //     because the remedy it is supposed to trigger had been applied.
+ //   * denominator = SquadRollCounters::rolls, the loop's OWN count of rolls
+ //     that entered the squad branch. It is not re-derived from squad_chance,
+-//     so a level whose chance is low (L14 at 10) is judged on the rolls it
+-//     actually made rather than on the ones the table nominally promises.
++//     so a level is judged on the rolls it actually made rather than on the
++//     ones the table nominally promises. This mattered while L14 shipped a
++//     reduced chance of 10; task D raised it back to 30 by dropping L14's
++//     RangedKite core, so the loop's own denominator keeps this case correct
++//     across such a data change with no edit here.
+ //
+ // Counters are per level and reset by InitLevelMonsters(), so they are read
+ // straight after each run (a before/after difference underflows across the
+ // reset - the defect Task 3 hit).
+ // ---------------------------------------------------------------------------
+ 
+ // Per-level formation-rate floors (spec §6 acceptance 7: "threshold derived from
+ // measurement").
+ //
+ // SOURCE: this task's own measurement, run on the SHIPPED tables through the
+@@ -1180,21 +1197,21 @@ constexpr std::array<double, 17> kSquadFormationFloor {
+ };
+ 
+ TEST_F(SquadPlacementTest, SquadFormationRate)
+ {
+ 	if (missingMpqAssets_)
+ 		GTEST_SKIP() << "MPQ assets not found - skipping test";
+ 	if (missingRetailTrn_)
+ 		GTEST_SKIP() << "retail/HF TRN (monsters\\monsters\\genrl.trn) not available - skipping test";
+ 
+ 	// The SHIPPED tables, deliberately: this case pins the formation rate of the
+-	// configuration the game actually ships (squad_chance 30, L14 10), which is
++	// configuration the game actually ships (squad_chance 30 on every level), which is
+ 	// what acceptance 7 is about. The squads_always fixture would measure a
+ 	// different table and hide a shipped-data regression.
+ 	LoadLevelRoster(); // shipped tables (squad_chance 30)
+ 
+ 	constexpr uint32_t kSeeds = 500;
+ 	std::string report = "\n## Task 4: squad formation rate per level (SHIPPED table, 500 seeds)\n\n"
+ 	                     "| level | squad_leashed | rolls | formed | formation rate | floor |\n"
+ 	                     "|---|---|---|---|---|---|\n";
+ 	for (uint8_t level = 1; level <= 15; level++) {
+ 		size_t rolls = 0;
+diff --git a/test/sampling_behavior_test.cpp b/test/sampling_behavior_test.cpp
+index 328b29e18..4e69751af 100644
+--- a/test/sampling_behavior_test.cpp
++++ b/test/sampling_behavior_test.cpp
+@@ -1276,20 +1276,30 @@ TEST_F(SamplingBaselineTest, RosterPerSeedVariety)
+ // allow_unique_boost are design decisions, so L13's Melee bases are expected
+ // unreachable here and the level is asserted at its ACHIEVABLE count instead of
+ // being skipped. The expectation is exact (EXPECT_EQ, not >=), so if a later change
+ // frees a Melee slot this case fails and forces the number to be re-derived rather
+ // than letting a silent regression hide under a loose bound.
+ TEST_F(SamplingBaselineTest, HellUniqueBasesRemainReachable)
+ {
+ 	if (missingMpqAssets_)
+ 		GTEST_SKIP() << "MPQ assets not found - skipping test";
+ 
++	// Scope note 3 - why L14 reaches 6/6 where L13 cannot. L14's candidate pool is
++	// Melee-heavy (8 Melee / 5 RangedTurret / 2 RangedKite) and its six unique bases
++	// are 4 Melee + 2 RangedTurret, so 6/6 requires the tail to stay able to draw
++	// BOTH of those classes - i.e. L14's core must hold at most one Melee and at most
++	// one RangedTurret, otherwise that class hits the cap of 2 and its tail draw
++	// closes. That is why raising L14's Melee floor to 2 collapsed this level to 2/6
++	// (reverted), and why task D instead dropped L14's RangedKite core to buy the
++	// ranged-share headroom squad_chance 30 needs: RangedKite carries no L14 unique
++	// base, so removing it costs no reachability here.
++	//
+ 	// Bases that L13's Melee cap structurally excludes (see scope note 2). Every
+ 	// OTHER candidate base on L13-15 must be reachable.
+ 	//
+ 	// All three entries share ONE cause and ONE accepted-at-this-stage reason, and
+ 	// all three fail the moment that cause is removed:
+ 	//
+ 	//   Why accepted now: these are L13 Melee bases. L13's R4 ceiling (0.2775)
+ 	//   admits only 2 Melee + 1 ranged scatter types, so both Melee slots must be
+ 	//   core; the Melee class is then AT its B1 cap of 2 and the tail loop prunes
+ 	//   Melee entirely, so no Melee base can ever be drawn. Reaching them needs one

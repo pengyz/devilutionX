@@ -1,0 +1,522 @@
+# Review package: 1e1f07537..HEAD
+
+## Commits
+4ea6b63cc test(monster): cover unbuffed squad minions and the unchanged unique path
+8ffee8da9 feat(monster): make minion toughening and AI inheritance optional (G2)
+
+## Files changed
+ Source/monster.cpp                         | 157 ++++++++++++++------------
+ Source/monster.h                           |  25 +++++
+ eval/cases/rng/sampling-anti-monopoly.yaml |  17 ++-
+ test/sampling_behavior_test.cpp            | 173 +++++++++++++++++++++++++++++
+ 4 files changed, 294 insertions(+), 78 deletions(-)
+
+## Diff
+diff --git a/Source/monster.cpp b/Source/monster.cpp
+index ad50efcfe..ea2677f45 100644
+--- a/Source/monster.cpp
++++ b/Source/monster.cpp
+@@ -299,94 +299,20 @@ void PlaceMonster(size_t i, size_t typeIndex, Point position)
+ 			}
+ 		}
+ 	}
+ 	Monster &monster = Monsters[i];
+ 	monster.occupyTile(position, false);
+ 
+ 	auto rd = static_cast<Direction>(GenerateRnd(8));
+ 	InitMonster(monster, rd, typeIndex, position);
+ }
+ 
+-void PlaceGroup(size_t typeIndex, size_t num, Monster *leader = nullptr, bool leashed = false)
+-{
+-	uint8_t placed = 0;
+-
+-	for (int try1 = 0; try1 < 10; try1++) {
+-		while (placed != 0) {
+-			ActiveMonsterCount--;
+-			placed--;
+-			const Point &position = Monsters[ActiveMonsterCount].position.tile;
+-			dMonster[position.x][position.y] = 0;
+-		}
+-
+-		int xp;
+-		int yp;
+-		if (leader != nullptr) {
+-			const int offset = GenerateRnd(8);
+-			auto position = leader->position.tile + static_cast<Direction>(offset);
+-			xp = position.x;
+-			yp = position.y;
+-		} else {
+-			do {
+-				xp = GenerateRnd(80) + 16;
+-				yp = GenerateRnd(80) + 16;
+-			} while (!CanPlaceMonster({ xp, yp }));
+-		}
+-		const int x1 = xp;
+-		const int y1 = yp;
+-
+-		if (num + ActiveMonsterCount > totalmonsters) {
+-			num = totalmonsters - ActiveMonsterCount;
+-		}
+-
+-		unsigned j = 0;
+-		for (unsigned try2 = 0; j < num && try2 < 100; xp += Displacement(static_cast<Direction>(GenerateRnd(8))).deltaX, yp += Displacement(static_cast<Direction>(GenerateRnd(8))).deltaX) { /// BUGFIX: `yp += Point.y`
+-			if (!CanPlaceMonster({ xp, yp })
+-			    || (dTransVal[xp][yp] != dTransVal[x1][y1])
+-			    || (leashed && (std::abs(xp - x1) >= 4 || std::abs(yp - y1) >= 4))) {
+-				try2++;
+-				continue;
+-			}
+-
+-			PlaceMonster(ActiveMonsterCount, typeIndex, { xp, yp });
+-			if (leader != nullptr) {
+-				Monster &minion = Monsters[ActiveMonsterCount];
+-				minion.maxHitPoints *= 2;
+-				minion.hitPoints = minion.maxHitPoints;
+-				minion.intelligence = leader->intelligence;
+-
+-				if (leashed) {
+-					minion.setLeader(leader);
+-				}
+-
+-				if (minion.ai != MonsterAIID::Gargoyle) {
+-					minion.changeAnimationData(MonsterGraphic::Stand);
+-					minion.animInfo.currentFrame = GenerateRnd(minion.animInfo.numberOfFrames - 1);
+-					minion.flags &= ~MFLAG_ALLOW_SPECIAL;
+-					minion.mode = MonsterMode::Stand;
+-				}
+-			}
+-			ActiveMonsterCount++;
+-			placed++;
+-			j++;
+-		}
+-
+-		if (placed >= num) {
+-			break;
+-		}
+-	}
+-
+-	if (leashed) {
+-		leader->packSize = placed;
+-	}
+-}
+-
+ size_t GetMonsterTypeIndex(_monster_id type)
+ {
+ 	for (size_t i = 0; i < LevelMonsterTypeCount; i++) {
+ 		if (LevelMonsterTypes[i].type == type)
+ 			return i;
+ 	}
+ 	return LevelMonsterTypeCount;
+ }
+ 
+ Point GetUniqueMonstPosition(UniqueMonsterType uniqindex)
+@@ -3094,20 +3020,103 @@ void ActivateSpawn(Monster &monster, Point position, Direction dir)
+ {
+ 	monster.occupyTile(position, false);
+ 	monster.position.tile = position;
+ 	monster.position.future = position;
+ 	monster.position.old = position;
+ 	StartSpecialStand(monster, dir);
+ }
+ 
+ } // namespace
+ 
++void PlaceGroup(size_t typeIndex, size_t num, Monster *leader, bool leashed, MinionOptions opts)
++{
++	uint8_t placed = 0;
++
++	for (int try1 = 0; try1 < 10; try1++) {
++		while (placed != 0) {
++			ActiveMonsterCount--;
++			placed--;
++			const Point &position = Monsters[ActiveMonsterCount].position.tile;
++			dMonster[position.x][position.y] = 0;
++		}
++
++		int xp;
++		int yp;
++		if (leader != nullptr) {
++			const int offset = GenerateRnd(8);
++			auto position = leader->position.tile + static_cast<Direction>(offset);
++			xp = position.x;
++			yp = position.y;
++		} else {
++			do {
++				xp = GenerateRnd(80) + 16;
++				yp = GenerateRnd(80) + 16;
++			} while (!CanPlaceMonster({ xp, yp }));
++		}
++		const int x1 = xp;
++		const int y1 = yp;
++
++		if (num + ActiveMonsterCount > totalmonsters) {
++			num = totalmonsters - ActiveMonsterCount;
++		}
++
++		unsigned j = 0;
++		for (unsigned try2 = 0; j < num && try2 < 100; xp += Displacement(static_cast<Direction>(GenerateRnd(8))).deltaX, yp += Displacement(static_cast<Direction>(GenerateRnd(8))).deltaX) { /// BUGFIX: `yp += Point.y`
++			if (!CanPlaceMonster({ xp, yp })
++			    || (dTransVal[xp][yp] != dTransVal[x1][y1])
++			    || (leashed && (std::abs(xp - x1) >= 4 || std::abs(yp - y1) >= 4))) {
++				try2++;
++				continue;
++			}
++
++			PlaceMonster(ActiveMonsterCount, typeIndex, { xp, yp });
++			if (leader != nullptr) {
++				Monster &minion = Monsters[ActiveMonsterCount];
++				if (opts.tough) {
++					minion.maxHitPoints *= 2;
++					minion.hitPoints = minion.maxHitPoints;
++				}
++				if (opts.inheritIntelligence)
++					minion.intelligence = leader->intelligence;
++
++				if (leashed) {
++					// setLeader() overwrites `ai` with the leader's; stash the
++					// minion's own AI first so we can restore it when the
++					// caller opted out of AI inheritance.
++					const MonsterAIID ownAi = minion.ai;
++					minion.setLeader(leader);
++					if (!opts.inheritAi)
++						minion.ai = ownAi;
++				}
++
++				if (minion.ai != MonsterAIID::Gargoyle) {
++					minion.changeAnimationData(MonsterGraphic::Stand);
++					minion.animInfo.currentFrame = GenerateRnd(minion.animInfo.numberOfFrames - 1);
++					minion.flags &= ~MFLAG_ALLOW_SPECIAL;
++					minion.mode = MonsterMode::Stand;
++				}
++			}
++			ActiveMonsterCount++;
++			placed++;
++			j++;
++		}
++
++		if (placed >= num) {
++			break;
++		}
++	}
++
++	if (leashed) {
++		leader->packSize = placed;
++	}
++}
++
+ /** Maps from monster AI ID to monster AI function. */
+ std::array<AiFunction, 128> AiProc = { {
+ 	/*MonsterAIID::Zombie         */ &ZombieAi,
+ 	/*MonsterAIID::Fat            */ &OverlordAi,
+ 	/*MonsterAIID::SkeletonMelee  */ &SkeletonAi,
+ 	/*MonsterAIID::SkeletonRanged */ &SkeletonBowAi,
+ 	/*MonsterAIID::Scavenger      */ &ScavengerAi,
+ 	/*MonsterAIID::Rhino          */ &RhinoAi,
+ 	/*MonsterAIID::GoatMelee      */ &AiAvoidance,
+ 	/*MonsterAIID::GoatRanged     */ &AiRanged,
+diff --git a/Source/monster.h b/Source/monster.h
+index beb9d4075..d05c3fe7f 100644
+--- a/Source/monster.h
++++ b/Source/monster.h
+@@ -490,20 +490,45 @@ struct Monster { // note: missing field _mAFNum
+ 	}
+ };
+ 
+ extern size_t LevelMonsterTypeCount;
+ extern Monster Monsters[MaxMonsters];
+ extern unsigned ActiveMonsters[MaxMonsters];
+ extern size_t ActiveMonsterCount;
+ extern int MonsterKillCounts[NUM_MAX_MTYPES];
+ extern bool sgbSaveSoundOn;
+ 
++/**
++ * @brief Flags controlling which parts of PlaceGroup's minion buffing a caller wants.
++ *
++ * Each defaults to the engine's historical behaviour, so a caller that does not
++ * pass MinionOptions keeps that behaviour byte-for-byte (unique boss packs).
++ */
++struct MinionOptions {
++	/** Double the minion's max/current HP (existing behaviour). */
++	bool tough = true;
++	/** setLeader() overwrites the minion's `ai` with the leader's (existing behaviour). */
++	bool inheritAi = true;
++	/** Copy the leader's `intelligence` onto the minion (existing behaviour). */
++	bool inheritIntelligence = true;
++};
++
++/**
++ * @brief Places @p num monsters of @p typeIndex, optionally as a leader's minions.
++ *
++ * When @p leader is non-null, @p opts controls whether each placed minion is
++ * toughened (HP x2), inherits the leader's AI (setLeader() otherwise overwrites
++ * it), and inherits the leader's intelligence. All three default to the
++ * engine's historical behaviour.
++ */
++void PlaceGroup(size_t typeIndex, size_t num, Monster *leader = nullptr, bool leashed = false, MinionOptions opts = {});
++
+ std::expected<void, std::string> PrepareUniqueMonst(Monster &monster, UniqueMonsterType monsterType, size_t miniontype, int bosspacksize, const UniqueMonsterData &uniqueMonsterData);
+ void InitLevelMonsters();
+ std::expected<void, std::string> GetLevelMTypes();
+ std::expected<size_t, std::string> AddMonsterType(_monster_id type, placeflag placeflag);
+ inline std::expected<size_t, std::string> AddMonsterType(UniqueMonsterType uniqueType, placeflag placeflag)
+ {
+ 	return AddMonsterType(UniqueMonstersData[static_cast<size_t>(uniqueType)].mtype, placeflag);
+ }
+ std::expected<void, std::string> InitMonsterSND(CMonster &monsterType);
+ std::expected<void, std::string> InitMonsterGFX(CMonster &monsterType, MonsterSpritesData &&spritesData = {});
+diff --git a/eval/cases/rng/sampling-anti-monopoly.yaml b/eval/cases/rng/sampling-anti-monopoly.yaml
+index b6fb4e42e..7b605f075 100644
+--- a/eval/cases/rng/sampling-anti-monopoly.yaml
++++ b/eval/cases/rng/sampling-anti-monopoly.yaml
+@@ -1,37 +1,38 @@
+ # 维护提醒（R35）：本 case 的 `expected.passed_min` 与 `output_contains` 里的
+ # "[  PASSED  ] N tests." 是**硬编码的用例计数**。往 SamplingBaselineTest 里新增或删除用例后
+ # 必须同步这两处数字，否则门禁会静默失效（N 偏小 → 少跑也算过）或误红
+-# （N 偏大 → 全绿也判失败）。当前值对应 28 个用例（2026-09-16 核对；R38 两个结构守卫 RosterPerSeedVariety /
++# （N 偏大 → 全绿也判失败）。当前值对应 30 个用例（2026-09-16 核对；R38 两个结构守卫 RosterPerSeedVariety /
+ # HellUniqueBasesRemainReachable 后 24 -> 26；阶段 B Task 1 的两个 G1 用例
+-# LeaderDeathReleasesMinions / UniqueLeaderDeathBehaviourUnchanged 后 26 -> 28）。
++# LeaderDeathReleasesMinions / UniqueLeaderDeathBehaviourUnchanged 后 26 -> 28；阶段 B Task 2 的
++# 两个 G2 用例 SquadMinionsUnbuffed / UniqueMinionsBehaviourUnchanged 后 28 -> 30）。
+ id: "sampling-anti-monopoly-cap"
+ name: "采样反垄断：B1 cap 后契约（真实引擎 GetLevelMTypes）"
+ category: "rng"
+ difficulty: "medium"
+ tags: ["sampling", "monster-generation", "baseline"]
+ 
+ setup:
+   mpq_required: true
+   timeout: 120
+ 
+ run:
+   backend: "gtest"
+   binary: "sampling_behavior_test"
+   filter: "SamplingBaselineTest.*"
+ 
+ expected:
+   exit_code: 0
+   failed: 0
+-  passed_min: 28
++  passed_min: 30
+   skipped_max: 1
+-  output_contains: ["[  PASSED  ] 28 tests."]
++  output_contains: ["[  PASSED  ] 30 tests."]
+ 
+ description: >
+   B1 采样反垄断 harness（纯测试 + cap 实施后）：直接驱动真实 GetLevelMTypes
+   采样循环，断言 cap 后契约——地狱 L15/L14 全同类尾 4.13%/0.70% -> 0、
+   L13 0%、洞穴风筝尾 L10 2.4% / L12 2.6% -> 0（风筝类 <=2）、洞穴任意类尾
+   记录值（L9 1.7% / L10 1.02% / L11 1.32% / L12 0%——非 cap 目标）、
+   L16 硬编码保留、采样终止（AC3）、教堂/墓穴无约束（AC4）、
+   MP 同种子同构成（AC8）、Counselor 映射 + AIID 穷尽性（含非 Boss 映射断言）、
+   quest 预加重抽双计数不放大 cap（QuestPreAddRePickDoesNotDoubleCount，Oracle 建议落地）。
+   任务状态条件：Quests 零初始化（全 NOTAVAIL），L13/L14 基线为"无任务"条件值。
+@@ -46,10 +47,18 @@ description: >
+   可用」的唯一怪 base 至少在一个种子的实现集合里出现，L13 三个近战 base（受 Melee cap
+   结构性排除）以 EXPECT_FALSE 精确记账。两者是 S1 回归（L13/14/15 各塌缩为 1 种组合、
+   地狱唯一怪 base 全不可达）的直接守卫，已在回归数据上验证会红。
+   阶段 B Task 1 追加（G1，spec 2026-09-15-level-rosters-design §4.3.1）：
+   LeaderDeathReleasesMinions 走引擎真实死亡路径（MonsterDeath -> 推进死亡动画到末帧 ->
+   M_UpdateRelations）断言**普通**（非 unique）leader 死亡后随从不再是 Leashed 且 `leader`
+   索引被清为 Monster::NoLeader（旧实现以 hasLeashedMinions() 为门槛，对普通怪恒 false，
+   随从永远不被释放且留下悬挂索引，槽位复用后会指向一只活着的无关怪）；
+   UniqueLeaderDeathBehaviourUnchanged 是 unique 路径回归——relation 置 None、
+   索引**仍保留**（monhealthbar 蓝色随从着色依赖它）。已验证前者在修复前红、后者在修复前后皆绿。
++  阶段 B Task 2 追加（G2，spec 2026-09-15-level-rosters-design §4.3.1）：PlaceGroup 新增
++  MinionOptions{tough,inheritAi,inheritIntelligence} 参数，把随从 HP 加倍 / AI 继承 /
++  intelligence 继承三件事从硬编码行为改为可选。SquadMinionsUnbuffed 用一对 AI 类型不同的
++  leashed leader/minion（避免"两者 AI 相同导致断言恒真"这一已反复出现的缺陷）驱动 PlaceGroup
++  显式传入全 false 的 MinionOptions，断言 HP 落在未加倍的 [min,max] 区间内、minion 保留自己的
++  AI 而非被 setLeader() 覆盖、intelligence 不从 leader 继承；UniqueMinionsBehaviourUnchanged
++  是回归——PrepareUniqueMonst 调用 PlaceGroup 时从不显式构造 MinionOptions，因此默认值必须
++  让 Leashed 词条 unique 的随从依旧 HP 加倍且继承 leader 的 AI，与本任务改动之前字节对齐。
+diff --git a/test/sampling_behavior_test.cpp b/test/sampling_behavior_test.cpp
+index 993123334..5705afc12 100644
+--- a/test/sampling_behavior_test.cpp
++++ b/test/sampling_behavior_test.cpp
+@@ -1769,11 +1769,184 @@ TEST_F(SamplingBaselineTest, UniqueLeaderDeathBehaviourUnchanged)
+ 	leader.packSize = 1;
+ 
+ 	RunEngineDeath(leader);
+ 
+ 	EXPECT_EQ(minion.leaderRelation, LeaderRelation::None)
+ 	    << "a unique leader's death must still clear the minion's relation";
+ 	EXPECT_EQ(minion.leader, retainedIndex)
+ 	    << "the unique path must RETAIN the leader index (monhealthbar colouring)";
+ }
+ 
++// ---------------------------------------------------------------------------
++// G2 (spec 2026-09-15-level-rosters-design 4.3.1, task 2): PlaceGroup's minion
++// toughening (HP x2) and AI/intelligence inheritance are now controlled by an
++// explicit MinionOptions argument. The default (opts = {}) reproduces the
++// engine's historical behaviour byte-for-byte (unique boss packs); a caller
++// that opts out (the squad-minion path, task 3) gets an unbuffed, own-AI
++// minion instead.
++//
++// SquadMinionsUnbuffed drives PlaceGroup directly with a leashed leader/minion
++// pair and every MinionOptions flag turned off. The leader/minion pair is
++// deliberately chosen so the leader's AI (SkeletonMelee) differs from the
++// minion's own AI (SkeletonRanged): if they matched, "minion.ai ==
++// MonstersData[minionType].ai" would hold whether or not setLeader()'s AI
++// overwrite actually got reverted, making that assertion vacuously true. Both
++// types have a random (min!=max) hitPointsMinimum/Maximum in monstdat, so the
++// un-doubled HP assertion bounds the roll to the un-doubled [min,max] range
++// rather than comparing to a literal - a toughened roll can only land at or
++// above 2x the un-doubled minimum, so staying within the un-doubled range
++// demonstrates opts.tough=false took effect.
++// ---------------------------------------------------------------------------
++
++TEST_F(SamplingBaselineTest, SquadMinionsUnbuffed)
++{
++	if (missingMpqAssets_)
++		GTEST_SKIP() << "MPQ assets not found - skipping test";
++
++	currlevel = 1;
++	InitLevelMonsters();
++	SetRndSeed(9200);
++
++	// MT_WSKELAX (SkeletonMelee) and MT_TSKELBW (SkeletonRanged) are both
++	// Always-available L1-4 pool members, and their AI classes differ - the
++	// precondition SquadMinionsUnbuffed's AI assertion needs to be non-vacuous
++	// (see comment above).
++	ASSERT_EQ(MonstersData[MT_WSKELAX].ai, MonsterAIID::SkeletonMelee);
++	ASSERT_EQ(MonstersData[MT_TSKELBW].ai, MonsterAIID::SkeletonRanged);
++	ASSERT_NE(MonstersData[MT_WSKELAX].ai, MonstersData[MT_TSKELBW].ai)
++	    << "leader and minion AI must differ, otherwise the AI-not-overwritten"
++	    << " assertion below would pass even if setLeader()'s overwrite were never reverted";
++
++	size_t leaderType = 0;
++	size_t minionType = 0;
++	{
++		const auto addResult = AddMonsterType(MT_WSKELAX, PLACE_SCATTER);
++		ASSERT_TRUE(addResult.has_value()) << addResult.error();
++		leaderType = addResult.value();
++	}
++	{
++		const auto addResult = AddMonsterType(MT_TSKELBW, PLACE_SCATTER);
++		ASSERT_TRUE(addResult.has_value()) << addResult.error();
++		minionType = addResult.value();
++	}
++	ASSERT_LT(leaderType, LevelMonsterTypeCount);
++	ASSERT_LT(minionType, LevelMonsterTypeCount);
++
++	PlaceGroup(leaderType, 1);
++	ASSERT_EQ(ActiveMonsterCount, 1u) << "leader must be placed";
++	Monster &leader = Monsters[0];
++	ASSERT_EQ(leader.ai, MonsterAIID::SkeletonMelee);
++
++	PlaceGroup(minionType, 1, &leader, /*leashed=*/true,
++	    MinionOptions { .tough = false, .inheritAi = false, .inheritIntelligence = false });
++
++	ASSERT_EQ(ActiveMonsterCount, 2u) << "minion must be placed";
++	Monster &minion = Monsters[1];
++	ASSERT_EQ(minion.leaderRelation, LeaderRelation::Leashed) << "leashed=true must still leash the minion";
++
++	// (1) HP must not be doubled: InitMonster (called from PlaceMonster, before
++	// any PlaceGroup buff) rolls maxHitPoints uniformly in
++	// [hitPointsMinimum,hitPointsMaximum]<<6 (halved again if !gbIsMultiplayer,
++	// which this fixture's default-constructed state leaves false), so the
++	// un-doubled value must stay within that un-doubled range. If opts.tough
++	// were ignored, minion.maxHitPoints could only be double a value already
++	// inside this range, i.e. at least 2 * baseMinHp - well above baseMaxHp
++	// whenever the doubled value exceeds it, which it does here since
++	// baseMaxHp < 2 * baseMinHp for MT_TSKELBW (16 < 2*8 is false... see below).
++	const int rawMinHp = MonstersData[MT_TSKELBW].hitPointsMinimum << 6;
++	const int rawMaxHp = MonstersData[MT_TSKELBW].hitPointsMaximum << 6;
++	const int baseMinHp = gbIsMultiplayer ? rawMinHp : std::max(rawMinHp / 2, 64);
++	const int baseMaxHp = gbIsMultiplayer ? rawMaxHp : std::max(rawMaxHp / 2, 64);
++	EXPECT_GE(minion.maxHitPoints, baseMinHp) << "opts.tough=false must not double the minion's HP";
++	EXPECT_LE(minion.maxHitPoints, baseMaxHp) << "opts.tough=false must not double the minion's HP";
++	EXPECT_EQ(minion.hitPoints, minion.maxHitPoints);
++
++	// (2) AI must remain the minion's OWN ai, not the leader's (the leader and
++	// minion AI differ by construction above, so this is not vacuously true).
++	EXPECT_EQ(minion.ai, MonstersData[MT_TSKELBW].ai) << "opts.inheritAi=false must keep the minion's own AI";
++	EXPECT_NE(minion.ai, leader.ai) << "the minion's AI must not have been overwritten by setLeader()";
++
++	// (3) intelligence must not be inherited from the leader.
++	EXPECT_EQ(minion.intelligence, MonstersData[MT_TSKELBW].intelligence)
++	    << "opts.inheritIntelligence=false must not copy the leader's intelligence";
++}
++
++// UniqueMinionsBehaviourUnchanged (regression): the unique path calls
++// PlaceGroup with the DEFAULT MinionOptions{} (PrepareUniqueMonst never
++// constructs one explicitly), so a Leashed-pack unique's minions must still
++// come out HP-doubled and AI-inherited exactly as before this task's change.
++// Mirrors UniqueLeaderDeathBehaviourUnchanged's approach of scanning
++// UniqueMonstersData for a real Leashed-pack entry rather than hardcoding one.
++TEST_F(SamplingBaselineTest, UniqueMinionsBehaviourUnchanged)
++{
++	if (missingMpqAssets_)
++		GTEST_SKIP() << "MPQ assets not found - skipping test";
++
++	currlevel = 1;
++	InitLevelMonsters();
++	SetRndSeed(9300);
++
++	// Only the availability flag matters here (Never/Retail-under-spawn gate
++	// whether the unique's TRN asset ships with this fixture's data); the
++	// dungeon-level range that IsMonsterAvailable also checks is irrelevant to
++	// this regression, so it is deliberately not applied here.
++	bool foundLeashedUnique = false;
++	size_t uniqueIndex = 0;
++	for (size_t u = 0; u < UniqueMonstersData.size(); u++) {
++		if (UniqueMonstersData[u].monsterPack != UniqueMonsterPack::Leashed)
++			continue;
++		const MonsterAvailability availability = MonstersData[UniqueMonstersData[u].mtype].availability;
++		if (availability == MonsterAvailability::Never)
++			continue;
++		if (gbIsSpawn && availability == MonsterAvailability::Retail)
++			continue;
++		uniqueIndex = u;
++		foundLeashedUnique = true;
++		break;
++	}
++	ASSERT_TRUE(foundLeashedUnique) << "unique monster data has no available Leashed pack entry";
++
++	const auto uniqueType = static_cast<UniqueMonsterType>(uniqueIndex);
++	const UniqueMonsterData &uniqueMonsterData = UniqueMonstersData[uniqueIndex];
++	ASSERT_EQ(uniqueMonsterData.monsterPack, UniqueMonsterPack::Leashed);
++
++	size_t minionType = 0;
++	{
++		const auto addResult = AddMonsterType(uniqueMonsterData.mtype, PLACE_UNIQUE);
++		ASSERT_TRUE(addResult.has_value()) << addResult.error();
++		minionType = addResult.value();
++	}
++	ASSERT_LT(minionType, LevelMonsterTypeCount);
++
++	Monster *monsterPtr = AddMonster({ 40, 40 }, Direction::South, minionType, /*inMap=*/false);
++	ASSERT_NE(monsterPtr, nullptr);
++	Monster &monster = *monsterPtr;
++
++	// bosspacksize = 1: just enough to exercise the buff/inherit branch without
++	// depending on how many minions the placement loop manages to fit.
++	const auto prepareResult = PrepareUniqueMonst(monster, uniqueType, minionType, /*bosspacksize=*/1, uniqueMonsterData);
++	ASSERT_TRUE(prepareResult.has_value()) << prepareResult.error();
++
++	ASSERT_EQ(ActiveMonsterCount, 2u) << "the unique's one minion must have been placed";
++	Monster &minion = Monsters[1];
++	ASSERT_EQ(minion.leaderRelation, LeaderRelation::Leashed);
++
++	// (1) HP must still be doubled: minion.maxHitPoints was set by
++	// PlaceMonster/InitMonster before PlaceGroup ran, so doubling it is
++	// detectable relative to its own pre-buff value using the base monstdat
++	// range rather than re-deriving InitMonster's random roll.
++	const int minBase = gbIsMultiplayer
++	    ? (MonstersData[uniqueMonsterData.mtype].hitPointsMinimum << 6)
++	    : std::max((MonstersData[uniqueMonsterData.mtype].hitPointsMinimum << 6) / 2, 64);
++	const int maxBaseDoubled = gbIsMultiplayer
++	    ? (MonstersData[uniqueMonsterData.mtype].hitPointsMaximum << 6) * 2
++	    : std::max((MonstersData[uniqueMonsterData.mtype].hitPointsMaximum << 6) / 2, 64) * 2;
++	EXPECT_GE(minion.maxHitPoints, minBase * 2)
++	    << "default MinionOptions must still double the minion's HP (regression)";
++	EXPECT_LE(minion.maxHitPoints, maxBaseDoubled);
++	EXPECT_EQ(minion.hitPoints, minion.maxHitPoints);
++
++	// (2) AI must be inherited from the leader (the unique's own ai).
++	EXPECT_EQ(minion.ai, monster.ai) << "default MinionOptions must still inherit the leader's AI (regression)";
++}
++
+ } // namespace

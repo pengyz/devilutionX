@@ -6,7 +6,7 @@ created: 2026-09-16
 sources:
   - Source/engine/assets.hpp（ReadModManifestByName 的无条件声明；mod_identity.h 与 mpq_reader.hpp 的 guard 归属）
   - 下游引入提交 1bf1b9886（"Mod hashing and manifest #8608"）；上游 master 无此问题（只 guard mpq_reader.hpp）
-  - .superpowers/sdd/2026-09-15-level-rosters-phase-a2/task-unpacked-mpqs-fix-report.md（修复前后完整构建输出）
+  - docs/superpowers/ledgers/2026-09-15-level-rosters-phase-a2/task-unpacked-mpqs-fix-report.md（修复前后完整构建输出）
 ---
 
 **事实**：`Source/engine/assets.hpp` **无条件**声明

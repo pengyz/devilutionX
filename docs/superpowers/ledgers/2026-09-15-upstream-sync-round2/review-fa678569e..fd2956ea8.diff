@@ -1,0 +1,290 @@
+# Review package: fa678569e..HEAD
+
+## Commits
+fd2956ea8 docs(plan): use Task N headings so task-brief can extract tasks
+
+## Files changed
+ .../plans/2026-09-15-upstream-sync-round2.md       | 24 +++++++++++-----------
+ 1 file changed, 12 insertions(+), 12 deletions(-)
+
+## Diff
+diff --git a/docs/superpowers/plans/2026-09-15-upstream-sync-round2.md b/docs/superpowers/plans/2026-09-15-upstream-sync-round2.md
+index ab1a8d809..c29ffa936 100644
+--- a/docs/superpowers/plans/2026-09-15-upstream-sync-round2.md
++++ b/docs/superpowers/plans/2026-09-15-upstream-sync-round2.md
+@@ -92,21 +92,21 @@
+ |---|---|
+ | `Source/quests.h` | 取上游全文（32 行 / LF），丢弃 fork 侧 149 行版本 |
+ | `Source/tables/questdat.hpp` | 在 `struct QuestData` 末尾补 `std::string scriptName;`（fork 增量迁移） |
+ | `Source/engine/render/scrollrt.cpp` | 采用上游两行（`yield()` + `drawInfoBox` 参数） |
+ | `Source/controls/plrctrls.cpp` | 两个 include 都保留 |
+ | `Source/quests.cpp` | 保留 fork 的两个 include |
+ | `test/ui_test.hpp`、`test/panel_state_test.cpp` | 交集文件（上游改过），探测 merge 自动合并成功、无需人工改动 —— 但由任务 9 全量门禁验收 |
+ 
+ ---
+ 
+-### 任务 1：预检与基线固化
++## Task 1: 预检与基线固化
+ 
+ **文件：**
+ - 修改：无（只读 + 记录）
+ 
+ **接口：**
+ - 依赖输入：无
+ - 对外产出：确认的 `UPSTREAM_TIP`（供任务 2、11 使用的 SHA）、基线门禁 JSON（供任务 10 对比）
+ 
+ - [ ] **步骤 1：确认上游 tip 未变**
+ 
+@@ -138,21 +138,21 @@ python3 tools/run_tests.py --json /tmp/ci-before-sync.json 2>&1 | tail -20
+ ```bash
+ python3 tools/check_drift.py --base origin/master 2>&1 | tee /tmp/drift-before-sync.txt
+ ```
+ 
+ 预期：5 项 PASS，`merge-base: b3e52b1ea`。
+ 
+ - [ ] **步骤 5：无需提交（本任务不产生代码变更）**
+ 
+ ---
+ 
+-### 任务 2：执行 merge 并复现 4 处冲突
++## Task 2: 执行 merge 并复现 4 处冲突
+ 
+ **文件：**
+ - 修改：由 merge 自动（100 个文件自动合并 + 4 个冲突文件）
+ 
+ **接口：**
+ - 依赖输入：任务 1 确认的 `origin/master` tip
+ - 对外产出：处于冲突待解决状态的索引（供任务 3-6 使用）
+ 
+ - [ ] **步骤 1：执行 merge（不自动提交）**
+ 
+@@ -184,21 +184,21 @@ Source/quests.h
+ ```bash
+ git grep -nE "^(<<<<<<<|>>>>>>>|=======)$" -- Source/ test/ CMake/ CMakeLists.txt | grep -v -E "quests\.h|plrctrls\.cpp|scrollrt\.cpp|quests\.cpp"
+ ```
+ 
+ 预期：无输出。
+ 
+ - [ ] **步骤 4：本任务不单独提交**（与任务 3-6 的冲突解决一起提交为一个 merge commit）
+ 
+ ---
+ 
+-### 任务 3：解决 `Source/quests.h`（整文件冲突 + fork 增量迁移）
++## Task 3: 解决 `Source/quests.h`（整文件冲突 + fork 增量迁移）
+ 
+ **文件：**
+ - 修改：`Source/quests.h`（改为上游版本）、`Source/tables/questdat.hpp`（补 fork 增量）
+ - 测试：`Source/quests.cpp:286-287`（`questData.scriptName` 的消费者，编译即验证）
+ 
+ **接口：**
+ - 依赖输入：任务 2 的冲突状态
+ - 对外产出：`QuestData`（现在声明于 `Source/tables/questdat.hpp`）含成员 `std::string scriptName;`，供 `Source/quests.cpp` 的 `lua::OnQuestCheck(questData.scriptName, &quest)` 使用
+ 
+ - [ ] **步骤 1：取上游版本覆盖冲突文件**
+@@ -247,21 +247,21 @@ python3 -c "b=open('Source/tables/questdat.hpp','rb').read(); print('CRLF', b.co
+ ```bash
+ grep -n "scriptName" Source/quests.cpp Source/quests.h Source/tables/questdat.hpp
+ ```
+ 
+ 预期：`questdat.hpp` 定义、`quests.cpp:286-287` 使用；`quests.h` 不再出现（内容已迁走）。
+ 
+ - [ ] **步骤 7：提交（与其余冲突解决合并提交，见任务 6 步骤 3）**
+ 
+ ---
+ 
+-### 任务 4：解决 `Source/engine/render/scrollrt.cpp`
++## Task 4: 解决 `Source/engine/render/scrollrt.cpp`
+ 
+ **文件：**
+ - 修改：`Source/engine/render/scrollrt.cpp`（1 处冲突）
+ 
+ **接口：**
+ - 依赖输入：任务 2 的冲突状态
+ - 对外产出：`DrawMain` 调用点与上游新签名一致（含 `drawInfoBox` 参数），并保留上游插入的 `this_sdl_thread::yield();`
+ 
+ - [ ] **步骤 1：确认上游的 `DrawMain` 签名与 `drawInfoBox` 变量来源**
+ 
+@@ -287,21 +287,21 @@ git show origin/master:Source/engine/render/scrollrt.cpp | grep -n "drawInfoBox"
+ grep -nE "^(<<<<<<<|>>>>>>>|=======)$" Source/engine/render/scrollrt.cpp   # 预期：无输出
+ git diff origin/master -- Source/engine/render/scrollrt.cpp | head -40
+ ```
+ 
+ 预期：与上游的差异只包含 fork 侧既有改动（不应出现 `DrawMain(hgt, false, ...)` 这一旧形态）。
+ 
+ - [ ] **步骤 4：提交（与其余冲突解决合并提交，见任务 6 步骤 3）**
+ 
+ ---
+ 
+-### 任务 5：解决 `Source/controls/plrctrls.cpp`
++## Task 5: 解决 `Source/controls/plrctrls.cpp`
+ 
+ **文件：**
+ - 修改：`Source/controls/plrctrls.cpp`（1 处冲突，双方各加一个 include）
+ 
+ **接口：**
+ - 依赖输入：任务 2 的冲突状态
+ - 对外产出：两个 include 同时存在
+ 
+ - [ ] **步骤 1：采用双方**
+ 
+@@ -316,21 +316,21 @@ git diff origin/master -- Source/engine/render/scrollrt.cpp | head -40
+ 
+ ```bash
+ grep -nE "^(<<<<<<<|>>>>>>>|=======)$" Source/controls/plrctrls.cpp   # 预期：无输出
+ grep -n "cursor_defs.hpp\|levels/gendung.h" Source/controls/plrctrls.cpp
+ ```
+ 
+ - [ ] **步骤 3：提交（与其余冲突解决合并提交，见任务 6 步骤 3）**
+ 
+ ---
+ 
+-### 任务 6：解决 `Source/quests.cpp` 并提交 merge
++## Task 6: 解决 `Source/quests.cpp` 并提交 merge
+ 
+ **文件：**
+ - 修改：`Source/quests.cpp`（1 处冲突，fork 侧两个 include 对上游的删除）
+ 
+ **接口：**
+ - 依赖输入：任务 2 的冲突状态；任务 3-5 的解决结果
+ - 对外产出：一个完整的 merge commit，含全部 4 处冲突解决
+ 
+ - [ ] **步骤 1：确认这两个 include 在 fork 侧确有消费者**
+ 
+@@ -386,21 +386,21 @@ MSG
+ - [ ] **步骤 4：确认 merge commit 形态正确**
+ 
+ ```bash
+ git log --oneline -1                       # 预期：merge 提交
+ git rev-list --count HEAD..origin/master   # 预期：0
+ git status --short                         # 预期：无输出
+ ```
+ 
+ ---
+ 
+-### 任务 7：验证 quest_log 重构零连带（预期零改动）
++## Task 7: 验证 quest_log 重构零连带（预期零改动）
+ 
+ **文件：**
+ - 修改：无（本任务预期不产生代码变更，只验证）
+ - 测试：`cmake --build build --target libdevilutionx`（编译即验证）
+ 
+ **接口：**
+ - 依赖输入：任务 6 的 merge commit
+ - 对外产出：库编译通过的结论（任务 8 的前置）
+ 
+ **背景（已在探测阶段复验）**：初稿曾预判此步会产生「`QuestLogIsOpen` 未声明」编译错误，**该预判已被证伪**。上游迁移这三个符号时**同时给每个消费者文件补了 `#include "panels/quest_log.hpp"`**，且 fork 对这些文件的本地改动不与那一行重叠 → git 自动合并即完成；`Source/quests.cpp` 对这三个符号的引用计数已为 0（无重复定义）。复验命令与计数见本计划「探测阶段已确认的事实」。
+@@ -432,21 +432,21 @@ grep -c "QuestLogIsOpen\|pQLogCel\|DrawQuestLog" Source/quests.cpp
+ 
+ 判据：读错误原文，确认是哪个符号在哪个文件未被声明；若确为该类，给该文件补 `#include "panels/quest_log.hpp"`，重编译至零错误，然后提交：
+ 
+ ```bash
+ git add -A Source/
+ git commit -m "fix(build): add panels/quest_log.hpp include after the upstream quest split"
+ ```
+ 
+ - [ ] **步骤 4：未出现错误时不提交（预期路径）**
+ 
+-### 任务 8：门禁 1-2（CMake 配置 + 全目标编译）
++## Task 8: 门禁 1-2（CMake 配置 + 全目标编译）
+ 
+ **文件：**
+ - 修改：无（除非编译再暴露问题，按任务 7 的判据处理并追加提交）
+ 
+ **接口：**
+ - 依赖输入：任务 7 的编译通过
+ - 对外产出：`build.ok == true`
+ 
+ - [ ] **步骤 1：配置通过**
+ 
+@@ -467,21 +467,21 @@ cmake --build build --target devilutionx -j 20 2>&1 | tail -5
+ - [ ] **步骤 3：若上游 CMake 改动引发配置错误，按错误原文处理并追加提交**
+ 
+ ```bash
+ git commit -am "fix(build): adapt to upstream CMake changes"
+ ```
+ 
+ （仅在步骤 1/2 失败时执行；提交信息里贴错误原文与判据。）
+ 
+ ---
+ 
+-### 任务 9：门禁 3-4（测试目标 + 全量测试）
++## Task 9: 门禁 3-4（测试目标 + 全量测试）
+ 
+ **文件：**
+ - 修改：无（除非测试注册漂移，按判据处理）
+ 
+ **接口：**
+ - 依赖输入：任务 8 的编译通过
+ - 对外产出：`ctest.failed == 0`
+ 
+ - [ ] **步骤 1：全部测试目标构建**
+ 
+@@ -524,21 +524,21 @@ git diff b3e52b1ea origin/master -- CMake/Tests.cmake | grep -E '^[+-]  [a-z_0-9
+ - [ ] **步骤 3：失败处理（若发生）**
+ 
+ ```bash
+ cd build && ctest --output-on-failure -R "<失败测试名>"
+ ```
+ 
+ 单测失败 → 在 `build/Testing/Temporary/LastTest.log` 读栈与断言 → 判断是「上游行为改变」还是「fork 适配缺失」，**不要用改测试断言的方式让门禁变绿**；若确认是上游的既有行为变化，按 `docs/knowledge/` 规则记录并在此计划末尾追加「执行中暴露的问题」小节。
+ 
+ ---
+ 
+-### 任务 10：eval smoke 与漂移校验
++## Task 10: eval smoke 与漂移校验
+ 
+ **文件：**
+ - 修改：无
+ 
+ **接口：**
+ - 依赖输入：任务 9 的全量门禁
+ - 对外产出：`eval smoke exit 0`、drift 5 项 PASS 及与基线的口径对比结论
+ 
+ - [ ] **步骤 1：eval smoke 门禁**
+ 
+@@ -560,21 +560,21 @@ diff /tmp/drift-before-sync.txt /tmp/drift-after-sync.txt
+ - [ ] **步骤 3：确认没有行尾被改动**
+ 
+ ```bash
+ python3 tools/check_drift.py --base origin/master 2>&1 | grep -E "PASS C |PASS C2 "
+ ```
+ 
+ 预期：两项都 PASS。（若 FAIL，最常见原因是把 `Source/quests.h` 写回了 CRLF——回到任务 3 步骤 5 的判据修正。）
+ 
+ ---
+ 
+-### 任务 11：复核 heroname 分叉状态并留档
++## Task 11: 复核 heroname 分叉状态并留档
+ 
+ **文件：**
+ - 修改：`docs/knowledge/pattern_fixed_width_field_reads.md`（追加同步后的分叉状态），必要时新建实施记录
+ 
+ **接口：**
+ - 依赖输入：任务 6 的 merge 完成
+ - 对外产出：heroname 修复在上游是否已修的明确结论（规格 §6 验收项 8）
+ 
+ - [ ] **步骤 1：在上游 tip 上复核（这是判据，不看本地）**
+ 
+@@ -597,21 +597,21 @@ git commit -am "fix: take upstream's bounded name reads (upstream caught up)"
+ 
+ - [ ] **步骤 3：提交留档**
+ 
+ ```bash
+ git add docs/knowledge/pattern_fixed_width_field_reads.md
+ git commit -m "docs(knowledge): record heroname divergence state after the upstream sync"
+ ```
+ 
+ ---
+ 
+-### 任务 12：推送、CI 与规格状态更新
++## Task 12: 推送、CI 与规格状态更新
+ 
+ **文件：**
+ - 修改：`docs/superpowers/specs/2026-09-15-upstream-sync-round2-design.md`（§7 状态改为「已实施」+ 实施记录）
+ 
+ **接口：**
+ - 依赖输入：任务 1-11 全部完成
+ - 对外产出：远端同步、CI 绿、规格状态闭环
+ 
+ - [ ] **步骤 1：推送**
+ 

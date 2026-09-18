@@ -4,7 +4,7 @@ description: 测试二进制从 build/devilutionx.mpq 读取数据表；直接�
 type: gotcha
 created: 2026-09-15
 sources:
-  - .superpowers/sdd/2026-09-15-level-rosters-phase-a/task-5-fixwave-report.md（实现者实测记录）
+  - docs/superpowers/ledgers/2026-09-15-level-rosters-phase-a/task-5-fixwave-report.md（实现者实测记录）
   - CMake/Assets.cmake（数据表打包进 devilutionx.mpq）
 ---
 

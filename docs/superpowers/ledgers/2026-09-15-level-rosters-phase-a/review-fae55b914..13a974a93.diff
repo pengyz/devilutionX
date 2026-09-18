@@ -1,0 +1,462 @@
+# Review package: fae55b914..HEAD
+
+## Commits
+13a974a93 feat(roster): relax validation under shareware data as specified
+1ea83ec25 feat(roster): add the roster table types, loader and validation
+
+## Files changed
+ CMake/Tests.cmake              |   1 +
+ Source/CMakeLists.txt          |   1 +
+ Source/tables/level_roster.cpp | 211 +++++++++++++++++++++++++++++++++++++++++
+ Source/tables/level_roster.h   |  54 +++++++++++
+ test/level_roster_test.cpp     | 112 ++++++++++++++++++++++
+ 5 files changed, 379 insertions(+)
+
+## Diff
+diff --git a/CMake/Tests.cmake b/CMake/Tests.cmake
+index 71ecd3e9b..2cca5d4d5 100644
+--- a/CMake/Tests.cmake
++++ b/CMake/Tests.cmake
+@@ -52,20 +52,21 @@ set(tests
+   scrollrt_test
+   stores_test
+   tile_properties_test
+   timedemo_test
+   townerdat_test
+   writehero_test
+   vendor_test
+   panel_state_test
+   sampling_behavior_test
+   level_roster_baseline_test
++  level_roster_test
+   store_transaction_test
+   visual_store_test
+   stash_test
+   inventory_ui_test
+   spell_ui_test
+   spelldat_test
+   spell_tooltip_test
+   char_panel_test
+   game_menu_test
+   spell_ux_test
+diff --git a/Source/CMakeLists.txt b/Source/CMakeLists.txt
+index 52b4275a3..a94c2b70f 100644
+--- a/Source/CMakeLists.txt
++++ b/Source/CMakeLists.txt
+@@ -624,20 +624,21 @@ target_link_dependencies(libdevilutionx_level_objects PUBLIC
+   libdevilutionx_options
+   libdevilutionx_player
+   libdevilutionx_random
+   libdevilutionx_sdl2_to_1_2_backports
+   libdevilutionx_txtdata
+   libdevilutionx_questdat
+ )
+ 
+ add_devilutionx_object_library(libdevilutionx_monster
+   tables/monstdat.cpp
++  tables/level_roster.cpp
+   monster.cpp
+ )
+ 
+ target_link_dependencies(libdevilutionx_monster
+   PUBLIC
+   DevilutionX::SDL
+   magic_enum::magic_enum
+   sol2::sol2
+   tl
+   unordered_dense::unordered_dense
+diff --git a/Source/tables/level_roster.cpp b/Source/tables/level_roster.cpp
+new file mode 100644
+index 000000000..8cdbf6194
+--- /dev/null
++++ b/Source/tables/level_roster.cpp
+@@ -0,0 +1,211 @@
++/**
++ * @file level_roster.cpp
++ *
++ * Implementation of the per-level monster roster tables (types, loader, validation).
++ */
++#include "tables/level_roster.h"
++
++#include <algorithm>
++#include <charconv>
++#include <cstddef>
++#include <expected>
++#include <optional>
++#include <string>
++#include <string_view>
++#include <system_error>
++#include <utility>
++#include <vector>
++
++#include <magic_enum/magic_enum.hpp>
++
++#include "appfat.h"
++#include "data/file.hpp"
++#include "data/record_reader.hpp"
++#include "game_mode.hpp"
++#include "tables/monstdat.h"
++#include "utils/str_cat.hpp"
++#include "utils/str_split.hpp"
++
++namespace devilution {
++
++namespace {
++
++std::vector<LevelRosterEntry> Entries;
++std::vector<LevelRosterParams> Params;
++
++// Same semantics as monster.cpp's IsMonsterAvailable (that function has internal
++// linkage there, so this validator re-implements the check rather than reusing it).
++bool IsAvailableAt(uint8_t level, _monster_id type)
++{
++	const MonsterData &data = MonstersData[static_cast<size_t>(type)];
++	if (data.availability == MonsterAvailability::Never)
++		return false;
++	if (gbIsSpawn && data.availability == MonsterAvailability::Retail)
++		return false;
++	return level >= data.minDunLvl && level <= data.maxDunLvl;
++}
++
++bool IsUniqueBaseForLevel(uint8_t level, _monster_id type)
++{
++	for (const UniqueMonsterData &unique : UniqueMonstersData) {
++		if (unique.mlevel == level && unique.mtype == type)
++			return true;
++	}
++	return false;
++}
++
++std::vector<std::pair<BehaviorClass, uint8_t>> ParseClassFloors(std::string_view value)
++{
++	std::vector<std::pair<BehaviorClass, uint8_t>> result;
++	if (value.empty())
++		return result;
++	for (const std::string_view part : SplitByChar(value, ',')) {
++		const size_t eq = part.find('=');
++		if (eq == std::string_view::npos)
++			app_fatal(StrCat("Invalid class_floors entry (missing '='): \"", part, "\""));
++		const std::string_view clsName = part.substr(0, eq);
++		const std::string_view floorStr = part.substr(eq + 1);
++		const std::optional<BehaviorClass> cls = magic_enum::enum_cast<BehaviorClass>(clsName);
++		if (!cls.has_value())
++			app_fatal(StrCat("Invalid class_floors entry (unknown BehaviorClass): \"", clsName, "\""));
++		uint8_t floor = 0;
++		const std::from_chars_result parsed = std::from_chars(floorStr.data(), floorStr.data() + floorStr.size(), floor);
++		if (parsed.ec != std::errc() || parsed.ptr != floorStr.data() + floorStr.size())
++			app_fatal(StrCat("Invalid class_floors entry (bad integer): \"", floorStr, "\""));
++		result.emplace_back(*cls, floor);
++	}
++	return result;
++}
++
++void LoadLevelRosterEntriesFromFile(DataFile &dataFile, std::string_view filename)
++{
++	dataFile.skipHeaderOrDie(filename);
++	Entries.reserve(Entries.size() + dataFile.numRecords());
++	for (DataFileRecord record : dataFile) {
++		RecordReader reader { record, filename };
++		LevelRosterEntry entry {};
++		reader.readInt("level", entry.level);
++		reader.read("monster_id", entry.type, [](std::string_view value) -> std::expected<_monster_id, std::string> {
++			const std::optional<_monster_id> id = magic_enum::enum_cast<_monster_id>(value);
++			if (!id.has_value())
++				return std::unexpected(StrCat("Unknown monster id \"", value, "\""));
++			return *id;
++		});
++		reader.read("role", entry.role, [](std::string_view value) -> std::expected<LevelRosterRole, std::string> {
++			if (value == "core")
++				return LevelRosterRole::Core;
++			if (value == "tail")
++				return LevelRosterRole::Tail;
++			return std::unexpected(StrCat("Unknown role \"", value, "\""));
++		});
++		reader.read("allow_unique_boost", entry.allowUniqueBoost, [](std::string_view value) -> std::expected<bool, std::string> {
++			if (value == "-" || value.empty())
++				return false;
++			if (value == "true")
++				return true;
++			if (value == "false")
++				return false;
++			return std::unexpected(StrCat("Invalid allow_unique_boost value \"", value, "\""));
++		});
++		Entries.push_back(entry);
++	}
++}
++
++void LoadLevelRosterParamsFromFile(DataFile &dataFile, std::string_view filename)
++{
++	dataFile.skipHeaderOrDie(filename);
++	Params.reserve(Params.size() + dataFile.numRecords());
++	for (DataFileRecord record : dataFile) {
++		RecordReader reader { record, filename };
++		LevelRosterParams params {};
++		reader.readInt("level", params.level);
++		reader.readInt("max_image", params.maxImage);
++		reader.readInt("tail_draw", params.tailDraw);
++		std::string classFloorsStr;
++		reader.readString("class_floors", classFloorsStr);
++		params.classFloors = ParseClassFloors(classFloorsStr);
++		Params.push_back(params);
++	}
++}
++
++} // namespace
++
++std::optional<std::string> ValidateLevelRoster(std::span<const LevelRosterEntry> entries, std::span<const LevelRosterParams> params)
++{
++	if (gbIsSpawn) {
++		// Shareware (spawn) data ships a much smaller monster/unique set, so the full
++		// retail-style checks (per-row availability, unique-base whitelist, class floor
++		// satisfiability) are not meaningful here. Relaxed mode only requires that every
++		// level with roster params has at least one core member.
++		for (const LevelRosterParams &param : params) {
++			const bool hasCore = std::any_of(entries.begin(), entries.end(), [&param](const LevelRosterEntry &e) {
++				return e.level == param.level && e.role == LevelRosterRole::Core;
++			});
++			if (!hasCore)
++				return StrCat("level ", param.level, " has no core roster members (spawn mode)");
++		}
++		return std::nullopt;
++	}
++
++	for (const LevelRosterEntry &entry : entries) {
++		if (static_cast<size_t>(entry.type) >= MonstersData.size())
++			return StrCat("roster row names unknown monster id ", static_cast<int>(entry.type));
++		if (!IsAvailableAt(entry.level, entry.type))
++			return StrCat("monster ", static_cast<int>(entry.type), " is not available at level ", entry.level);
++		if (!entry.allowUniqueBoost && IsUniqueBaseForLevel(entry.level, entry.type))
++			return StrCat("monster ", static_cast<int>(entry.type), " is a unique's base at level ", entry.level, " and needs allow_unique_boost");
++	}
++	for (const LevelRosterParams &param : params) {
++		// Class floor satisfiability: the level's available candidate pool must contain at
++		// least `floor` monsters of that behavior class.
++		for (const auto &[cls, floor] : param.classFloors) {
++			size_t available = 0;
++			for (size_t i = 0; i < MonstersData.size(); i++) {
++				const auto type = static_cast<_monster_id>(i);
++				if (IsAvailableAt(param.level, type) && GetBehaviorClass(MonstersData[i].ai) == cls)
++					available++;
++			}
++			if (available < floor)
++				return StrCat("level ", param.level, " class floor ", static_cast<int>(cls), " needs ", floor, " but only ", available, " candidates exist");
++		}
++	}
++	return std::nullopt;
++}
++
++void LoadLevelRoster()
++{
++	Entries.clear();
++	Params.clear();
++
++	const std::string_view rosterFilename = "txtdata\\monsters\\level_rosters.tsv";
++	DataFile rosterFile = DataFile::loadOrDie(rosterFilename);
++	LoadLevelRosterEntriesFromFile(rosterFile, rosterFilename);
++
++	const std::string_view paramsFilename = "txtdata\\monsters\\level_roster_params.tsv";
++	DataFile paramsFile = DataFile::loadOrDie(paramsFilename);
++	LoadLevelRosterParamsFromFile(paramsFile, paramsFilename);
++
++	Entries.shrink_to_fit();
++	Params.shrink_to_fit();
++
++	const std::optional<std::string> error = ValidateLevelRoster(Entries, Params);
++	if (error.has_value())
++		app_fatal(StrCat("Level roster validation failed: ", *error));
++}
++
++std::span<const LevelRosterEntry> GetLevelRoster(uint8_t level)
++{
++	const auto begin = std::find_if(Entries.begin(), Entries.end(), [level](const LevelRosterEntry &e) { return e.level == level; });
++	if (begin == Entries.end())
++		return {};
++	const auto end = std::find_if(begin, Entries.end(), [level](const LevelRosterEntry &e) { return e.level != level; });
++	return { &*begin, static_cast<size_t>(std::distance(begin, end)) };
++}
++
++const LevelRosterParams *GetLevelRosterParams(uint8_t level)
++{
++	const auto it = std::find_if(Params.begin(), Params.end(), [level](const LevelRosterParams &p) { return p.level == level; });
++	return it == Params.end() ? nullptr : &*it;
++}
++
++} // namespace devilution
+diff --git a/Source/tables/level_roster.h b/Source/tables/level_roster.h
+new file mode 100644
+index 000000000..83bb5cca3
+--- /dev/null
++++ b/Source/tables/level_roster.h
+@@ -0,0 +1,54 @@
++/**
++ * @file level_roster.h
++ *
++ * Interface of the per-level monster roster tables (types, loader, validation).
++ */
++#pragma once
++
++#include <cstdint>
++#include <optional>
++#include <span>
++#include <string>
++#include <utility>
++#include <vector>
++
++#include "tables/monstdat.h"
++
++namespace devilution {
++
++enum class LevelRosterRole : uint8_t {
++	Core,
++	Tail,
++};
++
++struct LevelRosterEntry {
++	uint8_t level;
++	_monster_id type;
++	LevelRosterRole role;
++	bool allowUniqueBoost;
++};
++
++struct LevelRosterParams {
++	uint8_t level;
++	int maxImage;
++	int tailDraw;
++	std::vector<std::pair<BehaviorClass, uint8_t>> classFloors;
++};
++
++/**
++ * @brief Loads and validates the shipped level roster tables. Fatal on any validation failure.
++ *
++ * Not wired to any production call site yet (see Task 2b).
++ */
++void LoadLevelRoster();
++
++std::span<const LevelRosterEntry> GetLevelRoster(uint8_t level);
++const LevelRosterParams *GetLevelRosterParams(uint8_t level);
++
++/**
++ * @brief Validates a candidate roster against the currently loaded MonstersData/UniqueMonstersData.
++ * @return An error description, or an empty optional when the roster is valid.
++ */
++std::optional<std::string> ValidateLevelRoster(std::span<const LevelRosterEntry> entries, std::span<const LevelRosterParams> params);
++
++} // namespace devilution
+diff --git a/test/level_roster_test.cpp b/test/level_roster_test.cpp
+new file mode 100644
+index 000000000..51a3df784
+--- /dev/null
++++ b/test/level_roster_test.cpp
+@@ -0,0 +1,112 @@
++#include <gtest/gtest.h>
++
++#include <string>
++#include <vector>
++
++#include "engine/assets.hpp"
++#include "game_mode.hpp"
++#include "tables/level_roster.h"
++#include "tables/monstdat.h"
++
++using namespace devilution;
++
++namespace {
++
++class LevelRosterTest : public ::testing::Test {
++protected:
++	static void SetUpTestSuite()
++	{
++		LoadCoreArchives();
++		gbIsSpawn = false;
++		LoadMonsterData();
++	}
++};
++
++} // namespace
++
++TEST_F(LevelRosterTest, ValidationAcceptsAWellFormedRoster)
++{
++	const std::vector<LevelRosterEntry> entries {
++		{ 1, MT_WSKELAX, LevelRosterRole::Core, false },
++		{ 1, MT_NZOMBIE, LevelRosterRole::Tail, false },
++	};
++	const std::vector<LevelRosterParams> params {
++		{ 1, 6000, 2, { { BehaviorClass::Melee, 2 } } },
++	};
++	EXPECT_FALSE(ValidateLevelRoster(entries, params).has_value());
++}
++
++TEST_F(LevelRosterTest, ValidationRejectsAMonsterUnavailableAtThatLevel)
++{
++	// MT_DIABLO is only available at L26 (see assets/txtdata/monsters/monstdat.tsv).
++	const std::vector<LevelRosterEntry> entries { { 1, MT_DIABLO, LevelRosterRole::Core, false } };
++	const std::vector<LevelRosterParams> params { { 1, 6000, 2, {} } };
++	const auto error = ValidateLevelRoster(entries, params);
++	ASSERT_TRUE(error.has_value());
++	EXPECT_NE(error->find("not available"), std::string::npos);
++}
++
++TEST_F(LevelRosterTest, ValidationRejectsAnInvalidRangeRow)
++{
++	// MT_WSKELAX is only available on levels 1-2; placing it at level 3 must be rejected.
++	const std::vector<LevelRosterEntry> entries { { 3, MT_WSKELAX, LevelRosterRole::Core, false } };
++	const std::vector<LevelRosterParams> params { { 3, 6000, 2, {} } };
++	const auto error = ValidateLevelRoster(entries, params);
++	ASSERT_TRUE(error.has_value());
++	EXPECT_NE(error->find("not available"), std::string::npos);
++}
++
++TEST_F(LevelRosterTest, ValidationRejectsAnUnsatisfiableClassFloor)
++{
++	// No level's candidate pool has 99 Boss-class monsters available.
++	const std::vector<LevelRosterEntry> entries { { 1, MT_WSKELAX, LevelRosterRole::Core, false } };
++	const std::vector<LevelRosterParams> params {
++		{ 1, 6000, 2, { { BehaviorClass::Boss, 99 } } },
++	};
++	const auto error = ValidateLevelRoster(entries, params);
++	ASSERT_TRUE(error.has_value());
++	EXPECT_NE(error->find("class floor"), std::string::npos);
++}
++
++TEST_F(LevelRosterTest, ValidationRejectsAUniqueBaseWithoutTheWhitelist)
++{
++	// MT_NGOATMC is Gharbad the Weak's base type at level 4 (unique_monstdat.tsv).
++	const std::vector<LevelRosterEntry> rejectedEntries { { 4, MT_NGOATMC, LevelRosterRole::Core, false } };
++	const std::vector<LevelRosterParams> params { { 4, 6000, 2, {} } };
++	const auto error = ValidateLevelRoster(rejectedEntries, params);
++	ASSERT_TRUE(error.has_value());
++	EXPECT_NE(error->find("allow_unique_boost"), std::string::npos);
++
++	const std::vector<LevelRosterEntry> allowedEntries { { 4, MT_NGOATMC, LevelRosterRole::Core, true } };
++	EXPECT_FALSE(ValidateLevelRoster(allowedEntries, params).has_value());
++}
++
++TEST_F(LevelRosterTest, ValidationRelaxesInSpawnMode)
++{
++	// MT_DIABLO is Never-available in the full retail check (only unlocked via a dedicated
++	// path, not the normal availability window), so this table is rejected under retail.
++	const std::vector<LevelRosterEntry> entries { { 1, MT_DIABLO, LevelRosterRole::Core, false } };
++	const std::vector<LevelRosterParams> params { { 1, 6000, 2, {} } };
++
++	gbIsSpawn = true;
++	EXPECT_FALSE(ValidateLevelRoster(entries, params).has_value());
++
++	// Prove the branch is actually taken, not that retail checks were silently disabled:
++	// the same table must still be rejected once we switch back to retail.
++	gbIsSpawn = false;
++	EXPECT_TRUE(ValidateLevelRoster(entries, params).has_value());
++}
++
++TEST_F(LevelRosterTest, ValidationRejectsLevelWithNoCoreInSpawnMode)
++{
++	// Level 1 has roster params but only a tail member, no core member.
++	const std::vector<LevelRosterEntry> entries { { 1, MT_NZOMBIE, LevelRosterRole::Tail, false } };
++	const std::vector<LevelRosterParams> params { { 1, 6000, 2, {} } };
++
++	gbIsSpawn = true;
++	const auto error = ValidateLevelRoster(entries, params);
++	gbIsSpawn = false;
++
++	ASSERT_TRUE(error.has_value());
++	EXPECT_NE(error->find("core"), std::string::npos);
++}

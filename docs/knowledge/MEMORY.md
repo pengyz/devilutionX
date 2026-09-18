@@ -33,6 +33,7 @@
 - [手工解冲突的文件不会继承上游同一 hunk 里自动合并进来的新增行](gotcha_conflict_file_loses_auto_merged_lines.md) — `plrctrls.cpp` 是本轮 4 个手工冲突文件之一，冲突块只处理两行 include 取舍，漏带上游同一次 quest_log 迁移新增的 `panels/quest_log.hpp` include → 7 处编译错误（`91e805149` 修复）；「不重叠即安全」的推断对冲突文件集合失效，需整文件三方核对
 
 ## Patterns
+- [pattern_sdd_ledger_location.md](pattern_sdd_ledger_location.md) — 台账 canonical 位置：docs/superpowers/ledgers/（进 git）；.superpowers/sdd/ 仅草稿
 - [`pattern_assertions_must_be_failable.md`](pattern_assertions_must_be_failable.md) — **断言必须具备可失败性**（本会话 4 次复发的头号缺陷模式：自证/恒真/测量无断言/区间重叠）；写守卫必须能指名"什么改动会让它变红"
 <!-- 代码约定、本项目开发模式 -->
 

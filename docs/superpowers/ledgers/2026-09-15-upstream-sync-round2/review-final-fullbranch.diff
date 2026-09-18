@@ -1,0 +1,217 @@
+# 上游同步（第二轮）全分支评审包
+BASE=fa678569e (执行前 HEAD)  HEAD=5cce05c30
+
+## A) 本计划产生的提交（不含 merge 带入的 28 个上游提交）
+5cce05c30 docs(spec): mark upstream sync round 2 as implemented + record findings
+d1e122ab6 docs(knowledge): record heroname divergence state after the upstream sync
+91e805149 fix(build): add panels/quest_log.hpp include after the upstream quest split
+8e92687a9 merge: sync upstream master (28 commits, tip e00b7260f)
+fd2956ea8 docs(plan): use Task N headings so task-brief can extract tasks
+a7014af1c [Amiga] Switch from the archived repo to the AmigaOS3 branch of the active repo
+073858428 [Amiga] Disable broken optimizations
+7519b3847 [3DS] Update text input state using data from the on-screen keyboard
+2c1a364da Add New Quest State for Mushroom Quest (#8475)
+
+## A2) 全部提交数（含上游带入）
+33
+
+## B) 我们自己的非 merge 提交的 diff（docs + 修复）
+--- commit fd2956ea8: docs(plan): use Task N headings so task-brief can extract tasks
+ .../plans/2026-09-15-upstream-sync-round2.md       | 24 +++++++++++-----------
+ 1 file changed, 12 insertions(+), 12 deletions(-)
+--- commit 91e805149: fix(build): add panels/quest_log.hpp include after the upstream quest split
+ Source/controls/plrctrls.cpp | 1 +
+ 1 file changed, 1 insertion(+)
+--- commit d1e122ab6: docs(knowledge): record heroname divergence state after the upstream sync
+ docs/knowledge/pattern_fixed_width_field_reads.md | 2 ++
+ 1 file changed, 2 insertions(+)
+--- commit 5cce05c30: docs(spec): mark upstream sync round 2 as implemented + record findings
+ .../2026-09-15-upstream-sync-round2-design.md      | 55 ++++++++++++++++++++--
+ 1 file changed, 51 insertions(+), 4 deletions(-)
+
+## C) merge 的关键决策面：我们相对上游保留了/改了什么（只看冲突相关文件）
+diff --git a/Source/controls/plrctrls.cpp b/Source/controls/plrctrls.cpp
+index 26c22b4d4..129cd4d6a 100644
+--- a/Source/controls/plrctrls.cpp
++++ b/Source/controls/plrctrls.cpp
+@@ -28,6 +28,7 @@
+ #include "controls/touch/gamepad.h"
+ #include "cursor.h"
+ #include "cursor_defs.hpp"
++#include "levels/gendung.h"
+ #include "doom.h"
+ #include "engine/point.hpp"
+ #include "engine/points_in_rectangle_range.hpp"
+@@ -42,7 +43,6 @@
+ #include "levels/trigs.h"
+ #include "minitext.h"
+ #include "missiles.h"
+-#include "panels/quest_log.hpp"
+ #include "panels/spell_icons.hpp"
+ #include "panels/spell_list.hpp"
+ #include "panels/ui_panels.hpp"
+@@ -262,7 +262,7 @@ bool CanTargetMonster(const Monster &monster)
+ 	if (monster.hasNoLife()) // dead
+ 		return false;
+ 
+-	if (!IsTileLit(monster.position.tile)) // not visible
++	if (!CanTarget(monster.position.tile)) // not visible
+ 		return false;
+ 
+ 	const int mx = monster.position.tile.x;
+@@ -402,7 +402,7 @@ void CheckPlayerNearby()
+ 		const int mx = player.position.future.x;
+ 		const int my = player.position.future.y;
+ 		if (dPlayer[mx][my] == 0
+-		    || !IsTileLit(player.position.future)
++		    || !CanTarget(player.position.future)
+ 		    || (player.hasNoLife() && spl != SpellID::Resurrect))
+ 			continue;
+ 
+@@ -2274,7 +2274,7 @@ void plrctrls_after_check_curs_move()
+ 		return;
+ 	}
+ 	if (!invflag) {
+-		InfoString = StringOrView {};
++		FloatingInfoString = StringOrView {};
+ 		FindActor();
+ 		FindItemOrObject();
+ 		FindTrigger();
+diff --git a/Source/engine/render/scrollrt.cpp b/Source/engine/render/scrollrt.cpp
+index 31e551c37..d67bcc485 100644
+--- a/Source/engine/render/scrollrt.cpp
++++ b/Source/engine/render/scrollrt.cpp
+@@ -55,6 +55,7 @@
+ #include "options.h"
+ #include "panels/charpanel.hpp"
+ #include "panels/console.hpp"
++#include "panels/level_info.h"
+ #include "panels/partypanel.hpp"
+ #include "panels/quest_log.hpp"
+ #include "panels/spell_list.hpp"
+@@ -1428,6 +1429,8 @@ void DrawView(const Surface &out, Point startPosition)
+ 		DrawGoldSplit(out);
+ 	}
+ 	DrawGoldWithdraw(out);
++	if (IsDepositGoldOpen)
++		DrawGoldDeposit(out);
+ 	if (HelpFlag) {
+ 		DrawHelp(out);
+ 	}
+@@ -1448,7 +1451,6 @@ void DrawView(const Surface &out, Point startPosition)
+ 	DrawPlrMsg(out);
+ 	gmenu_draw(out);
+ 	doom_draw(out);
+-	DrawInfoBox(out);
+ 	UpdateLifeManaPercent(); // Update life/mana totals before rendering any portion of the flask.
+ 	DrawLifeFlaskUpper(out);
+ 	DrawManaFlaskUpper(out);
+@@ -1533,7 +1535,7 @@ void DrawMain(int dwHgt, bool drawDesc, bool drawHp, bool drawMana, bool drawSba
+ 				// When chat input is displayed, the belt is hidden and the chat moves up.
+ 				DoBlitScreen({ mainPanelPosition + Displacement { 171, 6 }, { 298, 116 } });
+ 			} else {
+-				DoBlitScreen({ mainPanelPosition + Displacement { InfoBoxRect.position.x, InfoBoxRect.position.y }, { InfoBoxRect.size } });
++				DoBlitScreen({ mainPanelPosition + Displacement { 177, 46 }, { 288, 64 } });
+ 			}
+ 		}
+ 		if (drawMana) {
+@@ -1843,7 +1845,7 @@ void DrawAndBlit()
+ 	bool drawControlButtons = IsRedrawComponent(PanelDrawComponent::ControlButtons);
+ 	bool drawBelt = IsRedrawComponent(PanelDrawComponent::Belt);
+ 	const bool drawChatInput = ChatFlag;
+-	bool drawInfoBox = false;
++
+ 	bool drawCtrlPan = false;
+ 
+ 	const Rectangle &mainPanel = GetMainPanel();
+@@ -1853,11 +1855,9 @@ void DrawAndBlit()
+ 		drawMana = true;
+ 		drawControlButtons = true;
+ 		drawBelt = true;
+-		drawInfoBox = false;
+ 		drawCtrlPan = true;
+ 		hgt = gnScreenHeight;
+ 	} else if (IsRedrawViewport()) {
+-		drawInfoBox = true;
+ 		drawCtrlPan = false;
+ 		hgt = gnViewportHeight;
+ 	}
+@@ -1896,8 +1896,13 @@ void DrawAndBlit()
+ 		DrawFlaskValues(out, { mainPanel.position.x + mainPanel.size.width - 138, mainPanel.position.y + 28 },
+ 		    (HasAnyOf(InspectPlayer->_pIFlags, ItemSpecialEffect::NoMana) || MyPlayer->hasNoMana()) ? 0 : MyPlayer->_pMana >> 6,
+ 		    HasAnyOf(InspectPlayer->_pIFlags, ItemSpecialEffect::NoMana) ? 0 : MyPlayer->_pMaxMana >> 6);
+-	if (*GetOptions().Gameplay.floatingInfoBox)
+-		DrawFloatingInfoBox(out);
++	UpdateTooltipContent();
++	DrawFloatingInfoBox(out);
++
++	{
++		static LevelInfoBar levelInfo;
++		levelInfo.Draw(out, mainPanel.position);
++	}
+ 
+ 	if (*GetOptions().Gameplay.showMultiplayerPartyInfo && PartySidePanelOpen)
+ 		DrawPartyMemberInfoPanel(out);
+@@ -1909,7 +1914,7 @@ void DrawAndBlit()
+ 	lua::GameDrawComplete();
+ 
+ 	this_sdl_thread::yield();
+-	DrawMain(hgt, drawInfoBox, drawHealth, drawMana, drawBelt, drawControlButtons);
++	DrawMain(hgt, false, drawHealth, drawMana, drawBelt, drawControlButtons);
+ 
+ #ifdef _DEBUG
+ 	DrawConsole(out);
+diff --git a/Source/quests.cpp b/Source/quests.cpp
+index 0c8e32b07..8d52d7581 100644
+--- a/Source/quests.cpp
++++ b/Source/quests.cpp
+@@ -18,6 +18,7 @@
+ #include "levels/gendung.h"
+ #include "levels/town.h"
+ #include "levels/trigs.h"
++#include "lua/lua_event.hpp"
+ #include "missiles.h"
+ #include "monster.h"
+ #include "options.h"
+@@ -139,6 +140,20 @@ void CheckQuests()
+ 	if (gbIsSpawn)
+ 		return;
+ 
++	for (auto &quest : Quests) {
++		if (!quest.IsAvailable())
++			continue;
++		auto &questData = QuestsData[static_cast<size_t>(quest._qidx)];
++		if (!questData.scriptName.empty()) {
++			std::string result = lua::OnQuestCheck(questData.scriptName, &quest);
++			if (result == "done") {
++				quest._qactive = QUEST_DONE;
++				quest._qlog = true;
++			} else if (result == "active") {
++			}
++		}
++	}
++
+ 	auto &quest = Quests[Q_BETRAYER];
+ 	if (quest.IsAvailable() && UseMultiplayerQuests() && quest._qvar1 == 2) {
+ 		AddObject(OBJ_ALTBOY, SetPiece.position.megaToWorld() + Displacement { 4, 6 });
+@@ -214,7 +229,7 @@ bool ForceQuests()
+ 			const int ql = quest._qslvl - 1;
+ 
+ 			if (EntranceBoundaryContains(quest.position, cursPosition)) {
+-				InfoString = FormatRuntime(_(/* TRANSLATORS: Used for Quest Portals. {:s} is a Map Name */ "To {:s}"), _(QuestTriggerNames[ql]));
++				FloatingInfoString = FormatRuntime(_(/* TRANSLATORS: Used for Quest Portals. {:s} is a Map Name */ "To {:s}"), _(QuestTriggerNames[ql]));
+ 				cursPosition = quest.position;
+ 				return true;
+ 			}
+diff --git a/Source/tables/questdat.hpp b/Source/tables/questdat.hpp
+index 0b6fa54bd..a1a33b2db 100644
+--- a/Source/tables/questdat.hpp
++++ b/Source/tables/questdat.hpp
+@@ -124,6 +124,7 @@ struct QuestData {
+ 	bool isSinglePlayerOnly;
+ 	_speech_id _qdmsg;
+ 	std::string _qlstr;
++	std::string scriptName;
+ };
+ 
+ extern DVL_API_FOR_TEST Quest Quests[MAXQUESTS];

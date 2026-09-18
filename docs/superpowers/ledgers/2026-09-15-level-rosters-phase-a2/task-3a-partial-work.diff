@@ -1,0 +1,49 @@
+diff --git a/test/level_roster_baseline_test.cpp b/test/level_roster_baseline_test.cpp
+index 8a20793f4..faceb0783 100644
+--- a/test/level_roster_baseline_test.cpp
++++ b/test/level_roster_baseline_test.cpp
+@@ -2078,3 +2078,44 @@ TEST_F(HellfireLevelBaselineTest, HellfireRangedCasterShareWithinBaseline)
+ 		    << " seeds, so its bound is unreachable and measures nothing";
+ 	}
+ }
++
++// TEMP MEASUREMENT (task 3a) - removed before commit.
++TEST_F(HellfireLevelBaselineTest, TempPerSeedVarietyForHellfireLevels)
++{
++	if (missingMpqAssets_)
++		GTEST_SKIP() << "MPQ assets not found";
++	if (missingHellfire_)
++		GTEST_SKIP() << "Hellfire assets required";
++
++	constexpr int kSeeds = 500;
++	for (uint8_t level = 17; level <= 24; level++) {
++		std::set<std::vector<_monster_id>> combinations;
++		std::set<_monster_id> unionTypes;
++		for (int seed = 0; seed < kSeeds; seed++) {
++			currlevel = level;
++			leveltype = GetLevelType(level);
++			InitLevelMonsters();
++			SetRndSeed(41000 + static_cast<uint32_t>(seed));
++			ASSERT_TRUE(GetLevelMTypes().has_value());
++			std::vector<_monster_id> key;
++			for (size_t i = 0; i < LevelMonsterTypeCount; i++) {
++				key.push_back(LevelMonsterTypes[i].type);
++				unionTypes.insert(LevelMonsterTypes[i].type);
++			}
++			std::sort(key.begin(), key.end());
++			combinations.insert(key);
++		}
++		std::cout << "[ TEMPVAR ] level " << static_cast<int>(level)
++		          << " combinations " << combinations.size()
++		          << " unionTypes " << unionTypes.size() << " (";
++		for (const _monster_id t : unionTypes)
++			std::cout << MonstersData[t].name << ",";
++		std::cout << ")" << std::endl;
++		for (const auto &c : combinations) {
++			std::cout << "    combo:";
++			for (const _monster_id t : c)
++				std::cout << " " << MonstersData[t].name;
++			std::cout << std::endl;
++		}
++	}
++}

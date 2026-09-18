@@ -6,7 +6,7 @@ created: 2026-09-17
 sources:
   - tools/run_tests.py（TEST_TARGETS / build_tests）
   - CMake/Tests.cmake
-  - .superpowers/sdd/2026-09-15-level-rosters-phase-b/final-fix-report.md（门禁结果一节）
+  - docs/superpowers/ledgers/2026-09-15-level-rosters-phase-b/final-fix-report.md（门禁结果一节）
 ---
 
 `python3 tools/run_tests.py --json <f>` 的构建阶段只 `cmake --build --target` **`tools/run_tests.py` 里 `TEST_TARGETS` 手抄的那批目标**，而随后的 `ctest --output-on-failure` 跑的是 **`CMake/Tests.cmake` 注册的全部用例**。两份清单没有任何自动校验，新增测试二进制若只注册进 `Tests.cmake`（漂移校验 A 只查"条目有源文件"，不查 `run_tests.py`），全量门禁就会**执行一个不曾重建的 `build/<name>`**。

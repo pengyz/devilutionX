@@ -417,7 +417,7 @@ git commit -m "test(monster): pin the squad formation rate per level and fall ba
 | 逐层小队形成率 | `level_roster_baseline_test` 的 `SquadPlacementTest.SquadFormationRate` 实测（出厂表、500 seed/层，本次冻结树重跑，耗时 289.7s）：L1 0.999552、L2 0.999611、L3 0.99975、L4 0.99973、L5 1、L6 1、L7 0.999695、L8 0.99971、L9 0.999248、**L10 0.998896（全层最差）**、L11 0.999629、L12 1、L13 0.999688、L14 1、L15 1。统一 floor **0.95**（`kSquadFormationFloor`，具名数组，注释含逐层实测与"实测分隔线、非紧界、非规格常量"声明） |
 | `squad_leashed` 回退层 | **无任何层需要回退**：15 层实测 rate 均 ≥0.9989，远高于计划自身建议的 50% 下限与用例 floor 0.95；`level_roster_params.tsv` 的 `squad_leashed` 列 15 行全为 `1`，本轮零改动 |
 | 夹具重生成 | **未重生成**任何夹具。`timedemo`（`Timedemo.WarriorLevel1to2`）早已隔离于采样/名册改动（早在阶段 A 就与本类改动解耦），本次冻结树全量门禁 `ctest` 764 passed / 0 failed 已覆盖 `timedemo_test`，无需额外重生成动作 |
-| CI run | 见 Task 5 报告 `.superpowers/sdd/2026-09-15-level-rosters-phase-b/task-5-report.md`（push 后 `gh run list`/`gh run watch` 结果，含 run id + conclusion） |
+| CI run | 见 Task 5 报告 `docs/superpowers/ledgers/2026-09-15-level-rosters-phase-b/task-5-report.md`（push 后 `gh run list`/`gh run watch` 结果，含 run id + conclusion） |
 
 ---
 

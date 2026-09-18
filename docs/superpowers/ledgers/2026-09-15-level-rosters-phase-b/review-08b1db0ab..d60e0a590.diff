@@ -1,0 +1,384 @@
+# Review package: 08b1db0ab..HEAD
+
+## Commits
+d60e0a590 docs(plan): use the real death entry point in the G1 test skeleton (no KillMonster in this repo)
+5cadd5df4 test(eval): sync sampling case count for the two G1 cases (26 -> 28)
+2d425d806 fix(monster): release minions when an ordinary leader dies (G1)
+38e9b58e1 test(monster): failing G1 cases for ordinary leader death (red)
+
+## Files changed
+ Source/monster.cpp                                 |  24 ++-
+ .../plans/2026-09-15-level-rosters-phase-b.md      |   6 +-
+ eval/cases/rng/sampling-anti-monopoly.yaml         |  16 +-
+ test/sampling_behavior_test.cpp                    | 161 +++++++++++++++++++++
+ 4 files changed, 197 insertions(+), 10 deletions(-)
+
+## Diff
+diff --git a/Source/monster.cpp b/Source/monster.cpp
+index a58013a37..ad50efcfe 100644
+--- a/Source/monster.cpp
++++ b/Source/monster.cpp
+@@ -1472,26 +1472,38 @@ bool MonsterGotHit(Monster &monster)
+ {
+ 	if (monster.animInfo.isLastFrame()) {
+ 		M_StartStand(monster, monster.direction);
+ 
+ 		return true;
+ 	}
+ 
+ 	return false;
+ }
+ 
+-void ReleaseMinions(const Monster &leader)
++/**
++ * @brief Breaks the leashed relation between @p leader and every minion following it.
++ *
++ * @param clearReference also reset the minion's `leader` index to Monster::NoLeader.
++ *        setLeader(nullptr) deliberately keeps that index so monhealthbar can colour a
++ *        unique's buffed minions, which is safe only because a unique's slot is never
++ *        recycled while the level lives. An ORDINARY leader's slot IS recycled
++ *        (DeleteMonster's swap + a later AddMonster), so keeping its index would leave
++ *        the minion pointing at an unrelated live monster (G1, spec 4.3.1).
++ */
++void ReleaseMinions(const Monster &leader, bool clearReference = false)
+ {
+ 	for (size_t i = 0; i < ActiveMonsterCount; i++) {
+ 		Monster &minion = Monsters[ActiveMonsters[i]];
+ 		if (minion.leaderRelation == LeaderRelation::Leashed && minion.getLeader() == &leader) {
+ 			minion.setLeader(nullptr);
++			if (clearReference)
++				minion.leader = Monster::NoLeader;
+ 		}
+ 	}
+ }
+ 
+ void ShrinkLeaderPacksize(const Monster &monster)
+ {
+ 	if (monster.leaderRelation == LeaderRelation::Leashed) {
+ 		monster.getLeader()->packSize--;
+ 	}
+ }
+@@ -4162,23 +4174,27 @@ void M_SyncStartKill(Monster &monster, Point position, const Player &player)
+ 		M_ClearSquares(monster);
+ 		monster.position.tile = position;
+ 		monster.position.old = position;
+ 	}
+ 
+ 	StartMonsterDeath(monster, player, false);
+ }
+ 
+ void M_UpdateRelations(const Monster &monster)
+ {
+-	if (monster.hasLeashedMinions())
+-		ReleaseMinions(monster);
+-
++	// G1 (spec 2026-09-15-level-rosters-design 4.3.1): this used to be gated on
++	// monster.hasLeashedMinions(), which is `isUnique() && monsterPack == Leashed`
++	// and therefore permanently false for an ordinary monster - so an ordinary
++	// leader's death left its minions Leashed with a dangling `leader` index.
++	// ReleaseMinions already filters on `getLeader() == &leader`, so dropping the
++	// gate is a no-op loop for a monster without minions.
++	ReleaseMinions(monster, /*clearReference=*/!monster.isUnique());
+ 	ShrinkLeaderPacksize(monster);
+ }
+ 
+ void DoEnding()
+ {
+ 	if (gbIsMultiplayer) {
+ 		SNetLeaveGame(leaveinfo_t::LEAVE_ENDING);
+ 	}
+ 
+ 	music_stop();
+diff --git a/docs/superpowers/plans/2026-09-15-level-rosters-phase-b.md b/docs/superpowers/plans/2026-09-15-level-rosters-phase-b.md
+index 072cc14f8..c6686dd13 100644
+--- a/docs/superpowers/plans/2026-09-15-level-rosters-phase-b.md
++++ b/docs/superpowers/plans/2026-09-15-level-rosters-phase-b.md
+@@ -68,22 +68,24 @@ TEST_F(SamplingBaselineTest, LeaderDeathReleasesMinions)
+ 	ASSERT_TRUE(InitMonsters().has_value());
+ 
+ 	const size_t leaderIndex = ActiveMonsters[0];
+ 	Monster &leader = Monsters[leaderIndex];
+ 	leader.uniqueType = UniqueMonsterType::None; // 明确是普通怪
+ 	ASSERT_LT(ActiveMonsterCount, MaxMonsters);
+ 	Monster &minion = Monsters[ActiveMonsters[1]];
+ 	minion.setLeader(&leader);
+ 	ASSERT_EQ(minion.leaderRelation, LeaderRelation::Leashed);
+ 
+-	// 走公共死亡路径，让引擎自己调用 M_UpdateRelations
+-	KillMonster(leader, /*petrified=*/false);
++	// 走公共死亡路径，让引擎自己调用 M_UpdateRelations。
++	// RB7：本仓库没有 KillMonster；M_StartKill/StartMonsterDeath 都汇聚到
++	// MonsterDeath(monster, md, sendmsg)，直接调它可避开 GetDirection 对玩家位置的依赖。
++	MonsterDeath(leader, Direction::South, /*sendmsg=*/false);
+ 
+ 	EXPECT_NE(minion.leaderRelation, LeaderRelation::Leashed)
+ 	    << "an ordinary leader's death must not leave its minion leashed";
+ 	EXPECT_EQ(minion.leader, Monster::NoLeader)
+ 	    << "a stale leader index can point at a live stranger after slot reuse";
+ }
+ ```
+ 
+ - [ ] **步骤 2：运行测试并确认其失败**
+ 
+diff --git a/eval/cases/rng/sampling-anti-monopoly.yaml b/eval/cases/rng/sampling-anti-monopoly.yaml
+index e9797ddd6..b6fb4e42e 100644
+--- a/eval/cases/rng/sampling-anti-monopoly.yaml
++++ b/eval/cases/rng/sampling-anti-monopoly.yaml
+@@ -1,36 +1,37 @@
+ # 维护提醒（R35）：本 case 的 `expected.passed_min` 与 `output_contains` 里的
+ # "[  PASSED  ] N tests." 是**硬编码的用例计数**。往 SamplingBaselineTest 里新增或删除用例后
+ # 必须同步这两处数字，否则门禁会静默失效（N 偏小 → 少跑也算过）或误红
+-# （N 偏大 → 全绿也判失败）。当前值对应 26 个用例（2026-09-16 核对；R38 两个结构守卫 RosterPerSeedVariety /
+-# HellUniqueBasesRemainReachable 后 24 -> 26）。
++# （N 偏大 → 全绿也判失败）。当前值对应 28 个用例（2026-09-16 核对；R38 两个结构守卫 RosterPerSeedVariety /
++# HellUniqueBasesRemainReachable 后 24 -> 26；阶段 B Task 1 的两个 G1 用例
++# LeaderDeathReleasesMinions / UniqueLeaderDeathBehaviourUnchanged 后 26 -> 28）。
+ id: "sampling-anti-monopoly-cap"
+ name: "采样反垄断：B1 cap 后契约（真实引擎 GetLevelMTypes）"
+ category: "rng"
+ difficulty: "medium"
+ tags: ["sampling", "monster-generation", "baseline"]
+ 
+ setup:
+   mpq_required: true
+   timeout: 120
+ 
+ run:
+   backend: "gtest"
+   binary: "sampling_behavior_test"
+   filter: "SamplingBaselineTest.*"
+ 
+ expected:
+   exit_code: 0
+   failed: 0
+-  passed_min: 26
++  passed_min: 28
+   skipped_max: 1
+-  output_contains: ["[  PASSED  ] 26 tests."]
++  output_contains: ["[  PASSED  ] 28 tests."]
+ 
+ description: >
+   B1 采样反垄断 harness（纯测试 + cap 实施后）：直接驱动真实 GetLevelMTypes
+   采样循环，断言 cap 后契约——地狱 L15/L14 全同类尾 4.13%/0.70% -> 0、
+   L13 0%、洞穴风筝尾 L10 2.4% / L12 2.6% -> 0（风筝类 <=2）、洞穴任意类尾
+   记录值（L9 1.7% / L10 1.02% / L11 1.32% / L12 0%——非 cap 目标）、
+   L16 硬编码保留、采样终止（AC3）、教堂/墓穴无约束（AC4）、
+   MP 同种子同构成（AC8）、Counselor 映射 + AIID 穷尽性（含非 Boss 映射断言）、
+   quest 预加重抽双计数不放大 cap（QuestPreAddRePickDoesNotDoubleCount，Oracle 建议落地）。
+   任务状态条件：Quests 零初始化（全 NOTAVAIL），L13/L14 基线为"无任务"条件值。
+@@ -38,10 +39,17 @@ description: >
+   Task 4 追加（review 遗留 O1）：RosterQuotaAllowanceIsBinding 从出厂名册发现饱和的
+   (level, 受限 class) 组合并断言配额是紧的；EnginePreAddExemptionTracksQuestAvailability
+   断言引擎预加豁免只覆盖 Golem 与「该层真实可用」的任务唯一怪 base，
+   quest 挂到别的层不产生额度。
+   Task 5 追加（final review R38，AC9b/9c）：RosterPerSeedVariety 断言 L2-15 每层
+   500 种子下实现构成的组合数 >= 2（L1 候选池仅 6 型、构成按算术固定，以 EXPECT_EQ 1
+   显式豁免并注明原因）；HellUniqueBasesRemainReachable 断言 L13-15 每个「base 在本层
+   可用」的唯一怪 base 至少在一个种子的实现集合里出现，L13 三个近战 base（受 Melee cap
+   结构性排除）以 EXPECT_FALSE 精确记账。两者是 S1 回归（L13/14/15 各塌缩为 1 种组合、
+   地狱唯一怪 base 全不可达）的直接守卫，已在回归数据上验证会红。
++  阶段 B Task 1 追加（G1，spec 2026-09-15-level-rosters-design §4.3.1）：
++  LeaderDeathReleasesMinions 走引擎真实死亡路径（MonsterDeath -> 推进死亡动画到末帧 ->
++  M_UpdateRelations）断言**普通**（非 unique）leader 死亡后随从不再是 Leashed 且 `leader`
++  索引被清为 Monster::NoLeader（旧实现以 hasLeashedMinions() 为门槛，对普通怪恒 false，
++  随从永远不被释放且留下悬挂索引，槽位复用后会指向一只活着的无关怪）；
++  UniqueLeaderDeathBehaviourUnchanged 是 unique 路径回归——relation 置 None、
++  索引**仍保留**（monhealthbar 蓝色随从着色依赖它）。已验证前者在修复前红、后者在修复前后皆绿。
+diff --git a/test/sampling_behavior_test.cpp b/test/sampling_behavior_test.cpp
+index 310e1a3c3..993123334 100644
+--- a/test/sampling_behavior_test.cpp
++++ b/test/sampling_behavior_test.cpp
+@@ -28,20 +28,21 @@
+ #include "drlg_test.hpp" // TestInitGame (mounts the hf overlay for the R28 fixture)
+ #include "engine/assets.hpp"
+ #include "engine/load_cl2.hpp"
+ #include "engine/random.hpp"
+ #include "game_mode.hpp"
+ #include "levels/gendung.h"
+ #include "monster.h"
+ #include "multi.h"
+ #include "player.h"
+ #include "quests.h"
++#include "tables/itemdat.h"
+ #include "tables/level_roster.h"
+ #include "tables/monstdat.h"
+ #include "tables/questdat.hpp"
+ #include "utils/str_cat.hpp"
+ 
+ using namespace devilution;
+ 
+ namespace {
+ 
+ // Behavior classes come from the engine (monstdat.h GetBehaviorClass)
+@@ -1608,11 +1609,171 @@ TEST_F(HellfireNoParamsSamplingTest, NoParamsTailExceedsTheParameterisedCap)
+ 				if ((LevelMonsterTypes[i].placeFlags & PLACE_SCATTER) != 0)
+ 					scatterTypes++;
+ 			}
+ 			bestScatter = std::max(bestScatter, scatterTypes);
+ 		}
+ 	}
+ 	EXPECT_GT(bestScatter, static_cast<size_t>(maxTableTailDraw))
+ 	    << "no-params levels must draw a legacy (budget-limited) tail, not a tail_draw-sized one";
+ }
+ 
++// ---------------------------------------------------------------------------
++// G1 (spec 2026-09-15-level-rosters-design 4.3.1): an ORDINARY (non-unique)
++// leader's death must release its leashed minions and clear their dangling
++// `leader` index.
++//
++// M_UpdateRelations used to gate the release on monster.hasLeashedMinions(),
++// which is `isUnique() && monsterPack == Leashed` - permanently false for an
++// ordinary monster. So an ordinary leader's minions stayed Leashed forever, and
++// their `leader` index kept pointing at a slot that DeleteMonster's swap plus a
++// later AddMonster can hand to an unrelated LIVE monster. GroupUnity and
++// FollowTheLeader then dereference that index.
++//
++// The unique path must NOT change: setLeader(nullptr) deliberately keeps the
++// index so monhealthbar can colour buffed minions distinctly.
++//
++// The tests drive the engine's own death path. MonsterDeath (what the public
++// entries StartMonsterDeath/M_StartKill funnel into) starts the death
++// animation; M_UpdateRelations then runs when that animation reaches its last
++// frame, inside the file-static MonsterDeath(Monster&) that ProcessMonsters
++// calls. Running a whole ProcessMonsters tick here would also run every AI on
++// the level, so the tests advance only the dying monster's death animation and
++// then invoke the same engine hook the tick would - M_UpdateRelations, which
++// monster.h exports.
++// ---------------------------------------------------------------------------
++
++// The sampling fixture only needs monster/roster data, but the death path also
++// runs loot generation (SpawnLoot -> SpawnItem -> AllItemsList) and touches
++// MyPlayer (PlayEffect, SetupAllItems). diablo.cpp loads item data and has a
++// player before any monster can die; mirror that here so the tests exercise the
++// real death path instead of a trimmed-down stand-in.
++void PrepareDeathPathPrerequisites()
++{
++	LoadItemData();
++	Players.resize(1);
++	MyPlayer = &Players[0];
++	MyPlayer->pLvlLoad = 0;
++}
++
++// Drive `leader` through the engine's death sequence up to and including the
++// relation update that MonsterDeath(Monster&) performs on the last death frame.
++void RunEngineDeath(Monster &leader)
++{
++	MonsterDeath(leader, leader.direction, /*sendmsg=*/false);
++	ASSERT_EQ(leader.mode, MonsterMode::Death) << "MonsterDeath must start the death animation";
++
++	// Advance the death animation the way ProcessMonsters does, until the
++	// engine's own last-frame branch (which calls M_UpdateRelations) triggers.
++	for (int tick = 0; tick < 512 && !leader.animInfo.isLastFrame(); tick++)
++		leader.animInfo.processAnimation(false);
++	ASSERT_TRUE(leader.animInfo.isLastFrame()) << "death animation never reached its last frame";
++
++	// Same last-frame body as MonsterDeath(Monster&) in monster.cpp.
++	leader.isInvalid = true;
++	M_UpdateRelations(leader);
++}
++
++TEST_F(SamplingBaselineTest, LeaderDeathReleasesMinions)
++{
++	if (missingMpqAssets_)
++		GTEST_SKIP() << "MPQ assets not found - skipping test";
++
++	PrepareDeathPathPrerequisites();
++
++	// Level 1 has no unique monsters at all, so every placed monster is ordinary.
++	currlevel = 1;
++	InitLevelMonsters();
++	SetRndSeed(9000);
++	{
++		const auto typesResult = GetLevelMTypes();
++		ASSERT_TRUE(typesResult.has_value()) << typesResult.error();
++	}
++	ASSERT_GT(LevelMonsterTypeCount, 0U);
++
++	// Place two monsters of a sampled level type directly: this test is about
++	// the leader/minion relation, not about the placement distribution, and
++	// AddMonster is the same entry PlaceMonster/PlaceGroup use.
++	Monster *leaderPtr = AddMonster({ 40, 40 }, Direction::South, 0, /*inMap=*/false);
++	ASSERT_NE(leaderPtr, nullptr);
++	Monster *minionPtr = AddMonster({ 41, 40 }, Direction::South, 0, /*inMap=*/false);
++	ASSERT_NE(minionPtr, nullptr);
++
++	Monster &leader = *leaderPtr;
++	Monster &minion = *minionPtr;
++	ASSERT_FALSE(leader.isUnique()) << "this test must cover the ORDINARY leader path";
++
++	minion.setLeader(&leader);
++	ASSERT_EQ(minion.leaderRelation, LeaderRelation::Leashed);
++	ASSERT_EQ(minion.leader, static_cast<uint8_t>(leader.getId()));
++	leader.packSize = 1;
++
++	RunEngineDeath(leader);
++
++	EXPECT_NE(minion.leaderRelation, LeaderRelation::Leashed)
++	    << "an ordinary leader's death must not leave its minion leashed";
++	EXPECT_EQ(minion.leader, Monster::NoLeader)
++	    << "a stale leader index can point at a live stranger after slot reuse";
++	EXPECT_EQ(minion.getLeader(), nullptr)
++	    << "getLeader() must stop resolving to the dead leader's slot";
++}
++
++TEST_F(SamplingBaselineTest, UniqueLeaderDeathBehaviourUnchanged)
++{
++	if (missingMpqAssets_)
++		GTEST_SKIP() << "MPQ assets not found - skipping test";
++
++	// The unique path keeps its documented behaviour: relation cleared, index
++	// RETAINED (monhealthbar colours buffed minions from that index).
++	// PrepareUniqueMonst needs the unique's TRN, which only ships with retail
++	// data; skip cleanly when it is unavailable (same guard style as
++	// level_roster_baseline_test).
++	PrepareDeathPathPrerequisites();
++
++	currlevel = 1;
++	InitLevelMonsters();
++	SetRndSeed(9100);
++	{
++		const auto typesResult = GetLevelMTypes();
++		ASSERT_TRUE(typesResult.has_value()) << typesResult.error();
++	}
++	ASSERT_GT(LevelMonsterTypeCount, 0U);
++
++	Monster *leaderPtr = AddMonster({ 40, 40 }, Direction::South, 0, /*inMap=*/false);
++	ASSERT_NE(leaderPtr, nullptr);
++	Monster *minionPtr = AddMonster({ 41, 40 }, Direction::South, 0, /*inMap=*/false);
++	ASSERT_NE(minionPtr, nullptr);
++
++	Monster &leader = *leaderPtr;
++	Monster &minion = *minionPtr;
++
++	// Make the leader a Leashed-pack unique. Gharbad the Weak is
++	// UniqueMonsterPack::None, so pick a unique whose data really is Leashed so
++	// hasLeashedMinions() (the OLD gate) is true - i.e. the exact case whose
++	// behaviour must stay byte-for-byte identical.
++	bool foundLeashedUnique = false;
++	for (size_t u = 0; u < UniqueMonstersData.size(); u++) {
++		if (UniqueMonstersData[u].monsterPack != UniqueMonsterPack::Leashed)
++			continue;
++		leader.uniqueType = static_cast<UniqueMonsterType>(u);
++		foundLeashedUnique = true;
++		break;
++	}
++	ASSERT_TRUE(foundLeashedUnique) << "unique monster data has no Leashed pack entry";
++	ASSERT_TRUE(leader.isUnique());
++	ASSERT_TRUE(leader.hasLeashedMinions())
++	    << "the regression must exercise the old hasLeashedMinions() gate";
++
++	minion.setLeader(&leader);
++	const auto retainedIndex = static_cast<uint8_t>(leader.getId());
++	ASSERT_EQ(minion.leaderRelation, LeaderRelation::Leashed);
++	ASSERT_EQ(minion.leader, retainedIndex);
++	leader.packSize = 1;
++
++	RunEngineDeath(leader);
++
++	EXPECT_EQ(minion.leaderRelation, LeaderRelation::None)
++	    << "a unique leader's death must still clear the minion's relation";
++	EXPECT_EQ(minion.leader, retainedIndex)
++	    << "the unique path must RETAIN the leader index (monhealthbar colouring)";
++}
++
+ } // namespace

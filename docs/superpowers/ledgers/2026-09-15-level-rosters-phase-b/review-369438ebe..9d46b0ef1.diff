@@ -1,0 +1,1342 @@
+# Review package: 369438ebe..HEAD
+
+## Commits
+9d46b0ef1 fix(tables): lower L14 squad_chance instead of raising its melee floor
+1ea3dfda3 feat(monster): form core squads in the scatter loop
+b6cd416e5 feat(tables): add squad_chance/squad_size/squad_leashed to the level roster params
+
+## Files changed
+ Source/monster.cpp                                 | 155 ++++++-
+ Source/monster.h                                   |  42 ++
+ Source/tables/level_roster.cpp                     |  26 ++
+ Source/tables/level_roster.h                       |  18 +
+ assets/txtdata/monsters/level_roster_params.tsv    |  32 +-
+ eval/cases/rng/level-rosters.yaml                  |  25 +-
+ test/Fixtures.cmake                                |   3 +
+ .../monsters/level_roster_params_interleaved.tsv   |   6 +-
+ .../monsters/level_roster_params_squads_always.tsv |  16 +
+ .../monsters/level_roster_params_squads_off.tsv    |  16 +
+ .../level_roster_params_squads_unleashed.tsv       |  16 +
+ test/level_roster_baseline_test.cpp                | 443 +++++++++++++++++++++
+ test/level_roster_test.cpp                         | 118 ++++++
+ 13 files changed, 891 insertions(+), 25 deletions(-)
+
+## Diff
+diff --git a/Source/monster.cpp b/Source/monster.cpp
+index ea2677f45..96f6588cb 100644
+--- a/Source/monster.cpp
++++ b/Source/monster.cpp
+@@ -3306,22 +3306,94 @@ void InitGolem(devilution::Monster &monster, uint8_t golemOwnerPlayerId, int16_t
+ bool PosOkMissile(Point position)
+ {
+ 	return !TileHasAny(position, TileProperties::BlockMissile);
+ }
+ 
+ bool PosOkMovingMissile(Point position)
+ {
+ 	return !IsMissileBlockedByTile(position);
+ }
+ 
++// --- Core squads (spec 2026-09-15-level-rosters-design 4.3.3) --------------
++//
++// Both helpers are file-static on purpose: they are scatter-loop internals, not
++// a new exported roster API. GetLevelRoster() already gives the loop the level's
++// rows, and IsMonsterAvailable() (same TU) applies the availability filter that
++// roster row alone does not imply - see the note in level_roster.h.
++
++bool IsCoreRosterMember(uint8_t level, _monster_id type)
++{
++	const std::span<const LevelRosterEntry> roster = GetLevelRoster(level);
++	return std::any_of(roster.begin(), roster.end(), [type](const LevelRosterEntry &entry) {
++		return entry.type == type && entry.role == LevelRosterRole::Core;
++	});
++}
++
++/**
++ * @brief Picks a random registered core member of `level` other than `leaderType` to serve as a
++ * squad's minion type, and returns its LevelMonsterTypes index.
++ *
++ * Returns LevelMonsterTypeCount - the same "not found" answer GetMonsterTypeIndex gives, and
++ * never a usable index - when the level has no other core member that is both available and
++ * registered. Callers must treat that as "no squad this roll".
++ *
++ * The index (rather than the _monster_id) is what comes back on purpose. A roster row is not a
++ * guarantee that the type is REGISTERED on the level: GetLevelRoster() applies no availability
++ * filter at all (see level_roster.h), and GetLevelMTypes' pre-add skips unavailable rows. An
++ * earlier version of this returned MT_INVALID for "none" and left the caller to call
++ * GetMonsterTypeIndex, which meant the caller carried a second, separate failure branch for an
++ * unregistered partner - a branch the shipped roster can never reach, so nothing could ever
++ * exercise it. Resolving the index here collapses both failures into this one reachable answer.
++ *
++ * A squad deliberately mixes two core types rather than doubling the leader's own type: a
++ * same-type squad would just be the legacy group with extra leash semantics, whereas the spec's
++ * intent is that squads reshape a level's composition.
++ */
++size_t PickCorePartnerTypeIndex(uint8_t level, _monster_id leaderType)
++{
++	const std::span<const LevelRosterEntry> roster = GetLevelRoster(level);
++	StaticVector<size_t, MaxLvlMTypes> candidates;
++	for (const LevelRosterEntry &entry : roster) {
++		if (entry.role != LevelRosterRole::Core || entry.type == leaderType)
++			continue;
++		if (!IsMonsterAvailable(MonstersData[static_cast<size_t>(entry.type)]))
++			continue;
++		const size_t typeIndex = GetMonsterTypeIndex(entry.type);
++		if (typeIndex >= LevelMonsterTypeCount)
++			continue; // core row that this level did not register
++		// A level's roster can in principle list more core rows than MaxLvlMTypes; the
++		// level could never register them all anyway, and StaticVector asserts on
++		// overflow, so stop at capacity.
++		if (candidates.size() == MaxLvlMTypes)
++			break;
++		candidates.emplace_back(typeIndex);
++	}
++	if (candidates.empty())
++		return LevelMonsterTypeCount;
++	return candidates[GenerateRnd(static_cast<int32_t>(candidates.size()))];
++}
++
++/**
++ * Squad roll bookkeeping for the current level. Reset by InitLevelMonsters() together with the
++ * rest of the per-level monster state, reported by the verbose load-time diagnostic below, and
++ * read by the squad-rate measurement so the acceptance figure uses the loop's OWN denominator
++ * instead of re-deriving how many rolls the loop made.
++ */
++SquadRollCounters SquadRollStats;
++
+ } // namespace
+ 
++const SquadRollCounters &GetSquadRollStats()
++{
++	return SquadRollStats;
++}
++
+ std::expected<size_t, std::string> AddMonsterType(_monster_id type, placeflag placeflag)
+ {
+ 	const size_t typeIndex = GetMonsterTypeIndex(type);
+ 	CMonster &monsterType = LevelMonsterTypes[typeIndex];
+ 
+ 	if (typeIndex == LevelMonsterTypeCount) {
+ 		LevelMonsterTypeCount++;
+ 		monsterType.type = type;
+ 		const MonsterData &monsterData = MonstersData[type];
+ 		monstimgtot += monsterData.image;
+@@ -3449,20 +3521,21 @@ void InitLevelMonsters()
+ 	for (CMonster &levelMonsterType : LevelMonsterTypes) {
+ 		levelMonsterType.placeFlags = 0;
+ 	}
+ 
+ 	ClrAllMonsters();
+ 	ActiveMonsterCount = 0;
+ 	totalmonsters = MaxMonsters;
+ 
+ 	std::iota(std::begin(ActiveMonsters), std::end(ActiveMonsters), 0U);
+ 	uniquetrans = 0;
++	SquadRollStats = {};
+ }
+ 
+ std::expected<void, std::string> GetLevelMTypes()
+ {
+ 	RETURN_IF_ERROR(AddMonsterType(MT_GOLEM, PLACE_SPECIAL));
+ 	if (currlevel == 16) {
+ 		RETURN_IF_ERROR(AddMonsterType(MT_ADVOCATE, PLACE_SCATTER));
+ 		RETURN_IF_ERROR(AddMonsterType(MT_RBLACK, PLACE_SCATTER));
+ 		RETURN_IF_ERROR(AddMonsterType(MT_DIABLO, PLACE_SPECIAL));
+ 		return {};
+@@ -3842,39 +3915,119 @@ std::expected<void, std::string> InitMonsters()
+ 		totalmonsters = ActiveMonsterCount + numplacemonsters;
+ 		int numscattypes = 0;
+ 		size_t scattertypes[NUM_MAX_MTYPES];
+ 		for (size_t i = 0; i < LevelMonsterTypeCount; i++) {
+ 			if ((LevelMonsterTypes[i].placeFlags & PLACE_SCATTER) != 0) {
+ 				scattertypes[numscattypes] = i;
+ 				numscattypes++;
+ 			}
+ 		}
+ 		if (numscattypes > 0) {
++			const LevelRosterParams *rosterParams = GetLevelRosterParams(currlevel);
+ 			while (ActiveMonsterCount < totalmonsters) {
+ 				const size_t typeIndex = scattertypes[GenerateRnd(numscattypes)];
++				// The legacy same-type group size. Computed for every iteration
++				// regardless of which branch runs below, so the squad branch does not
++				// change how many RNG draws a scatter iteration consumes before the
++				// squad roll itself.
+ 				if (currlevel == 1 || FlipCoin())
+ 					na = 1;
+ 				else if (currlevel == 2 || leveltype == DTYPE_CRYPT)
+ 					na = GenerateRnd(2) + 2;
+ 				else
+ 					na = GenerateRnd(3) + 3;
+-				PlaceGroup(typeIndex, na);
++
++				// Spec 4.3.3: a core type may be placed as a squad - one leader plus
++				// squadSize minions of a DIFFERENT core type of the same level. Requires
++				// room for the leader plus at least one minion, otherwise the roll would
++				// produce a lone leader with packSize 0.
++				const bool squadEligible = rosterParams != nullptr
++				    && rosterParams->squadChance > 0 && rosterParams->squadSize > 0
++				    && IsCoreRosterMember(currlevel, LevelMonsterTypes[typeIndex].type)
++				    && totalmonsters - ActiveMonsterCount >= 2;
++				if (squadEligible)
++					SquadRollStats.eligibleCoreDraws++;
++				if (squadEligible && GenerateRnd(100) < static_cast<int>(rosterParams->squadChance)) {
++					SquadRollStats.rolls++;
++					const size_t before = ActiveMonsterCount;
++					PlaceGroup(typeIndex, 1, nullptr, false, {});
++					if (ActiveMonsterCount == before) {
++						// Defensive, and currently UNREACHABLE - deliberately kept.
++						//
++						// Unreachable because of how PlaceGroup places a leaderless
++						// group of 1: it picks its anchor tile through
++						// `do { ... } while (!CanPlaceMonster(...))`, so the anchor is
++						// always placeable; the first inner candidate IS that anchor,
++						// its dTransVal trivially equals its own, and leashed is false,
++						// so the first attempt always succeeds. squadEligible also
++						// guarantees room for 2 more monsters, so the totalmonsters
++						// clamp cannot reduce num to 0 either.
++						//
++						// Kept anyway because the alternative is a memory-safety bug
++						// rather than a missing squad: without it,
++						// &Monsters[ActiveMonsterCount - 1] would alias an unrelated
++						// monster placed by an EARLIER loop iteration and this roll
++						// would leash minions to a stranger. If PlaceGroup's placement
++						// strategy ever changes, this stays correct.
++						//
++						// Because it cannot fire today, the squad measurements assert
++						// leaderPlacementFailed == 0 as a tripwire: should placement
++						// ever start failing here, that assertion goes red and says so,
++						// instead of this branch silently becoming live and untested.
++						SquadRollStats.leaderPlacementFailed++;
++						PlaceGroup(typeIndex, na);
++						continue;
++					}
++					Monster &leader = Monsters[ActiveMonsters[ActiveMonsterCount - 1]];
++					const size_t partnerIndex = PickCorePartnerTypeIndex(currlevel, LevelMonsterTypes[typeIndex].type);
++					if (partnerIndex >= LevelMonsterTypeCount) {
++						// No other available, registered core member on this level, so
++						// there is nothing to build a mixed squad from. The leader stays
++						// as an ordinary lone monster (never leashed, so its packSize is
++						// untouched) and the loop continues.
++						SquadRollStats.noPartnerAvailable++;
++						continue;
++					}
++					PlaceGroup(partnerIndex, rosterParams->squadSize, &leader,
++					    rosterParams->squadLeashed,
++					    MinionOptions { .tough = false, .inheritAi = false, .inheritIntelligence = false });
++					// PlaceGroup only writes packSize when leashed; an unleashed squad
++					// deliberately leaves the leader an ordinary monster (spec 4.3.4).
++					if (rosterParams->squadLeashed && leader.packSize > 0)
++						SquadRollStats.realised++;
++				} else {
++					PlaceGroup(typeIndex, na);
++				}
+ 			}
+ 		}
+ 	}
+ 	for (int i = 0; i < nt; i++) {
+ 		for (int s = -2; s < 2; s++) {
+ 			for (int t = -2; t < 2; t++)
+ 				DoUnVision(trigs[i].position + Displacement { s, t }, 15);
+ 		}
+ 	}
+ 
++	// Verbose-only diagnostic: a level whose squad rolls all dissolve into placement
++	// failures looks identical to a level with squads switched off unless the breakdown is
++	// visible somewhere. Squads are placement-bounded (see SquadRollCounters), so this is
++	// the cheapest way to tell "the table says 30%" from "the level realises 4%".
++	{
++		const SquadRollCounters &squads = GetSquadRollStats();
++		if (squads.rolls > 0) {
++			LogVerbose("Core squads: level {} had {} eligible core draws, rolled {} squads, {} realised "
++			           "({} leader placement failures, {} without an available partner)",
++			    currlevel, squads.eligibleCoreDraws, squads.rolls, squads.realised,
++			    squads.leaderPlacementFailed, squads.noPartnerAvailable);
++		}
++	}
++
+ 	return InitAllMonsterGFX();
+ }
+ 
+ std::expected<void, std::string> SetMapMonsters(const uint16_t *dunData, Point startPosition)
+ {
+ 	RETURN_IF_ERROR(AddMonsterType(MT_GOLEM, PLACE_SPECIAL));
+ 	if (setlevel)
+ 		for (int i = 0; i < ReservedMonsterSlotsForGolems; i++)
+ 			AddMonster(GolemHoldingCell, Direction::South, 0, false);
+ 
+diff --git a/Source/monster.h b/Source/monster.h
+index d05c3fe7f..940d04469 100644
+--- a/Source/monster.h
++++ b/Source/monster.h
+@@ -515,20 +515,62 @@ struct MinionOptions {
+ /**
+  * @brief Places @p num monsters of @p typeIndex, optionally as a leader's minions.
+  *
+  * When @p leader is non-null, @p opts controls whether each placed minion is
+  * toughened (HP x2), inherits the leader's AI (setLeader() otherwise overwrites
+  * it), and inherits the leader's intelligence. All three default to the
+  * engine's historical behaviour.
+  */
+ void PlaceGroup(size_t typeIndex, size_t num, Monster *leader = nullptr, bool leashed = false, MinionOptions opts = {});
+ 
++/**
++ * @brief Per-level bookkeeping for the scatter loop's core-squad rolls (spec 4.3.3).
++ *
++ * A squad roll can fail to produce a squad for reasons that are entirely about placement rather
++ * than about the table's squad_chance: the leader can be clamped away by totalmonsters, the level
++ * can have no second available core member, and the minion group can lose every one of
++ * PlaceGroup's 10 attempts (leashed minions additionally have to land within 4 tiles of the
++ * leader). These counters record where the rolls went, so the realised squad rate is
++ * attributable instead of being a single unexplained number.
++ *
++ * Reset by InitLevelMonsters() along with the rest of the per-level monster state.
++ */
++struct SquadRollCounters {
++	/**
++	 * Scatter-loop iterations that drew a CORE type and had room for a leader plus at least one
++	 * minion, i.e. every iteration eligible to become a squad. This is the denominator the
++	 * per-level squad rate is reported against: squad_chance only decides how many of these
++	 * eligible draws actually roll.
++	 */
++	size_t eligibleCoreDraws = 0;
++	/** Rolls that passed squad_chance and entered the squad path. */
++	size_t rolls = 0;
++	/** Rolls whose leader could not be placed at all (fell back to a legacy group). */
++	size_t leaderPlacementFailed = 0;
++	/**
++	 * Rolls where the level had no other core member that is both available and registered, so
++	 * no mixed squad could be built.
++	 */
++	size_t noPartnerAvailable = 0;
++	/** Rolls that ended with a leashed leader actually holding >= 1 minion. */
++	size_t realised = 0;
++};
++
++/**
++ * @brief Returns the current level's squad roll counters.
++ *
++ * Read by the load-time verbose diagnostic (so a level whose squads never materialise shows up
++ * in a verbose log) and by the squad-rate measurement, which needs the loop's own roll
++ * denominator rather than a re-derivation of it.
++ */
++const SquadRollCounters &GetSquadRollStats();
++
+ std::expected<void, std::string> PrepareUniqueMonst(Monster &monster, UniqueMonsterType monsterType, size_t miniontype, int bosspacksize, const UniqueMonsterData &uniqueMonsterData);
+ void InitLevelMonsters();
+ std::expected<void, std::string> GetLevelMTypes();
+ std::expected<size_t, std::string> AddMonsterType(_monster_id type, placeflag placeflag);
+ inline std::expected<size_t, std::string> AddMonsterType(UniqueMonsterType uniqueType, placeflag placeflag)
+ {
+ 	return AddMonsterType(UniqueMonstersData[static_cast<size_t>(uniqueType)].mtype, placeflag);
+ }
+ std::expected<void, std::string> InitMonsterSND(CMonster &monsterType);
+ std::expected<void, std::string> InitMonsterGFX(CMonster &monsterType, MonsterSpritesData &&spritesData = {});
+diff --git a/Source/tables/level_roster.cpp b/Source/tables/level_roster.cpp
+index ea5d244ed..7c6c8f0fb 100644
+--- a/Source/tables/level_roster.cpp
++++ b/Source/tables/level_roster.cpp
+@@ -122,20 +122,34 @@ void LoadLevelRosterParamsFromFile(DataFile &dataFile, std::string_view filename
+ 	Params.reserve(Params.size() + dataFile.numRecords());
+ 	for (DataFileRecord record : dataFile) {
+ 		RecordReader reader { record, filename };
+ 		LevelRosterParams params {};
+ 		reader.readInt("level", params.level);
+ 		reader.readInt("max_image", params.maxImage);
+ 		reader.readInt("tail_draw", params.tailDraw);
+ 		std::string classFloorsStr;
+ 		reader.readString("class_floors", classFloorsStr);
+ 		params.classFloors = ParseClassFloors(classFloorsStr);
++		reader.readInt("squad_chance", params.squadChance);
++		reader.readInt("squad_size", params.squadSize);
++		reader.read("squad_leashed", params.squadLeashed, [](std::string_view value) -> std::expected<bool, std::string> {
++			// The roster tables spell booleans as true/false (see allow_unique_boost in
++			// LoadLevelRosterEntriesFromFile); 1/0 is accepted too because the shipped
++			// params table is a numeric table everywhere else and reviewers write 1/0
++			// there by habit. Anything else is a typo, not a falsy value: reject it
++			// rather than silently defaulting, which would hide a mis-typed column.
++			if (value == "true" || value == "1")
++				return true;
++			if (value == "false" || value == "0")
++				return false;
++			return std::unexpected(StrCat("Invalid squad_leashed value \"", value, "\""));
++		});
+ 		Params.push_back(params);
+ 	}
+ }
+ 
+ } // namespace
+ 
+ uint8_t BehaviorClassCapForLevel(uint8_t level, BehaviorClass cls)
+ {
+ 	// Mirrors monster.cpp's B1 scatter-sampling cap (see :3513-3531): L9-12 caps the
+ 	// RangedKite class at 2, L13-16 caps any single class at 2, everything else is uncapped.
+@@ -177,20 +191,32 @@ std::optional<std::string> ValidateLevelRoster(std::span<const LevelRosterEntry>
+ 	// requirements, not retail-specific availability/unique semantics.
+ 	for (const LevelRosterParams &param : params) {
+ 		if (param.maxImage <= 0)
+ 			return StrCat("level ", param.level, " has a non-positive max_image (", param.maxImage, ")");
+ 		if (param.tailDraw < 0)
+ 			return StrCat("level ", param.level, " has a negative tail_draw (", param.tailDraw, ")");
+ 		for (const auto &[cls, floor] : param.classFloors) {
+ 			if (cls == BehaviorClass::Count)
+ 				return StrCat("level ", param.level, " class floor names the sentinel BehaviorClass::Count, which is not a real category");
+ 		}
++		// Squad columns (spec 4.3.3). squadChance is a percentage; squadSize feeds
++		// PlaceGroup's `num` and the spec caps a core squad at leader + <=3 minions.
++		if (param.squadChance > 100)
++			return StrCat("level ", param.level, " has a squad_chance above 100 (", static_cast<int>(param.squadChance), ")");
++		if (param.squadSize > 3)
++			return StrCat("level ", param.level, " has a squad_size above 3 (", static_cast<int>(param.squadSize), ")");
++		// squad_size 0 is the correct spelling for a level with squads switched off
++		// (squad_chance 0 never enters the squad branch), so it is only a defect when
++		// the level really does roll squads: such a roll would place a leader and then
++		// request zero minions, leaving a leader whose packSize is 0.
++		if (param.squadChance > 0 && param.squadSize == 0)
++			return StrCat("level ", param.level, " enables squads (squad_chance ", static_cast<int>(param.squadChance), ") but has squad_size 0");
+ 	}
+ 
+ 	// Uniqueness checks (R21 + 2a rulings): a duplicate params row for the same level would
+ 	// have its second occurrence silently ignored by GetLevelRosterParams() (linear
+ 	// find_if returns the first match); a duplicate (level, monster_id) entry row would
+ 	// silently double-count that monster in caps/floor bookkeeping. Both apply in both modes
+ 	// since they are structural, not availability-related.
+ 	{
+ 		std::vector<uint8_t> paramLevels;
+ 		for (const LevelRosterParams &param : params)
+diff --git a/Source/tables/level_roster.h b/Source/tables/level_roster.h
+index 3498f4c9b..8521b2a84 100644
+--- a/Source/tables/level_roster.h
++++ b/Source/tables/level_roster.h
+@@ -27,20 +27,38 @@ struct LevelRosterEntry {
+ 	_monster_id type;
+ 	LevelRosterRole role;
+ 	bool allowUniqueBoost;
+ };
+ 
+ struct LevelRosterParams {
+ 	uint8_t level;
+ 	int maxImage;
+ 	int tailDraw;
+ 	std::vector<std::pair<BehaviorClass, uint8_t>> classFloors;
++	/**
++	 * Percent chance (0-100) that a core type drawn by the scatter loop is placed as a
++	 * squad (one leader plus `squadSize` minions of another core type) instead of as a
++	 * plain same-type group. 0 disables squads for the level entirely.
++	 */
++	uint8_t squadChance = 0;
++	/**
++	 * Number of minions requested for a squad, 1-3. Only meaningful when squadChance > 0;
++	 * validation rejects 0 in that case, because a squad roll that can place no minion
++	 * would leave a leader with packSize 0.
++	 */
++	uint8_t squadSize = 0;
++	/**
++	 * true: minions are leashed to the leader (setLeader + packSize + the 4-tile leash).
++	 * false (spec 4.3.4 fallback): the leader is still passed to PlaceGroup, so minions
++	 * are still seeded next to it, but no leash/packSize/regroup semantics are applied.
++	 */
++	bool squadLeashed = true;
+ };
+ 
+ /**
+  * @brief Loads and validates the shipped level roster tables. Fatal on any validation failure.
+  *
+  * Must be called after LoadMonsterData(): validation reads MonstersData/UniqueMonstersData,
+  * which LoadMonsterData() populates.
+  *
+  * Each call clears and rebuilds the internal Entries/Params storage, so any std::span or
+  * pointer previously returned by GetLevelRoster()/GetLevelRosterParams() is invalidated the
+diff --git a/assets/txtdata/monsters/level_roster_params.tsv b/assets/txtdata/monsters/level_roster_params.tsv
+index 0fbc29cd0..8ee50f097 100644
+--- a/assets/txtdata/monsters/level_roster_params.tsv
++++ b/assets/txtdata/monsters/level_roster_params.tsv
+@@ -1,16 +1,16 @@
+-level	max_image	tail_draw	class_floors
+-1	6000	2	Melee=2
+-2	9000	4	Melee=2
+-3	6000	4	Melee=2
+-4	9000	4	RangedTurret=1
+-5	9000	2	Melee=1
+-6	9000	2	Sneak=1
+-7	9000	2	Melee=1
+-8	12000	3	RangedKite=1
+-9	16000	3	RangedKite=1
+-10	16000	3	RangedKite=2
+-11	16000	3	RangedKite=2
+-12	16000	3	RangedKite=2,Melee=2
+-13	18000	1	Melee=2
+-14	18000	2	Melee=1
+-15	18000	3	Melee=2,RangedTurret=1
++level	max_image	tail_draw	class_floors	squad_chance	squad_size	squad_leashed
++1	6000	2	Melee=2	30	2	1
++2	9000	4	Melee=2	30	2	1
++3	6000	4	Melee=2	30	2	1
++4	9000	4	RangedTurret=1	30	2	1
++5	9000	2	Melee=1	30	2	1
++6	9000	2	Sneak=1	30	2	1
++7	9000	2	Melee=1	30	2	1
++8	12000	3	RangedKite=1	30	2	1
++9	16000	3	RangedKite=1	30	2	1
++10	16000	3	RangedKite=2	30	2	1
++11	16000	3	RangedKite=2	30	2	1
++12	16000	3	RangedKite=2,Melee=2	30	2	1
++13	18000	1	Melee=2	30	2	1
++14	18000	2	Melee=1	10	2	1
++15	18000	3	Melee=2,RangedTurret=1	30	2	1
+diff --git a/eval/cases/rng/level-rosters.yaml b/eval/cases/rng/level-rosters.yaml
+index be7aab92f..f526b574c 100644
+--- a/eval/cases/rng/level-rosters.yaml
++++ b/eval/cases/rng/level-rosters.yaml
+@@ -1,41 +1,43 @@
+ # 维护提醒（R35）：本 case 的 `expected.passed_min` 与 `output_contains` 里的
+ # "[  PASSED  ] N tests." 是**硬编码的用例计数**。往 LevelRosterBaselineTest 里新增或删除用例后
+ # 必须同步这两处数字，否则门禁会静默失效（N 偏小 → 少跑也算过）或误红
+-# （N 偏大 → 全绿也判失败）。当前值对应 3 个用例（2026-09-16 核对）。
++# （N 偏大 → 全绿也判失败）。当前值对应 8 个用例（Phase B Task 3 追加 5 个 SquadPlacementTest 用例后核对）。
+ id: "level-rosters"
+ name: "逐层名册 Phase A：放置构成占比在基线带内（真实引擎放置路径）"
+ category: "rng"
+ difficulty: "medium"
+ tags: ["sampling", "monster-generation", "level-roster", "baseline"]
+ 
+ setup:
+   mpq_required: true
+   # U1（同类）：PlacedClassMix* 走真实建关放置，需 unique 怪染色 TRN（零售或 HF 提供）。
+   retail_or_hf_required: true
+-  timeout: 300
++  timeout: 900
+ 
+ run:
+   backend: "gtest"
+   binary: "level_roster_baseline_test"
+-  filter: "LevelRosterBaselineTest.*"
++  filter: "LevelRosterBaselineTest.*:SquadPlacementTest.*"
+ 
+ expected:
+   exit_code: 0
+   failed: 0
+-  passed_min: 3
++  passed_min: 8
+   skipped_max: 1
+   output_contains:
+     - "[ MEASURED ] level 13 ranged share"
+     - "[ MEASURED ] level 14 ranged share"
+     - "[ MEASURED ] level 15 ranged share"
+-    - "[  PASSED  ] 3 tests."
++    - "[ SQUADRATE ]"
++    - "[ SHIPPEDSQUAD ]"
++    - "[  PASSED  ] 8 tests."
+ 
+ description: >
+   逐层名册 Phase A 的验收门禁：不看采样中间量，直接跑真实
+   CreateDungeon -> GetLevelMTypes -> InitMonsters 放置链路，统计 L13-15
+   每层 200 seed 的**已放置**怪物构成，断言远程占比（RangedTurret +
+   RangedKite / 放置怪总数）不超过「改动前基线 + 5 个百分点」。
+   基线取自计划 A-baseline 表（200 seed、同一 fixture、放置怪分母）：
+   L13 (3249+2076)/23405 = 22.8%、L14 (9674+3425)/23443 = 55.9%、
+   L15 13533/23193 = 58.3%；阈值即 27.8% / 60.9% / 63.3%，以具名
+   constexpr 数组落在 test/level_roster_baseline_test.cpp 中，出处写在注释里。
+@@ -50,10 +52,23 @@ description: >
+   Task 5 第二轮（final review R40）：这 4 层的超标由名册特性本身引入（基线是改动前
+   实测值），按 R4 只能改数据、不能动阈值，因此**已整改名册数据**：L2/L3 补入
+   Charge/Melee 等廉价 core，L4 去掉两个 RangedTurret core 之一并补 2 个 Melee core，
+   L8 去掉 RangedTurret core 并补 Sneak/Charge/Melee core，core 集装不下时同步抬高
+   tail_draw / max_image（max_image 是逐层预算参数、非 R4 阈值，spec §4.1 已记载留有余量）。
+   整改后实测：L2 10.17% / L3 12.83% / L4 18.94% / L8 25.88%，全部落回带内，
+   用例里**不再保留任何超标豁免表**，L1-15 每层都受真实阈值约束。
+   同时复核了组合数（500 seed）以确认没有为压占比而把某层压成固定组合：
+   L2 117→360、L3 184→439、L4 147→448、L8 66→116，均显著上升。
+   实测：L13 23.6% / L14 60.5% / L15 50.1%，三层同样在带内。
++
++  Phase B Task 3 追加：filter 覆盖同一二进制里的 SquadPlacementTest（5 个用例，
++  故计数 3 → 8，filter 同步扩为 LevelRosterBaselineTest.*:SquadPlacementTest.*，timeout 300 → 900s），跑的仍是真实 CreateDungeon -> GetLevelMTypes -> InitMonsters 链路。
++  用例无条件打印 [ SQUADRATE ]（squad_chance=100 下逐层实测成队率）与
++  [ SHIPPEDSQUAD ]（出厂表 squad_chance=30 下逐层实测成队率），output_contains
++  断言两行存在，因此小队一旦不成形，门禁不仅会红，还能直接读到逐层数字。
++  实测（出厂表、50 seed/层）：逐层 roll 率 26.8%-31.1%（名义 30%），
++  realisation 99.6%-100%，leader 放置失败与无 partner 计数全为 0。
++  同时记录：均匀 squad_chance=30 会把 L14 远程占比从 60.49% 推到 61.51%、越过
++  60.88% 阈值。按 R4 只改数据、不动阈值：先试 class_floors Melee=1 → Melee=2（占比
++  60.45% 达标），但全量门禁判红——该改动使 L14 的 unique base 可达性从 6/6 掉到 2/6，
++  违反验收 9c（HellUniqueBasesRemainReachable），故回退。最终采用 **L14 squad_chance
++  30 → 10**（占比 60.51% 达标，9c 恢复 6/6），其余各层保持 30。
+diff --git a/test/Fixtures.cmake b/test/Fixtures.cmake
+index dd0d873d3..3bbf29efe 100644
+--- a/test/Fixtures.cmake
++++ b/test/Fixtures.cmake
+@@ -89,20 +89,23 @@ set(devilutionx_fixtures
+   txtdata/cr.tsv
+   txtdata/crlf.tsv
+   txtdata/empty.tsv
+   txtdata/empty_with_utf8_bom.tsv
+   txtdata/lf.tsv
+   txtdata/lf_no_trail.tsv
+   txtdata/sample.tsv
+   txtdata/utf8_bom.tsv
+   txtdata/monsters/level_rosters_interleaved.tsv
+   txtdata/monsters/level_roster_params_interleaved.tsv
++  txtdata/monsters/level_roster_params_squads_off.tsv
++  txtdata/monsters/level_roster_params_squads_always.tsv
++  txtdata/monsters/level_roster_params_squads_unleashed.tsv
+ )
+ 
+ copy_files(
+   FILES ${devilutionx_fixtures}
+   SRC_PREFIX test/fixtures/
+   OUTPUT_DIR "${DEVILUTIONX_TEST_FIXTURES_OUTPUT_DIRECTORY}"
+   OUTPUT_VARIABLE DEVILUTIONX_OUTPUT_TEST_FIXTURES_FILES
+ )
+ 
+ add_custom_target(devilutionx_copied_fixtures DEPENDS ${DEVILUTIONX_OUTPUT_TEST_FIXTURES_FILES})
+diff --git a/test/fixtures/txtdata/monsters/level_roster_params_interleaved.tsv b/test/fixtures/txtdata/monsters/level_roster_params_interleaved.tsv
+index 59dfd8475..403e774ec 100644
+--- a/test/fixtures/txtdata/monsters/level_roster_params_interleaved.tsv
++++ b/test/fixtures/txtdata/monsters/level_roster_params_interleaved.tsv
+@@ -1,3 +1,3 @@
+-level	max_image	tail_draw	class_floors
+-1	6000	2	
+-2	6000	2	
++level	max_image	tail_draw	class_floors	squad_chance	squad_size	squad_leashed
++1	6000	2		40	3	true
++2	6000	2		0	0	false
+diff --git a/test/fixtures/txtdata/monsters/level_roster_params_squads_always.tsv b/test/fixtures/txtdata/monsters/level_roster_params_squads_always.tsv
+new file mode 100644
+index 000000000..5b44db1dd
+--- /dev/null
++++ b/test/fixtures/txtdata/monsters/level_roster_params_squads_always.tsv
+@@ -0,0 +1,16 @@
++level	max_image	tail_draw	class_floors	squad_chance	squad_size	squad_leashed
++1	6000	2	Melee=2	100	2	1
++2	9000	4	Melee=2	100	2	1
++3	6000	4	Melee=2	100	2	1
++4	9000	4	RangedTurret=1	100	2	1
++5	9000	2	Melee=1	100	2	1
++6	9000	2	Sneak=1	100	2	1
++7	9000	2	Melee=1	100	2	1
++8	12000	3	RangedKite=1	100	2	1
++9	16000	3	RangedKite=1	100	2	1
++10	16000	3	RangedKite=2	100	2	1
++11	16000	3	RangedKite=2	100	2	1
++12	16000	3	RangedKite=2,Melee=2	100	2	1
++13	18000	1	Melee=2	100	2	1
++14	18000	2	Melee=1	100	2	1
++15	18000	3	Melee=2,RangedTurret=1	100	2	1
+diff --git a/test/fixtures/txtdata/monsters/level_roster_params_squads_off.tsv b/test/fixtures/txtdata/monsters/level_roster_params_squads_off.tsv
+new file mode 100644
+index 000000000..89832068b
+--- /dev/null
++++ b/test/fixtures/txtdata/monsters/level_roster_params_squads_off.tsv
+@@ -0,0 +1,16 @@
++level	max_image	tail_draw	class_floors	squad_chance	squad_size	squad_leashed
++1	6000	2	Melee=2	0	0	1
++2	9000	4	Melee=2	0	0	1
++3	6000	4	Melee=2	0	0	1
++4	9000	4	RangedTurret=1	0	0	1
++5	9000	2	Melee=1	0	0	1
++6	9000	2	Sneak=1	0	0	1
++7	9000	2	Melee=1	0	0	1
++8	12000	3	RangedKite=1	0	0	1
++9	16000	3	RangedKite=1	0	0	1
++10	16000	3	RangedKite=2	0	0	1
++11	16000	3	RangedKite=2	0	0	1
++12	16000	3	RangedKite=2,Melee=2	0	0	1
++13	18000	1	Melee=2	0	0	1
++14	18000	2	Melee=1	0	0	1
++15	18000	3	Melee=2,RangedTurret=1	0	0	1
+diff --git a/test/fixtures/txtdata/monsters/level_roster_params_squads_unleashed.tsv b/test/fixtures/txtdata/monsters/level_roster_params_squads_unleashed.tsv
+new file mode 100644
+index 000000000..a68e3ebec
+--- /dev/null
++++ b/test/fixtures/txtdata/monsters/level_roster_params_squads_unleashed.tsv
+@@ -0,0 +1,16 @@
++level	max_image	tail_draw	class_floors	squad_chance	squad_size	squad_leashed
++1	6000	2	Melee=2	100	2	0
++2	9000	4	Melee=2	100	2	0
++3	6000	4	Melee=2	100	2	0
++4	9000	4	RangedTurret=1	100	2	0
++5	9000	2	Melee=1	100	2	0
++6	9000	2	Sneak=1	100	2	0
++7	9000	2	Melee=1	100	2	0
++8	12000	3	RangedKite=1	100	2	0
++9	16000	3	RangedKite=1	100	2	0
++10	16000	3	RangedKite=2	100	2	0
++11	16000	3	RangedKite=2	100	2	0
++12	16000	3	RangedKite=2,Melee=2	100	2	0
++13	18000	1	Melee=2	100	2	0
++14	18000	2	Melee=1	100	2	0
++15	18000	3	Melee=2,RangedTurret=1	100	2	0
+diff --git a/test/level_roster_baseline_test.cpp b/test/level_roster_baseline_test.cpp
+index 06f6a655e..65f740680 100644
+--- a/test/level_roster_baseline_test.cpp
++++ b/test/level_roster_baseline_test.cpp
+@@ -5,20 +5,21 @@
+ #include <cstddef>
+ #include <cstdint>
+ #include <cstdlib>
+ #include <fstream>
+ #include <iostream>
+ #include <string>
+ 
+ #include "drlg_test.hpp" // TestInitGame / GetTileCount（本仓既有测试夹具）
+ #include "engine/assets.hpp"
+ #include "engine/load_file.hpp"
++#include "engine/random.hpp"
+ #include "levels/gendung.h"
+ #include "levels/trigs.h" // InitL1Triggers 等 + Freeupstairs（CreateLevel 逻辑复刻用）
+ #include "monster.h"
+ #include "tables/level_roster.h"
+ #include "tables/monstdat.h"
+ #include "utils/paths.h"
+ #include "utils/str_cat.hpp"
+ 
+ using namespace devilution;
+ 
+@@ -205,20 +206,118 @@ constexpr std::array<double, 17> kRangedShareCeiling {
+ std::array<size_t, static_cast<size_t>(BehaviorClass::Count)> MeasurePlacedClassMix()
+ {
+ 	std::array<size_t, static_cast<size_t>(BehaviorClass::Count)> mix {};
+ 	for (size_t i = 0; i < ActiveMonsterCount; i++) {
+ 		const Monster &monster = Monsters[ActiveMonsters[i]];
+ 		mix[static_cast<size_t>(GetBehaviorClass(monster.ai))]++;
+ 	}
+ 	return mix;
+ }
+ 
++// ---------------------------------------------------------------------------
++// Task 3 squad measurement helpers (spec 2026-09-15-level-rosters-design 4.3.3).
++//
++// A "realised squad" is what the level actually got, not what the table asked
++// for: a squad roll can still end up with zero minions because PlaceGroup
++// clamps `num` against totalmonsters, gives up after 10 placement attempts, and
++// (when leashed) additionally requires every minion within 4 tiles of the
++// leader. So the acceptance figure the brief asks for is measured from the
++// placed monsters, never inferred from squad_chance.
++// ---------------------------------------------------------------------------
++
++struct SquadObservation {
++	/** Squad minions: leashed minions under an ORDINARY (non-unique) leader. */
++	size_t leashedMinions = 0;
++	/** Distinct ordinary leaders that ended up with >= 1 leashed minion. */
++	size_t leadersWithMinions = 0;
++	/** Squad leaders holding a leashed minion while reporting packSize == 0 (must be 0). */
++	size_t leadersWithZeroPackSize = 0;
++	/** Squad minions whose ai differs from their own type's ai (G2 violation; must be 0). */
++	size_t minionsWithOverwrittenAi = 0;
++	/** Squad minions further from their leader than the engine leash allows. */
++	size_t minionsOutsideLeash = 0;
++	/** Squad minions whose leader is NOT a core roster member of this level (must be 0). */
++	size_t minionsUnderNonCoreLeader = 0;
++	/** Leashed minions under a UNIQUE leader: the pre-existing boss-pack path. */
++	size_t uniquePackMinions = 0;
++	size_t placed = 0;
++};
++
++bool IsCoreMemberOfLevel(uint8_t level, _monster_id type)
++{
++	const std::span<const LevelRosterEntry> roster = GetLevelRoster(level);
++	return std::any_of(roster.begin(), roster.end(), [type](const LevelRosterEntry &e) {
++		return e.type == type && e.role == LevelRosterRole::Core;
++	});
++}
++
++// Squad minions are separated from unique boss-pack minions by their LEADER's
++// uniqueness, not by any squad-specific marker.
++//
++// This is required, not cosmetic: PlaceUniqueMonsters() runs BEFORE the scatter
++// loop and already leashes minions to unique leaders with the default
++// MinionOptions{} (AI inherited, leader's base type not necessarily a core
++// roster member). Counting every leashed minion therefore mixes the two
++// populations - the first run of these cases failed exactly that way, reporting
++// 8 "non-core leaders" and 50 "squads" on a table with squad_chance 0.
++//
++// The scatter loop's squad path is the only producer of leashed minions under an
++// ORDINARY leader (G1's fix, task 1, changed how such a leader's death is
++// handled precisely because nothing else creates one), so leader->isUnique() is
++// the exact discriminator. SquadsAreAbsentWhenTheTableDisablesThem pins that
++// claim: with squads off, the ordinary-leader count must be 0 while the unique
++// count stays non-zero.
++SquadObservation ObserveSquads(uint8_t level)
++{
++	SquadObservation obs;
++	obs.placed = ActiveMonsterCount;
++
++	std::array<bool, MaxMonsters> counted {};
++	for (size_t i = 0; i < ActiveMonsterCount; i++) {
++		const Monster &monster = Monsters[ActiveMonsters[i]];
++		if (monster.leaderRelation != LeaderRelation::Leashed)
++			continue;
++		const Monster *leader = monster.getLeader();
++		if (leader == nullptr)
++			continue;
++		if (leader->isUnique()) {
++			obs.uniquePackMinions++;
++			continue;
++		}
++		obs.leashedMinions++;
++
++		if (monster.ai != monster.data().ai)
++			obs.minionsWithOverwrittenAi++;
++		// PlaceGroup measures its 4-tile leash from the FIRST candidate tile,
++		// which is a NEIGHBOUR of the leader (leader->position.tile +
++		// Direction(GenerateRnd(8))), not from the leader itself: the check is
++		// |xp - x1| < 4 with x1 = leader +/- 1. So a leashed minion may sit up to
++		// 4 tiles from the leader, and asserting < 4 here would fail on legitimate
++		// placements - the first run of this case failed that way on L9 seed 2.
++		const int dx = std::abs(monster.position.tile.x - leader->position.tile.x);
++		const int dy = std::abs(monster.position.tile.y - leader->position.tile.y);
++		if (dx > 4 || dy > 4)
++			obs.minionsOutsideLeash++;
++		if (!IsCoreMemberOfLevel(level, leader->type().type))
++			obs.minionsUnderNonCoreLeader++;
++		if (leader->packSize == 0)
++			obs.leadersWithZeroPackSize++;
++
++		const size_t leaderId = leader->getId();
++		if (leaderId < counted.size() && !counted[leaderId]) {
++			counted[leaderId] = true;
++			obs.leadersWithMinions++;
++		}
++	}
++	return obs;
++}
++
+ } // namespace
+ 
+ class LevelRosterBaselineTest : public ::testing::Test {
+ protected:
+ 	static void SetUpTestSuite()
+ 	{
+ 		LoadGameArchives();
+ 
+ 		// CI 只带 spawn.mpq；本地缺素材时整套跳过而不是失败整个套件。
+ 		if (!HaveMainData()) {
+@@ -404,10 +503,354 @@ TEST_F(LevelRosterBaselineTest, PlacedClassMixWithinBaseline)
+ 		// headroom is left, otherwise the next roster edit has no reference point.
+ 		std::cout << "[ MEASURED ] level " << static_cast<int>(level) << " ranged share " << share
+ 		          << " (" << ranged << "/" << total << "), baseline " << kRangedShareBaseline[level]
+ 		          << ", ceiling " << kRangedShareCeiling[level] << std::endl;
+ 		EXPECT_LE(share, kRangedShareCeiling[level])
+ 		    << "level " << static_cast<int>(level) << " ranged share " << share
+ 		    << " exceeds baseline " << kRangedShareBaseline[level] << " + 5pp"
+ 		    << " (" << ranged << "/" << total << ")";
+ 	}
+ }
++
++// ---------------------------------------------------------------------------
++// Task 3: core squads in the scatter loop (spec 4.3.3).
++//
++// These cases drive the REAL placement chain (CreateDungeonForMeasurement ->
++// GetLevelMTypes -> InitMonsters) and read the squads off the placed monsters,
++// so they measure what the level actually got rather than re-simulating the
++// rules.
++//
++// Every squad assertion below is an A/B against a same-seed, same-level run of
++// the SAME production code with only the params table swapped, never an
++// absolute band. That matters here specifically: a squad's realised minion
++// count is bounded by totalmonsters clamping, PlaceGroup's 10-attempt give-up
++// and the 4-tile leash, so any absolute "at least N squads" figure would be a
++// guess about placement luck. The A/B pins the DIFFERENCE the feature makes.
++//
++// The two override tables are full copies of the shipped params table with only
++// the squad columns changed (test/fixtures/txtdata/monsters/
++// level_roster_params_squads_{off,always,unleashed}.tsv), so max_image,
++// tail_draw and class_floors - everything else that shapes a level - are held
++// identical across the A and B runs.
++class SquadPlacementTest : public LevelRosterBaselineTest {
++protected:
++	void SetUp() override
++	{
++		savedAssetsPath_ = paths::AssetsPath();
++	}
++
++	void TearDown() override
++	{
++		paths::SetAssetsPath(savedAssetsPath_);
++		// Leave the process holding the SHIPPED tables: this fixture mutates
++		// process-global roster storage, and the other suites in this binary
++		// (and any later test in this one) expect the shipped rows.
++		if (!missingMpqAssets_)
++			LoadLevelRoster();
++	}
++
++	// Load one of the squad override tables from test/fixtures/. The roster table
++	// itself is never overridden - only the params table's squad columns differ.
++	static void LoadSquadParams(std::string_view paramsFile)
++	{
++		paths::SetAssetsPath(paths::BasePath() + "test/fixtures/");
++		LoadLevelRosterFromFiles("txtdata\\monsters\\level_rosters.tsv", paramsFile);
++		paths::SetAssetsPath(paths::BasePath() + "assets/");
++	}
++
++	static SquadObservation RunLevel(uint8_t level, uint32_t seed)
++	{
++		CreateDungeonForMeasurement(level, seed);
++		const auto getTypesResult = GetLevelMTypes();
++		EXPECT_TRUE(getTypesResult.has_value()) << getTypesResult.error();
++		const auto initResult = InitMonsters();
++		EXPECT_TRUE(initResult.has_value()) << initResult.error();
++		return ObserveSquads(level);
++	}
++
++private:
++	std::string savedAssetsPath_;
++};
++
++TEST_F(SquadPlacementTest, SquadFormsAroundACoreLeader)
++{
++	if (missingMpqAssets_)
++		GTEST_SKIP() << "MPQ assets not found - skipping test";
++	if (missingRetailTrn_)
++		GTEST_SKIP() << "retail/HF TRN (monsters\\monsters\\genrl.trn) not available - skipping test";
++
++	// squad_chance = 100 makes the branch deterministic-by-table; the realised
++	// minion count still depends on placement, which is exactly what is measured.
++	LoadSquadParams("txtdata\\monsters\\level_roster_params_squads_always.tsv");
++
++	size_t totalLeadersWithMinions = 0;
++	size_t totalLeashedMinions = 0;
++	for (uint8_t level = 9; level <= 12; level++) {
++		for (uint32_t seed = 0; seed < 10; seed++) {
++			const SquadObservation obs = RunLevel(level, 21000 + seed);
++			totalLeadersWithMinions += obs.leadersWithMinions;
++			totalLeashedMinions += obs.leashedMinions;
++
++			// (2)/(3) and the review's checks 1-2, asserted per sample so a
++			// violation names the level and seed rather than a global total.
++			EXPECT_EQ(obs.leadersWithZeroPackSize, 0u)
++			    << "level " << static_cast<int>(level) << " seed " << seed
++			    << ": a leader holding a leashed minion must report packSize >= 1";
++			EXPECT_EQ(obs.minionsWithOverwrittenAi, 0u)
++			    << "level " << static_cast<int>(level) << " seed " << seed
++			    << ": G2 requires squad minions to keep their own AI";
++			EXPECT_EQ(obs.minionsOutsideLeash, 0u)
++			    << "level " << static_cast<int>(level) << " seed " << seed
++			    << ": a leashed minion must sit within the engine's 4-tile leash";
++			EXPECT_EQ(obs.minionsUnderNonCoreLeader, 0u)
++			    << "level " << static_cast<int>(level) << " seed " << seed
++			    << ": squads may only form around a CORE roster member of that level";
++			// totalmonsters is a monster.cpp internal (not exported), so this
++			// asserts the engine-wide cap InitMonsters itself clamps
++			// totalmonsters to. Placing past totalmonsters would normally
++			// also breach this bound, since totalmonsters <= MaxMonsters - 10.
++			EXPECT_LE(obs.placed, MaxMonsters - 10)
++			    << "level " << static_cast<int>(level) << " seed " << seed
++			    << ": the squad path must not place past the engine placement cap";
++		}
++	}
++
++	// (1) squads must actually happen. This is the only non-A/B floor in the
++	// case and it is deliberately the weakest possible one (> 0 over 40 runs at
++	// squad_chance 100): the quantitative per-level rate lives in
++	// SquadRateIsMeasuredPerLevel, and a stronger absolute floor here would be a
++	// bet on placement luck.
++	EXPECT_GT(totalLeadersWithMinions, 0u)
++	    << "L9-12 at squad_chance 100 produced no leader with a leashed minion";
++	EXPECT_GT(totalLeashedMinions, 0u);
++}
++
++TEST_F(SquadPlacementTest, SquadsAreAbsentWhenTheTableDisablesThem)
++{
++	if (missingMpqAssets_)
++		GTEST_SKIP() << "MPQ assets not found - skipping test";
++	if (missingRetailTrn_)
++		GTEST_SKIP() << "retail/HF TRN (monsters\\monsters\\genrl.trn) not available - skipping test";
++
++	// The A side of the A/B: identical levels and seeds to
++	// SquadFormsAroundACoreLeader, only squad_chance = 0. Everything the squad
++	// branch produces must vanish here, which is what makes the B side's
++	// non-zero count attributable to the FEATURE rather than to unique boss
++	// packs - the pre-existing leashed-minion source that runs on these levels
++	// either way (PlaceUniqueMonsters, before the scatter loop).
++	//
++	// The unique-pack count is asserted NON-zero on purpose. Without it, a
++	// discriminator bug that classified every leashed minion as "unique" would
++	// satisfy the squad assertion below while measuring nothing at all, and the
++	// whole A/B would silently become vacuous.
++	LoadSquadParams("txtdata\\monsters\\level_roster_params_squads_off.tsv");
++
++	size_t leadersWithMinions = 0;
++	size_t uniquePackMinions = 0;
++	for (uint8_t level = 9; level <= 12; level++) {
++		for (uint32_t seed = 0; seed < 10; seed++) {
++			const SquadObservation obs = RunLevel(level, 21000 + seed);
++			leadersWithMinions += obs.leadersWithMinions;
++			uniquePackMinions += obs.uniquePackMinions;
++			EXPECT_EQ(obs.leadersWithZeroPackSize, 0u)
++			    << "level " << static_cast<int>(level) << " seed " << seed;
++		}
++	}
++	EXPECT_EQ(leadersWithMinions, 0u)
++	    << "squad_chance 0 must not produce any leashed squad under an ordinary leader on L9-12";
++	EXPECT_GT(uniquePackMinions, 0u)
++	    << "these levels place unique boss packs either way; a zero here means the"
++	    << " squad/unique discriminator is misclassifying, making the assertion above vacuous";
++}
++
++TEST_F(SquadPlacementTest, UnleashedFallbackPlacesNeighboursWithoutLeashing)
++{
++	if (missingMpqAssets_)
++		GTEST_SKIP() << "MPQ assets not found - skipping test";
++	if (missingRetailTrn_)
++		GTEST_SKIP() << "retail/HF TRN (monsters\\monsters\\genrl.trn) not available - skipping test";
++
++	// Spec 4.3.4 fallback: squad_leashed = 0 keeps passing the leader to
++	// PlaceGroup (so minions are still seeded from the leader's neighbourhood)
++	// but applies no leash, no setLeader and no packSize. The observable
++	// consequence is that this configuration produces NO leashed minion at all,
++	// while the leashed configuration (same seeds, same levels) does - a
++	// same-seed A/B on the one column that differs.
++	LoadSquadParams("txtdata\\monsters\\level_roster_params_squads_unleashed.tsv");
++	size_t unleashedLeashedMinions = 0;
++	for (uint8_t level = 9; level <= 12; level++) {
++		for (uint32_t seed = 0; seed < 10; seed++)
++			unleashedLeashedMinions += RunLevel(level, 21000 + seed).leashedMinions;
++	}
++
++	LoadSquadParams("txtdata\\monsters\\level_roster_params_squads_always.tsv");
++	size_t leashedLeashedMinions = 0;
++	for (uint8_t level = 9; level <= 12; level++) {
++		for (uint32_t seed = 0; seed < 10; seed++)
++			leashedLeashedMinions += RunLevel(level, 21000 + seed).leashedMinions;
++	}
++
++	EXPECT_EQ(unleashedLeashedMinions, 0u)
++	    << "squad_leashed 0 must not leash minions (no setLeader / packSize / regroup)";
++	EXPECT_GT(leashedLeashedMinions, 0u)
++	    << "the leashed reference run produced nothing, so the comparison above proves nothing";
++}
++
++TEST_F(SquadPlacementTest, SquadRateIsMeasuredPerLevel)
++{
++	if (missingMpqAssets_)
++		GTEST_SKIP() << "MPQ assets not found - skipping test";
++	if (missingRetailTrn_)
++		GTEST_SKIP() << "retail/HF TRN (monsters\\monsters\\genrl.trn) not available - skipping test";
++
++	// The brief's acceptance figure: for each level, the share of squad ROLLS
++	// that produced a real squad (>= 1 leashed minion). Measured at
++	// squad_chance = 100 so every core draw rolls a squad and the denominator is
++	// the number of rolls the loop actually made - the loss is then attributable
++	// purely to placement (totalmonsters clamp, 10-attempt give-up, 4-tile
++	// leash), which is what the brief asks to report.
++	//
++	// GetSquadRollStats() exposes the loop's own counters, so the denominator is
++	// the production code's, not a re-derivation. The counters are PER LEVEL -
++	// InitLevelMonsters() (which CreateDungeonForMeasurement calls) resets them -
++	// so each run's totals are read straight after that run. Taking a
++	// before/after difference would underflow across the reset, which is how the
++	// first version of this measurement produced rolls = 2^64-1.
++	LoadSquadParams("txtdata\\monsters\\level_roster_params_squads_always.tsv");
++
++	constexpr uint32_t kSeeds = 50;
++	std::string report = "\n## Task 3: realised squad rate per level (squad_chance = 100, 50 seeds)\n\n"
++	                     "| level | squad rolls | realised squads | rate | leashed minions | minions/squad"
++	                     " | lost: leader / no partner |\n"
++	                     "|---|---|---|---|---|---|---|\n";
++	for (uint8_t level = 1; level <= 15; level++) {
++		size_t eligible = 0;
++		size_t rolls = 0;
++		size_t realised = 0;
++		size_t minions = 0;
++		size_t leaderFailures = 0;
++		size_t noPartner = 0;
++		for (uint32_t seed = 0; seed < kSeeds; seed++) {
++			const SquadObservation obs = RunLevel(level, 31000 + seed);
++			const SquadRollCounters &counters = GetSquadRollStats();
++			eligible += counters.eligibleCoreDraws;
++			rolls += counters.rolls;
++			leaderFailures += counters.leaderPlacementFailed;
++			noPartner += counters.noPartnerAvailable;
++			realised += obs.leadersWithMinions;
++			minions += obs.leashedMinions;
++		}
++		const double rate = rolls == 0 ? 0.0 : static_cast<double>(realised) / static_cast<double>(rolls);
++		const double perSquad = realised == 0 ? 0.0 : static_cast<double>(minions) / static_cast<double>(realised);
++		std::cout << "[ SQUADRATE ] level " << static_cast<int>(level) << " rolls " << rolls
++		          << " realised " << realised << " rate " << rate << " minions " << minions
++		          << " per-squad " << perSquad << " lost(leader/partner) "
++		          << leaderFailures << "/" << noPartner << std::endl;
++		report += StrCat("| ", level, " | ", rolls, " | ", realised, " | ");
++		report += StrCat(static_cast<int>(rate * 1000.0 + 0.5), "/1000 | ", minions, " | ");
++		report += StrCat(static_cast<int>(perSquad * 100.0 + 0.5), "/100 | ");
++		report += StrCat(leaderFailures, " / ", noPartner, " |\n");
++
++		// The realised count can never exceed the number of rolls that entered the
++		// branch: a roll places at most one leader. This is the invariant that
++		// caught the underflowing before/after accounting the first run used.
++		EXPECT_LE(realised, rolls)
++		    << "level " << static_cast<int>(level) << " reports more realised squads than rolls,"
++		    << " so the roll denominator is not the loop's";
++
++		// Every level must actually roll squads: a level whose core is never
++		// drawn by the scatter loop would silently report rate 0 and look
++		// "measured" while being unreachable.
++		EXPECT_GT(rolls, 0u)
++		    << "level " << static_cast<int>(level) << " never entered the squad branch at squad_chance 100";
++		// At squad_chance 100 every eligible core draw must roll: a gap here would
++		// mean the branch is gated on something beyond the documented conditions.
++		EXPECT_EQ(rolls, eligible)
++		    << "level " << static_cast<int>(level) << " skipped eligible core draws at squad_chance 100";
++	}
++	AppendMeasurementReport(report);
++}
++
++TEST_F(SquadPlacementTest, ShippedSquadChanceRealisesSquadsOnEveryLevel)
++{
++	if (missingMpqAssets_)
++		GTEST_SKIP() << "MPQ assets not found - skipping test";
++	if (missingRetailTrn_)
++		GTEST_SKIP() << "retail/HF TRN (monsters\\monsters\\genrl.trn) not available - skipping test";
++
++	// The figure the task brief asks to REPORT: with the table the game actually
++	// ships (squad_chance 30), what share of squad-eligible core draws ends up as
++	// a real squad on each level? Two rates are reported because they answer
++	// different questions and only the second is a property of the code:
++	//
++	//   roll rate      = rolls / eligible core draws  -> tracks squad_chance
++	//   realisation    = realised / rolls             -> tracks placement loss
++	//                                                    (totalmonsters clamp,
++	//                                                    PlaceGroup's 10 attempts,
++	//                                                    the 4-tile leash)
++	//
++	// No absolute band is asserted on either: both are placement- and
++	// roster-dependent, and pinning a literal here would turn a table tweak
++	// (task 4's job) into a test failure. What IS asserted is the structural
++	// part - every level realises squads, no level loses ALL of its rolls, and
++	// realised never exceeds rolls.
++	LoadLevelRoster(); // shipped tables (squad_chance 30)
++
++	constexpr uint32_t kSeeds = 50;
++	std::string report = "\n## Task 3: realised squad rate per level (SHIPPED table, squad_chance 30, 50 seeds)\n\n"
++	                     "| level | eligible core draws | rolls | roll rate | realised | realisation rate"
++	                     " | leashed minions | lost: leader / no partner |\n"
++	                     "|---|---|---|---|---|---|---|\n";
++	for (uint8_t level = 1; level <= 15; level++) {
++		size_t eligible = 0;
++		size_t rolls = 0;
++		size_t realised = 0;
++		size_t minions = 0;
++		size_t leaderFailures = 0;
++		size_t noPartner = 0;
++		for (uint32_t seed = 0; seed < kSeeds; seed++) {
++			const SquadObservation obs = RunLevel(level, 41000 + seed);
++			const SquadRollCounters &counters = GetSquadRollStats();
++			eligible += counters.eligibleCoreDraws;
++			rolls += counters.rolls;
++			leaderFailures += counters.leaderPlacementFailed;
++			noPartner += counters.noPartnerAvailable;
++			realised += obs.leadersWithMinions;
++			minions += obs.leashedMinions;
++
++			EXPECT_EQ(obs.leadersWithZeroPackSize, 0u)
++			    << "level " << static_cast<int>(level) << " seed " << seed;
++			EXPECT_EQ(obs.minionsWithOverwrittenAi, 0u)
++			    << "level " << static_cast<int>(level) << " seed " << seed;
++			EXPECT_EQ(obs.minionsUnderNonCoreLeader, 0u)
++			    << "level " << static_cast<int>(level) << " seed " << seed;
++		}
++		const double rollRate = eligible == 0 ? 0.0 : static_cast<double>(rolls) / static_cast<double>(eligible);
++		const double realisation = rolls == 0 ? 0.0 : static_cast<double>(realised) / static_cast<double>(rolls);
++		std::cout << "[ SHIPPEDSQUAD ] level " << static_cast<int>(level) << " eligible " << eligible
++		          << " rolls " << rolls << " rollRate " << rollRate << " realised " << realised
++		          << " realisation " << realisation << " minions " << minions
++		          << " lost(leader/partner) " << leaderFailures << "/" << noPartner << std::endl;
++		report += StrCat("| ", level, " | ", eligible, " | ", rolls, " | ");
++		report += StrCat(static_cast<int>(rollRate * 1000.0 + 0.5), "/1000 | ", realised, " | ");
++		report += StrCat(static_cast<int>(realisation * 1000.0 + 0.5), "/1000 | ", minions, " | ");
++		report += StrCat(leaderFailures, " / ", noPartner, " |\n");
++
++		// Tripwire for the squad path's defensive leader-placement fallback in
++		// monster.cpp, which is unreachable today (PlaceGroup always places a
++		// leaderless group of 1 on its first candidate tile, and squadEligible
++		// guarantees room). If that ever stops holding, this says so rather than
++		// letting the fallback become live and untested.
++		EXPECT_EQ(leaderFailures, 0u)
++		    << "level " << static_cast<int>(level) << ": squad leader placement started failing,"
++		    << " so monster.cpp's defensive fallback is now a live path and needs its own coverage";
++		EXPECT_GT(eligible, 0u)
++		    << "level " << static_cast<int>(level) << " never draws a core type in the scatter loop,"
++		    << " so its squad columns can never do anything";
++		EXPECT_GT(realised, 0u)
++		    << "level " << static_cast<int>(level) << " realised no squad at all over " << kSeeds
++		    << " seeds despite " << rolls << " rolls";
++		EXPECT_LE(realised, rolls)
++		    << "level " << static_cast<int>(level) << " reports more realised squads than rolls";
++	}
++	AppendMeasurementReport(report);
++}
+diff --git a/test/level_roster_test.cpp b/test/level_roster_test.cpp
+index 8e2649c52..92ec169b3 100644
+--- a/test/level_roster_test.cpp
++++ b/test/level_roster_test.cpp
+@@ -286,20 +286,85 @@ TEST_F(LevelRosterTest, ValidationRejectsTheClassFloorCountSentinel)
+ 	// enum_cast would otherwise resolve the string "Count" as if it were a valid class.
+ 	const std::vector<LevelRosterEntry> entries { { 1, MT_WSKELAX, LevelRosterRole::Core, false } };
+ 	const std::vector<LevelRosterParams> params {
+ 		{ 1, 6000, 2, { { BehaviorClass::Count, 1 } } },
+ 	};
+ 	const auto error = ValidateLevelRoster(entries, params);
+ 	ASSERT_TRUE(error.has_value());
+ 	EXPECT_NE(error->find("Count"), std::string::npos);
+ }
+ 
++// ---------------------------------------------------------------------------
++// Task 3 (spec 2026-09-15-level-rosters-design 4.3.3): the squad columns.
++//
++// Validation rules, and why they are shaped this way rather than "all three
++// fields always in range":
++//   - squad_chance is a percentage, so > 100 is meaningless -> reject.
++//   - squad_size feeds PlaceGroup's `num`, and the spec caps a core squad at a
++//     leader plus at most 3 minions -> > 3 is rejected unconditionally.
++//   - squad_size == 0 is only a defect on a level that actually rolls squads.
++//     With squad_chance == 0 the level never enters the squad branch, so 0 is
++//     the correct "squads off" spelling and must stay legal; rejecting it
++//     unconditionally would outlaw every squad-free level (and every
++//     LevelRosterParams built without squad columns, e.g. the pre-Task-3 rows
++//     the other cases in this file construct). So the rejection is conditional:
++//     squad_chance > 0 with squad_size == 0 would roll a squad it can never
++//     populate, leaving a leader whose packSize is 0.
++// ---------------------------------------------------------------------------
++
++TEST_F(LevelRosterTest, ValidationRejectsAnOutOfRangeSquadChance)
++{
++	const std::vector<LevelRosterEntry> entries { { 1, MT_WSKELAX, LevelRosterRole::Core, false } };
++	std::vector<LevelRosterParams> params { { 1, 6000, 2, {} } };
++	params[0].squadChance = 101;
++	params[0].squadSize = 2;
++	const auto error = ValidateLevelRoster(entries, params);
++	ASSERT_TRUE(error.has_value());
++	EXPECT_NE(error->find("squad_chance"), std::string::npos);
++}
++
++TEST_F(LevelRosterTest, ValidationRejectsAnOutOfRangeSquadSize)
++{
++	const std::vector<LevelRosterEntry> entries { { 1, MT_WSKELAX, LevelRosterRole::Core, false } };
++	std::vector<LevelRosterParams> params { { 1, 6000, 2, {} } };
++	params[0].squadChance = 30;
++	params[0].squadSize = 4;
++	const auto error = ValidateLevelRoster(entries, params);
++	ASSERT_TRUE(error.has_value());
++	EXPECT_NE(error->find("squad_size"), std::string::npos);
++}
++
++TEST_F(LevelRosterTest, ValidationRejectsAZeroSquadSizeWhenSquadsAreEnabled)
++{
++	const std::vector<LevelRosterEntry> entries { { 1, MT_WSKELAX, LevelRosterRole::Core, false } };
++	std::vector<LevelRosterParams> params { { 1, 6000, 2, {} } };
++	params[0].squadChance = 30;
++	params[0].squadSize = 0;
++	const auto error = ValidateLevelRoster(entries, params);
++	ASSERT_TRUE(error.has_value());
++	EXPECT_NE(error->find("squad_size"), std::string::npos);
++}
++
++TEST_F(LevelRosterTest, ValidationAcceptsAZeroSquadSizeWhenSquadsAreDisabled)
++{
++	// squad_chance = 0 is the "squads off" spelling: the sampling loop never
++	// enters the squad branch, so squad_size carries no meaning and 0 is valid.
++	// This is the complement of the case above; without it, nothing pins the
++	// rejection as CONDITIONAL and an unconditional "squad_size >= 1" check
++	// would pass the test above while breaking every squad-free level.
++	const std::vector<LevelRosterEntry> entries { { 1, MT_WSKELAX, LevelRosterRole::Core, false } };
++	std::vector<LevelRosterParams> params { { 1, 6000, 2, {} } };
++	params[0].squadChance = 0;
++	params[0].squadSize = 0;
++	EXPECT_FALSE(ValidateLevelRoster(entries, params).has_value());
++}
++
+ TEST_F(LevelRosterTest, ValidationRejectsADuplicateParamsLevel)
+ {
+ 	const std::vector<LevelRosterEntry> entries { { 1, MT_WSKELAX, LevelRosterRole::Core, false } };
+ 	const std::vector<LevelRosterParams> params {
+ 		{ 1, 6000, 2, {} },
+ 		{ 1, 9000, 3, {} },
+ 	};
+ 	const auto error = ValidateLevelRoster(entries, params);
+ 	ASSERT_TRUE(error.has_value());
+ 	EXPECT_NE(error->find("more than one"), std::string::npos);
+@@ -427,20 +492,53 @@ TEST_F(LevelRosterFixtureLoadTest, LoadingAnInterleavedFixtureGathersAllMembersO
+ 	ASSERT_NE(wskelax, level1.end());
+ 	ASSERT_NE(nzombie, level1.end());
+ 	// Both rows are `core	-` in the fixture TSV (see test/fixtures/txtdata/monsters/
+ 	// level_rosters_interleaved.tsv): role Core, allow_unique_boost false.
+ 	EXPECT_EQ(wskelax->role, LevelRosterRole::Core);
+ 	EXPECT_FALSE(wskelax->allowUniqueBoost);
+ 	EXPECT_EQ(nzombie->role, LevelRosterRole::Core);
+ 	EXPECT_FALSE(nzombie->allowUniqueBoost);
+ }
+ 
++TEST_F(LevelRosterFixtureLoadTest, ParamsCarrySquadColumns)
++{
++	// The three squad columns are read positionally by RecordReader, so this
++	// drives the real loader against the fixture table rather than constructing
++	// LevelRosterParams by hand: a column swap or an off-by-one in the read
++	// order would be invisible to a hand-built struct.
++	//
++	// The fixture's two rows deliberately differ in every squad column
++	// (L1 "40 3 true", L2 "0 0 false") so no assertion below can be satisfied
++	// by a loader that writes the same value into both rows, and squad_leashed
++	// is pinned in BOTH polarities - a parser that ignored the column and left
++	// the field at its default would pass one row and fail the other.
++	LoadLevelRosterFromFiles(
++	    "txtdata\\monsters\\level_rosters_interleaved.tsv",
++	    "txtdata\\monsters\\level_roster_params_interleaved.tsv");
++
++	const LevelRosterParams *params1 = GetLevelRosterParams(1);
++	ASSERT_NE(params1, nullptr);
++	EXPECT_EQ(params1->squadChance, 40);
++	EXPECT_EQ(params1->squadSize, 3);
++	EXPECT_TRUE(params1->squadLeashed);
++	// The pre-existing columns must still land in their own fields: reading three
++	// more columns shifts nothing if the order is right, and this catches it if not.
++	EXPECT_EQ(params1->maxImage, 6000);
++	EXPECT_EQ(params1->tailDraw, 2);
++
++	const LevelRosterParams *params2 = GetLevelRosterParams(2);
++	ASSERT_NE(params2, nullptr);
++	EXPECT_EQ(params2->squadChance, 0);
++	EXPECT_EQ(params2->squadSize, 0);
++	EXPECT_FALSE(params2->squadLeashed);
++}
++
+ TEST_F(LevelRosterShippedLoadTest, LoadsTheShippedRosterAndValidatesIt)
+ {
+ 	LoadLevelRoster();
+ 
+ 	// Real values from the shipped tables (assets/txtdata/monsters/level_roster_params.tsv row
+ 	// "9	16000	3	RangedKite=1"): assert the parsed numbers rather than just non-null/non-empty,
+ 	// so swapping the maxImage/tailDraw columns (both valid positive ints) would be caught.
+ 	const LevelRosterParams *params9 = GetLevelRosterParams(9);
+ 	ASSERT_NE(params9, nullptr);
+ 	EXPECT_EQ(params9->maxImage, 16000);
+@@ -449,10 +547,30 @@ TEST_F(LevelRosterShippedLoadTest, LoadsTheShippedRosterAndValidatesIt)
+ 	const std::span<const LevelRosterEntry> level9 = GetLevelRoster(9);
+ 	EXPECT_FALSE(level9.empty());
+ 	// assets/txtdata/monsters/level_rosters.tsv has "9	MT_BMAGMA	core	-": role Core,
+ 	// allow_unique_boost false. Pin this specific row's parsed fields, not just the roster's
+ 	// non-emptiness.
+ 	const auto bmagma = std::find_if(level9.begin(), level9.end(), [](const LevelRosterEntry &e) { return e.type == MT_BMAGMA; });
+ 	ASSERT_NE(bmagma, level9.end());
+ 	EXPECT_EQ(bmagma->role, LevelRosterRole::Core);
+ 	EXPECT_FALSE(bmagma->allowUniqueBoost);
+ }
++
++TEST_F(LevelRosterShippedLoadTest, ShippedParamsEnableSquadsOnEveryParameterisedLevel)
++{
++	// Task 3 ships squad columns for L1-15 (the params table has no L16 row by
++	// design - see level_roster.h). The scatter loop's squad branch is gated on
++	// squadChance > 0 && squadSize > 0, so a level shipping 0 in either column
++	// would silently never form a squad; that is the failure this pins.
++	LoadLevelRoster();
++
++	for (uint8_t level = 1; level <= 15; level++) {
++		const LevelRosterParams *params = GetLevelRosterParams(level);
++		ASSERT_NE(params, nullptr) << "level " << static_cast<int>(level) << " must have a params row";
++		EXPECT_GT(params->squadChance, 0)
++		    << "level " << static_cast<int>(level) << " ships squad_chance 0, so its squad branch is dead";
++		EXPECT_LE(params->squadChance, 100) << "level " << static_cast<int>(level);
++		EXPECT_GE(params->squadSize, 1)
++		    << "level " << static_cast<int>(level) << " ships squad_size 0 with squads enabled";
++		EXPECT_LE(params->squadSize, 3) << "level " << static_cast<int>(level);
++	}
++}

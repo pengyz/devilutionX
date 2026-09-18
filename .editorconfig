@@ -96,3 +96,9 @@ end_of_line = lf
 
 [ASSETS_VERSION]
 end_of_line = lf
+
+# Machine-generated patches (git diff output, archived SDD evidence). Git emits these with LF
+# and re-applying them must stay byte-faithful, so they are an explicit LF exception rather
+# than being rewritten to the CRLF default.
+[*.{diff,patch}]
+end_of_line = lf

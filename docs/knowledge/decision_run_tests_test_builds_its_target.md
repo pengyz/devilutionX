@@ -6,7 +6,7 @@ created: 2026-09-15
 updated: 2026-09-15
 sources:
   - tools/run_tests.py（build_target() 与 --test 分支，2026-09-15 起）
-  - .superpowers/sdd/2026-09-15-level-rosters-phase-b/progress.md（RB10）
+  - docs/superpowers/ledgers/2026-09-15-level-rosters-phase-b/progress.md（RB10）
 ---
 
 **现行语义（2026-09-15 起）**：`python3 tools/run_tests.py --test <name>` **会先构建 `<name>` 目标**（`build_target()`，镜像 `build_tests()` 的 generator 处理，但只构建这一个目标，避免 `test_impact.py --diff | xargs -n1 run_tests.py --test` 每次重建全部目标），然后才执行它。若 `<name>` 不在本次构建配置内（`build.ninja` 的目标列表里没有），它会**明确报错并返回 1**，不会去跑一个陈旧的二进制。`--no-build` 可跳过构建。

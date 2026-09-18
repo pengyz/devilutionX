@@ -5,7 +5,7 @@ type: gotcha
 created: 2026-09-16
 sources:
   - tools/check_drift.py（check_modified_line_endings = C；check_added_line_endings = C2）
-  - .superpowers/sdd/2026-09-15-level-rosters-phase-a2/task-1-report.md（首跑 FAIL C2 的实测）
+  - docs/superpowers/ledgers/2026-09-15-level-rosters-phase-a2/task-1-report.md（首跑 FAIL C2 的实测）
 ---
 
 **事实**：`tools/check_drift.py` 有两条行尾检查：

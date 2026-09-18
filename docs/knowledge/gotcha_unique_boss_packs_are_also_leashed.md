@@ -5,7 +5,7 @@ type: gotcha
 created: 2026-09-16
 sources:
   - Source/monster.cpp（PlaceUniqueMonsters 在 InitMonsters 内先于散布循环；PlaceGroup 默认 MinionOptions 使 unique 随从 HP×2 且继承 AI）
-  - .superpowers/sdd/2026-09-15-level-rosters-phase-b/task-3-report.md 与 4807d157 评审（判别器设计）
+  - docs/superpowers/ledgers/2026-09-15-level-rosters-phase-b/task-3-report.md 与 4807d157 评审（判别器设计）
 ---
 
 **事实**：`PlaceUniqueMonsters`/`PrepareUniqueMonst` 走的是**默认** `MinionOptions{}`（`tough=true, inheritAi=true, inheritIntelligence=true`），因此 unique boss pack 的随从**也是 `LeaderRelation::Leashed`**。而它运行在散布循环**之前**。

@@ -1,0 +1,154 @@
+# 范围化复审包：最终评审修复波（5cce05c30 → HEAD）
+
+## 提交列表
+14bd27503 docs(spec+knowledge): correct TEST_TARGETS claim, add conflict-file gotcha
+88035420d fix(tools): build sampling_behavior_test in the gate
+
+## 变更文件
+docs/knowledge/MEMORY.md
+docs/knowledge/gotcha_conflict_file_loses_auto_merged_lines.md
+docs/superpowers/specs/2026-09-15-upstream-sync-round2-design.md
+tools/run_tests.py
+
+## 统计
+ docs/knowledge/MEMORY.md                           |  1 +
+ ...gotcha_conflict_file_loses_auto_merged_lines.md | 32 ++++++++++++++++++++++
+ .../2026-09-15-upstream-sync-round2-design.md      | 18 ++++++++++--
+ tools/run_tests.py                                 |  1 +
+ 4 files changed, 50 insertions(+), 2 deletions(-)
+
+## 完整 diff（tools/run_tests.py + 规格 + 新知识条目 + MEMORY 索引）
+diff --git a/docs/knowledge/MEMORY.md b/docs/knowledge/MEMORY.md
+index 52d494747..211a72356 100644
+--- a/docs/knowledge/MEMORY.md
++++ b/docs/knowledge/MEMORY.md
+@@ -11,20 +11,21 @@
+ - [存档/网络 bId 位覆写](gotcha_save_bid_overwrite.md) — 堆叠数存 `bId` 位域曾覆写物品品质与鉴定标志；存档须存 `count-1` 保持上游逐字节兼容
+ - [SaveItem 追加/LoadItem 条件读不对称](gotcha_save_stack_append.md) — 无条件追加 `_iStackCount` 而主存档路径从不设标志 → 偏移累积越界写；改存对齐填充字节
+ - [Infravision 是渲染级法术](gotcha_infra_render_only.md) — `_pInfraFlag` 只设渲染标志不改 tile Lit 位；暗处怪物可见但不可选。修复须新函数 `CanTarget` 而非改 `IsTileLit`（后者同时驱动渲染/自动地图）
+ - [IsTileLit 三用途耦合](gotcha_istilelit_gates.md) — 选择(cursor/track)、渲染(scrollrt)、自动地图(Explored) 共用；改它破坏三者。目标选择修复须独立函数
+ - [WitchItemOk 在匿名命名空间](gotcha_witchitemok_anon_ns.md) — `items.cpp:2009` 位于匿名 ns，测试不可直接调；测行为结果而非函数本身
+ - [网络物品更新要网格索引非 InvList 索引](gotcha_inv_grid_vs_list_index.md) — `NetSendCmdChInvItem` 期望网格索引；传 InvList 索引会 OOB 读 + 多人损坏。用 `NetSyncInvItem` 反查
+ - [多计数堆叠合并会静默丢物品](gotcha_multi_count_stack_merge.md) — `TryStackInInventory` 曾 +1 合并，叠 3 放到叠 1 变 2；多计数应开新格整放
+ - [怪物等级对战斗压力无贡献（GetMinHit 钳制）](gotcha_monster_level_no_combat_pressure.md) — `hit = 2×(怪级−玩家级) + 30 − AC` 被 `GetMinHit()` 钳制，地狱层 AC≥16 角色悬崖项完全无效；降怪级是错误杠杆（只影响掉落/XP/被钳制命中）
+ - [供应商谓词改动导致种子物品生成漂移](gotcha_vendor_predicate_seed_drift.md) — 改 `WitchItemOk`/`RndVendorItem` 过滤谓词 = 改 RNG 重试路径 = 同种子生成不同物品；pack 测试数组/golden SHA/demo 回放全部静默过期（实例：f474a64c0 开关移除后 War Staff→Book of Flame Wave）
+ - [timedemo 回放断言失败（isOnActiveLevel）](gotcha_timedemo_isOnActiveLevel_failure.md) — `f474a64c0` 的 `DarkExpeditionDropOk` 无条件生效改变掉落池权重 → 同一次 RNG 抽取得到不同物品 → 上游录制的 demo 回放 RNG 流分叉 → `interfac.cpp:363` 断言。**CI 自 2026-08-10 起一直红**（原文「CI 未受影响」已被 CI 日志证伪）；2026-09-15 起 `GTEST_SKIP` quarantine，待重录夹具解除
++- [手工解冲突的文件不会继承上游同一 hunk 里自动合并进来的新增行](gotcha_conflict_file_loses_auto_merged_lines.md) — `plrctrls.cpp` 是本轮 4 个手工冲突文件之一，冲突块只处理两行 include 取舍，漏带上游同一次 quest_log 迁移新增的 `panels/quest_log.hpp` include → 7 处编译错误（`91e805149` 修复）；「不重叠即安全」的推断对冲突文件集合失效，需整文件三方核对
+ 
+ ## Patterns
+ <!-- 代码约定、本项目开发模式 -->
+ 
+ - [定长 wire 字段必须按 sizeof 读取](pattern_fixed_width_field_reads.md) — `PlayerPack::pName`/`TEar::heroname` 等定长 `char[N]` 无 NUL 保证；裸指针转 `string_view`/`strcpy` 走 strlen 越界（上游 b4dfc8d26 只修了玩家名，耳朵名 5 处上游至今未修）。验证必须把整个堆分配填满非 NUL，否则 ASan 抓不到
+ - [测试用行为断言而非内部函数](pattern_test_behavioral.md) — 匿名 ns 内部函数（WitchItemOk 等）不可测；测公开路径的端到端结果（SpawnWitch 后检查 WitchItems）
+ - [整数百分比数学保确定性](pattern_integer_percent_math.md) — `lrad*pct/100` 而非浮点乘（x86 扩展精度 `10*0.6→5`）；全平台截断一致
+ - [测试套件结构性盲区](pattern_test_structural_blindspot.md) — UT 只测模板隔离不测真实路径；Oracle 用运行时探针抓到 3 个盲区 bug。新功能测试应经公开 API 触发完整路径
+ - [CI 分支保护是合入门禁](pattern_ci_branch_protection.md) — 盯 CI 状态治标不治本；master 保护（PR+审查+build-and-test 必选+strict+enforce_admins）才是失败无法合入的保障
+ 
+diff --git a/docs/knowledge/gotcha_conflict_file_loses_auto_merged_lines.md b/docs/knowledge/gotcha_conflict_file_loses_auto_merged_lines.md
+new file mode 100644
+index 000000000..b657f72e5
+--- /dev/null
++++ b/docs/knowledge/gotcha_conflict_file_loses_auto_merged_lines.md
+@@ -0,0 +1,32 @@
++---
++name: "手工解冲突的文件不会继承上游同一 hunk 里自动合并进来的新增行"
++description: "上游重构把符号迁到新头文件并给每个消费者补 include，非冲突文件靠 git 自动三方合并带上新 include；但恰好落在本轮手工冲突文件集合里的消费者，人工解冲突时只处理冲突块内的取舍，不会把上游在同一 hunk 附近新增的 include/声明带进来——'无重叠即安全'的推断对冲突文件集合失效"
++type: "gotcha"
++created: "2026-09-15"
++sources:
++  - "91e805149 (fix(build): add panels/quest_log.hpp include after the upstream quest split)"
++  - "8e92687a9 (merge commit：quests.cpp 修复后 amend 进此提交)"
++  - "本轮上游同步第二轮（tip e00b7260f）"
++---
++
++## 症状
++
++解完 merge 冲突后编译报「某个符号未声明」，而该符号的声明看起来"上游明明加了"。本轮实例：`Source/controls/plrctrls.cpp` 缺 `#include "panels/quest_log.hpp"`，导致 7 处编译错误（`QuestLogIsOpen` / `QuestlogUp` / `QuestlogDown` / `StartQuestlog` 等无声明），由 `91e805149` 修复。
++
++## 根因
++
++**手工解冲突的文件不会继承上游在同一 hunk 里自动合并进来的新增行。**
++
++上游把 `QuestLogIsOpen` / `pQLogCel` / `DrawQuestLog` 等符号迁到新的 `Source/panels/quest_log.hpp`，并给每个消费者补了对应 include。这些 include 对**非冲突文件**是随 git 自动三方合并自然带入 fork 的——本项目在同步前的探测复验里验证过这条链路，结论是「12 个消费者文件都已带上 include」。
++
++但 `plrctrls.cpp` 恰好同时落在两个集合的交集里：它既是 quest_log 重构的消费者，又是本次 merge 的 **4 个手工冲突文件之一**。它的冲突块只包含两行 include 的取舍（哪一侧的 include 列表生效），人工解决冲突时视线只落在冲突块本身，不会去看上游在**同一 hunk 附近、冲突块之外**新增的 `#include "panels/quest_log.hpp"`——那行对人工解冲突流程是不可见的。于是「改动不重叠即自动合并安全」这条对非冲突文件成立的推断，对**冲突文件集合**整体失效。
++
++## 检查清单（下次同步照做）
++
++1. **取交集**：「本轮手工冲突文件集合」∩「上游本轮新增 include / 新增声明的消费者集合」——交集非空时，逐个手工核对该文件的 include 列表是否完整补齐了上游新增的头文件引用，不能只信任冲突块内已经处理的两行。
++2. **整文件三方核对**：解冲突后的自查不能只看冲突块内的几行，必须做**整文件三方核对**——`git merge-file -p ours base theirs` 的结果与最终文件逐字节比对。本轮 `Source/quests.cpp` 的 Critical 缺陷（首次解决时整块取了一侧，丢弃上游 341 行的函数迁移，导致与新文件重复定义符号）正是「只看冲突块」漏掉的典型案例；该文件由任务评审发现后才修好，修复直接 amend 进 merge commit `8e92687a9`。
++3. **编译门禁是最后防线**：冲突文件集合里出现的编译错误（尤其「符号未声明」类），优先怀疑「漏带上游在同一 hunk 里新增的 include/声明」，而不是先怀疑自己代码逻辑写错。
++
++## 为什么
++
++Git 的自动三方合并按 hunk 生效：一个文件里，未冲突的 hunk 会自动应用两侧的改动叠加；冲突的 hunk 需要人工二选一或手改。当上游在**同一逻辑改动**（例如一次符号迁移）里既加了新增声明的 hunk（通常自动合并），又恰好触碰了另一个会冲突的 hunk（例如同一文件里旧的 include 列表被两侧都改过），人工解决冲突时的关注范围天然被框定在冲突标记 `<<<<<<<` / `=======` / `>>>>>>>` 之间，容易忽略"冲突块外、但同属这次上游改动"的其他新增行——尤其当它们看起来与冲突内容无关（一行 include vs 冲突块讨论的是别的行）。
+diff --git a/docs/superpowers/specs/2026-09-15-upstream-sync-round2-design.md b/docs/superpowers/specs/2026-09-15-upstream-sync-round2-design.md
+index df8383365..0af7e22ce 100644
+--- a/docs/superpowers/specs/2026-09-15-upstream-sync-round2-design.md
++++ b/docs/superpowers/specs/2026-09-15-upstream-sync-round2-design.md
+@@ -172,23 +172,37 @@
+ | 2 | 已同步到上游 tip | `git rev-list --count HEAD..origin/master` = `0` | PASS |
+ | 3 | 构建通过 | `python3 tools/run_tests.py --json /tmp/ci-sync.json` → `steps.build.ok == true` | PASS |
+ | 4 | 全量测试通过 | 同次 JSON：`ctest.total=698`、`ctest.failed=0`、`ctest.passed_pct=100`、`ctest.skipped=3`（与基线 698/0/3 一致） | PASS |
+ | 5 | eval smoke 门禁 | `python3 -m tools.eval.backend --smoke` exit 0，**36/36 PASS**（产物 `eval/results/20260915-183246/eval-summary.json`，其 `git_head` 为 `91e805149`） | PASS |
+ | 6 | 漂移校验 | `drift.drift_ok == true`、`drift.passes == 5`；同步前后输出差异**只有** `merge-base:` 行（`b3e52b1ea` → `e00b7260f`），5 项仍全 PASS | PASS |
+ | 7 | 行尾未被破坏 | check C / C2 PASS；`Source/quests.h` 保持上游的 LF（CRLF 0 / LF 32） | PASS |
+ | 8 | heroname 分叉状态已复核并记录 | 上游 tip `e00b7260f` 上仍是 **5 处裸字段读取**（`Source/msg.cpp:1094/1360/1368/1398`、`Source/pack.cpp:445`），fork 修复完好未被覆盖；已由 `d1e122ab6` 留档 | PASS |
+ | 9 | timedemo quarantine 状态 | 按用例名确认 `Timedemo.WarriorLevel1to2` 仍为 `Skipped`（`build/Testing/Temporary/LastTest.log`），quarantine 未变 | PASS |
+ | 10 | CI 绿 | `gh run 34959598050`（`better-d1-ci.yml`，HEAD `d1e122ab6`）conclusion = **`success`** | PASS |
+ 
+-本轮新增/相关提交：`8e92687a9`（merge: sync upstream master，28 commits / tip `e00b7260f`）、`91e805149`（`fix(build): add panels/quest_log.hpp include after the upstream quest split`）、`d1e122ab6`（`docs(knowledge): record heroname divergence state after the upstream sync`）。
++本轮新增/相关提交：`8e92687a9`（merge: sync upstream master，28 commits / tip `e00b7260f`）、`91e805149`（`fix(build): add panels/quest_log.hpp include after the upstream quest split`）、`d1e122ab6`（`docs(knowledge): record heroname divergence state after the upstream sync`）、`88035420d`（`fix(tools): build sampling_behavior_test in the gate`，最终全分支评审 F1 修复）。
+ 
+-冲突实际为 **4 处**（与探测一致）。另两项探测期风险本轮**未触发**：`tools/run_tests.py` 的 `TEST_TARGETS` 未与 `CMake/Tests.cmake` 脱钩（上游本轮只改 benchmark 的链接依赖）；`questdat.hpp` 行尾维持 CRLF，本轮唯一 LF 的仍是 `Source/quests.h` 与上游新增的 7 个文件。
++### §7 补充验收（F1 修复后重跑门禁，2026-09-15）
++
++修复 `TEST_TARGETS` 脱钩并重跑 `python3 tools/run_tests.py --json /tmp/ci-sync2.json` 后：
++
++| 检查项 | 结果 |
++|---|---|
++| `ctest.total` / `failed` / `passed_pct` | `698` / `0` / `100` |
++| `drift.drift_ok` / `drift.passes` | `true` / `5` |
++| `build/sampling_behavior_test` mtime | `2026-09-15 19:10:33`（晚于本轮构建，此前为 `2026-08-13 22:30:58` 的旧二进制） |
++| `SamplingBaselineTest.*` 用例数与结果 | 13 个用例全部出现在 `LastTest.log` 且均为 `[ OK ]` |
++| `git rev-list --count HEAD..origin/master` | `0` |
++
++冲突实际为 **4 处**（与探测一致）。另一项探测期风险本轮**未触发**：`questdat.hpp` 行尾维持 CRLF，本轮唯一 LF 的仍是 `Source/quests.h` 与上游新增的 7 个文件。
++
++`tools/run_tests.py` 的 `TEST_TARGETS` 与 `CMake/Tests.cmake` 的脱钩需要更正表述：本轮上游只改了 benchmark 的链接依赖，**未新增/删除/改名任何 `tests`/`standalone_tests` 成员**——这一点属实；但**既有的 `sampling_behavior_test`**（在合并前就已注册于 `Tests.cmake` 的 `tests` 列表与 CTest）**早已处于脱钩状态**：它未被列入 `TEST_TARGETS`，导致 `run_tests.py` 的构建阶段从不重建它，ctest 长期用旧二进制跑它的 13 个 `SamplingBaselineTest.*` 用例（合并本身未引入或加重这个脱钩，pre-merge 的 `Tests.cmake` 同样含 `sampling_behavior_test`）。该缺口由最终全分支评审发现（F1），已由本轮提交 `88035420d`（`fix(tools): build sampling_behavior_test in the gate`）修复：`sampling_behavior_test` 加入 `TEST_TARGETS` 后重跑门禁验证，见下方补充验收数据。
+ 
+ ### 执行中与规格不符/未预料之处
+ 
+ **1. `scrollrt.cpp` 的冲突是语义冲突，不是文本冲突（裁决 R8）**
+ 
+ - **现象**：上游在该 hunk 使用的 `drawInfoBox` 变量，已被 fork 自己的提交 `ed1dad939`（`refactor: remove drawInfoBox dirty rect`）在设计上移除——双方对同一处代码各有意图，git 无法按行取舍；`DrawMain(int dwHgt, bool drawDesc, ...)` 签名两侧一致。规格把它当作普通「取上游一侧」的行级冲突来写，是错的。
+ - **证据**：`git show <rev>:Source/engine/render/scrollrt.cpp | grep -c drawInfoBox` → merge-base `b3e52b1ea` = **4**、fork 侧（HEAD）= **0**、上游侧 `e00b7260f` = **4**；`DrawMain` 签名逐字一致。
+ - **处置/裁决**：实现者未擅自取舍，**正确停机上报**；控制者裁决 **R8** —— **保留**上游新增的 `this_sdl_thread::yield();`，**保留** fork 的 `DrawMain(hgt, false, ...)` 调用形态，**不回退** fork 的重构。§4 步骤 3 的原文「取上游签名」已按 R8 改写。
+ 
+ **2. `quests.cpp` 首次解决时被整块取了一侧（Critical，裁决 R9/R10）**
+diff --git a/tools/run_tests.py b/tools/run_tests.py
+index df9c56a07..77586c928 100755
+--- a/tools/run_tests.py
++++ b/tools/run_tests.py
+@@ -43,20 +43,21 @@ TEST_TARGETS = [
+     "ai_registry_test", "animationinfo_test", "appfat_test", "assets_test",
+     "automap_test", "can_target_test", "cursor_test", "dead_test",
+     "diablo_test", "dark_expedition_light_test", "dark_expedition_scroll_test",
+     "dark_expedition_e2e_test", "dark_expedition_drop_test",
+     "drlg_common_test", "drlg_l1_test", "drlg_l2_test", "drlg_l3_test",
+     "drlg_l4_test", "effects_test", "inv_test", "items_test",
+     "lua_integration_test", "math_test", "missiles_test", "multi_logging_test",
+     "pack_test", "player_test", "quests_test", "quest_script_test",
+     "scrollrt_test", "stores_test", "tile_properties_test", "timedemo_test",
+     "townerdat_test", "writehero_test", "vendor_test", "panel_state_test",
++    "sampling_behavior_test",
+     "store_transaction_test", "visual_store_test", "stash_test",
+     "inventory_ui_test", "spell_ui_test", "spelldat_test", "spell_tooltip_test",
+     "char_panel_test", "game_menu_test", "spell_ux_test", "consumable_stack_test",
+     "consume_scroll_test",
+     "codec_test", "crawl_test", "data_file_test", "file_util_test",
+     "format_int_test", "ini_test", "mod_identity_test", "palette_blending_test",
+     "parse_int_test", "path_test", "vision_test", "random_test",
+     "rectangle_test", "sheen_bidi_test", "static_vector_test", "str_cat_test",
+     "utf8_test", "text_render_integration_test",
+ ]

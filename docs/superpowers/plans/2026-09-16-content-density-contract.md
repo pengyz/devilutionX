@@ -205,7 +205,7 @@ SAMPLING_REPORT=/tmp/density.md ./build/sampling_behavior_test --gtest_filter='*
 
 **该测量用例目前不在源码里**（它只存在于被中断任务的存档里）→ 先用存档作起点补齐：
 ```bash
-git apply --3way .superpowers/sdd/2026-09-15-level-rosters-phase-a2/task-3a-partial-work.diff
+git apply --3way docs/superpowers/ledgers/2026-09-15-level-rosters-phase-a2/task-3a-partial-work.diff
 ```
 （若补丁冲突：手工把存档里的 `TempPerSeedVarietyForHellfireLevels` 用例并入 `test/level_roster_baseline_test.cpp`；保留其 `TEMP` 注释，并在 Task 6 收尾时决定"留作永久守卫（改成正式名）或删除"。）
 
@@ -452,7 +452,7 @@ git commit -m "test+docs: rewrite the contracts the asymmetric cap changes"
 
 - [ ] **步骤 1：处理被中断的 T3a 残留**
 
-对比 `.superpowers/sdd/2026-09-15-level-rosters-phase-a2/task-3a-partial-work.diff`（+41 行）与 Task 3 已落地的 L17 整改：**若已被覆盖 → 丢弃该残留**（`git checkout -- test/level_roster_baseline_test.cpp`）；**若仍有价值 → 先读 diff 再人工并入**，不得盲合。记录取舍理由。
+对比 `docs/superpowers/ledgers/2026-09-15-level-rosters-phase-a2/task-3a-partial-work.diff`（+41 行）与 Task 3 已落地的 L17 整改：**若已被覆盖 → 丢弃该残留**（`git checkout -- test/level_roster_baseline_test.cpp`）；**若仍有价值 → 先读 diff 再人工并入**，不得盲合。记录取舍理由。
 
 - [ ] **步骤 2：eval 计数与 case 集**
 
@@ -484,7 +484,7 @@ gh run watch -R pengyz/devilutionX <run-id> --exit-status
 
 - [ ] **步骤 2：SDD 台账**
 
-在 `.superpowers/sdd/2026-09-15-level-rosters-phase-a2/progress.md` 追加本计划每个任务的结论与 CI run id。
+在 `docs/superpowers/ledgers/2026-09-15-level-rosters-phase-a2/progress.md` 追加本计划每个任务的结论与 CI run id。
 
 - [ ] **步骤 3：提交**
 

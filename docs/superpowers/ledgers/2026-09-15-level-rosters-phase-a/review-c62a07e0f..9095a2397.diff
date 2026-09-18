@@ -1,0 +1,482 @@
+# Review package: c62a07e0f..9095a2397
+
+## Commits
+9095a2397 fix(roster): enforce core-vs-cap at load and stop leaking quest state across suites
+
+## Files changed
+ Source/tables/level_roster.cpp                  |  29 ++++++
+ Source/tables/level_roster.h                    |   7 ++
+ assets/txtdata/monsters/level_roster_params.tsv |   1 -
+ test/level_roster_test.cpp                      |  46 +++++++++
+ test/sampling_behavior_test.cpp                 | 118 ++++++++++++++++++++----
+ 5 files changed, 184 insertions(+), 17 deletions(-)
+
+## Diff
+diff --git a/Source/tables/level_roster.cpp b/Source/tables/level_roster.cpp
+index 2dcfaf44a..ea5d244ed 100644
+--- a/Source/tables/level_roster.cpp
++++ b/Source/tables/level_roster.cpp
+@@ -220,20 +220,49 @@ std::optional<std::string> ValidateLevelRoster(std::span<const LevelRosterEntry>
+ 	std::sort(levels.begin(), levels.end());
+ 	levels.erase(std::unique(levels.begin(), levels.end()), levels.end());
+ 	for (const uint8_t level : levels) {
+ 		const bool hasCore = std::any_of(entries.begin(), entries.end(), [level](const LevelRosterEntry &e) {
+ 			return e.level == level && e.role == LevelRosterRole::Core;
+ 		});
+ 		if (!hasCore)
+ 			return StrCat("level ", level, " has no core roster members");
+ 	}
+ 
++	// Core-vs-cap self-consistency (R29). The sampling loop applies the B1 caps to the
++	// tail draw only: the core roster is pre-added ahead of the loop and therefore bypasses
++	// them by design (spec 4.2.2). That makes it possible for the DATA to break a B1
++	// guarantee that the code can no longer defend - e.g. a level whose core lists three
++	// RangedKite monsters is an all-kite level no matter what the loop does afterwards.
++	// Reject that here, at load time, so the guarantee is structural rather than something
++	// a percentage baseline happens to notice. Checked in both modes: it is a property of
++	// the table itself, and the availability filter the pre-add applies can only ever make
++	// the realised core a SUBSET of these rows, so passing here is the conservative bound.
++	for (const uint8_t level : levels) {
++		uint8_t coreClassCounts[static_cast<size_t>(BehaviorClass::Count)] = {};
++		for (const LevelRosterEntry &entry : entries) {
++			if (entry.level != level || entry.role != LevelRosterRole::Core)
++				continue;
++			coreClassCounts[static_cast<size_t>(GetBehaviorClass(MonstersData[static_cast<size_t>(entry.type)].ai))]++;
++		}
++		for (size_t i = 0; i < static_cast<size_t>(BehaviorClass::Count); i++) {
++			const auto cls = static_cast<BehaviorClass>(i);
++			const uint8_t cap = BehaviorClassCapForLevel(level, cls);
++			if (cap == 0)
++				continue;
++			if (coreClassCounts[i] > cap)
++				return StrCat("level ", level, " core roster has ", static_cast<int>(coreClassCounts[i]),
++				    " monsters of behaviour class ", magic_enum::enum_name(cls),
++				    " but the B1 sampling cap for that level and class is ", static_cast<int>(cap),
++				    "; core bypasses the cap, so this breaks the guarantee in the data");
++		}
++	}
++
+ 	if (gbIsSpawn) {
+ 		// Shareware (spawn) data ships a much smaller monster/unique set, so the full
+ 		// retail-style checks (per-row availability, unique-base whitelist, class floor
+ 		// satisfiability) are not meaningful here and are relaxed. Type existence and the
+ 		// core-non-empty check above are still shared with retail mode.
+ 		return std::nullopt;
+ 	}
+ 
+ 	for (const LevelRosterEntry &entry : entries) {
+ 		if (!IsAvailableAt(entry.level, entry.type))
+diff --git a/Source/tables/level_roster.h b/Source/tables/level_roster.h
+index c3e403931..3498f4c9b 100644
+--- a/Source/tables/level_roster.h
++++ b/Source/tables/level_roster.h
+@@ -87,20 +87,27 @@ void SortRosterByLevel(std::span<LevelRosterEntry> entries);
+  * retain it across a reload.
+  */
+ std::span<const LevelRosterEntry> FindLevelRoster(std::span<const LevelRosterEntry> entries, uint8_t level);
+ 
+ /**
+  * This function does not filter by monster availability (spawn/retail/hellfire): under spawn
+  * data most core rows are `availability=Retail` and therefore unavailable, so a caller that
+  * samples from this roster (Task 3's sampling loop) must apply its own availability filter
+  * against the currently loaded MonstersData before treating a returned entry as usable; a
+  * non-empty span here is not itself a guarantee of spawn-mode availability.
++ *
++ * Level 16 is a documented exception (spec 4.2.7, R31): GetLevelMTypes() hardcodes L16's types
++ * and returns before the roster pre-add runs, so `level_rosters.tsv`'s L16 rows are
++ * REGISTRATION ONLY - they record which monsters the level fields for the validator and for
++ * later phases, and never influence sampling. `level_roster_params.tsv` deliberately has no L16
++ * row for the same reason: a params row there would be unreachable table data. The TSV format
++ * carries no comment syntax, so that fact is recorded here rather than beside the rows.
+  */
+ std::span<const LevelRosterEntry> GetLevelRoster(uint8_t level);
+ const LevelRosterParams *GetLevelRosterParams(uint8_t level);
+ 
+ /**
+  * @brief Validates a candidate roster against the currently loaded MonstersData/UniqueMonstersData.
+  * @return An error description, or an empty optional when the roster is valid.
+  */
+ std::optional<std::string> ValidateLevelRoster(std::span<const LevelRosterEntry> entries, std::span<const LevelRosterParams> params);
+ 
+diff --git a/assets/txtdata/monsters/level_roster_params.tsv b/assets/txtdata/monsters/level_roster_params.tsv
+index 02618f525..e70aafd5e 100644
+--- a/assets/txtdata/monsters/level_roster_params.tsv
++++ b/assets/txtdata/monsters/level_roster_params.tsv
+@@ -7,11 +7,10 @@ level	max_image	tail_draw	class_floors
+ 6	9000	2	Sneak=1
+ 7	9000	2	Melee=1
+ 8	9000	2	RangedKite=1
+ 9	16000	3	RangedKite=1
+ 10	16000	3	RangedKite=2
+ 11	16000	3	RangedKite=2
+ 12	16000	3	RangedKite=2,Melee=2
+ 13	18000	3	Melee=2,RangedKite=1
+ 14	18000	3	Melee=2,RangedKite=1
+ 15	18000	3	Melee=2,RangedTurret=2
+-16	18000	3	Melee=2,RangedTurret=2
+diff --git a/test/level_roster_test.cpp b/test/level_roster_test.cpp
+index 6a97e6955..8e2649c52 100644
+--- a/test/level_roster_test.cpp
++++ b/test/level_roster_test.cpp
+@@ -151,20 +151,66 @@ TEST_F(LevelRosterTest, ValidationRejectsAClassFloorThatExceedsTheB1CapAtL14)
+ 	const std::vector<LevelRosterEntry> entries { { 14, MT_VTEXLRD, LevelRosterRole::Core, false } };
+ 	const std::vector<LevelRosterParams> params {
+ 		{ 14, 6000, 2, { { BehaviorClass::Melee, 3 } } },
+ 	};
+ 	const auto error = ValidateLevelRoster(entries, params);
+ 	ASSERT_TRUE(error.has_value());
+ 	EXPECT_NE(error->find("class floor"), std::string::npos);
+ 	EXPECT_NE(error->find("caps"), std::string::npos);
+ }
+ 
++TEST_F(LevelRosterTest, ValidationRejectsThreeSameClassCoreMembersUnderTheB1CapAtL10)
++{
++	// R29: core members are pre-added before the sampling loop, so they bypass the B1
++	// cap entirely. A table listing 3 RangedKite cores at level 10 would therefore ship a
++	// level that violates the <= 2 guarantee no matter what the sampler does, and the
++	// acceptance test could not catch it (the realised roster is the input). The only place
++	// this can be blocked is load time, so validation must reject it here.
++	const std::vector<LevelRosterEntry> entries {
++		{ 10, MT_BMAGMA, LevelRosterRole::Core, false },
++		{ 10, MT_WMAGMA, LevelRosterRole::Core, false },
++		{ 10, MT_RSTORM, LevelRosterRole::Core, false },
++	};
++	const std::vector<LevelRosterParams> params { { 10, 6000, 2, {} } };
++	const auto error = ValidateLevelRoster(entries, params);
++	ASSERT_TRUE(error.has_value()) << "3 RangedKite cores at L10 must be rejected";
++	EXPECT_NE(error->find("core roster has 3"), std::string::npos) << *error;
++	EXPECT_NE(error->find("RangedKite"), std::string::npos) << *error;
++	EXPECT_NE(error->find("level 10"), std::string::npos) << *error;
++	EXPECT_NE(error->find("cap for that level and class is 2"), std::string::npos) << *error;
++
++	// Prove the rejection is driven by the count against the cap, not by these three types
++	// being unacceptable on their own: dropping to exactly the cap must pass.
++	const std::vector<LevelRosterEntry> atCap { entries[0], entries[1] };
++	EXPECT_FALSE(ValidateLevelRoster(atCap, params).has_value());
++}
++
++TEST_F(LevelRosterTest, ValidationRejectsThreeSameClassCoreMembersInSpawnModeToo)
++{
++	// The core-vs-cap check sits before the spawn-mode relaxation, because the B1 guarantee
++	// is about the shipped table, not about which availability rules are in force.
++	const std::vector<LevelRosterEntry> entries {
++		{ 14, MT_RSNAKE, LevelRosterRole::Core, false },
++		{ 14, MT_BSNAKE, LevelRosterRole::Core, false },
++		{ 14, MT_NBLACK, LevelRosterRole::Core, false },
++	};
++	const std::vector<LevelRosterParams> params { { 14, 6000, 2, {} } };
++
++	gbIsSpawn = true;
++	const auto error = ValidateLevelRoster(entries, params);
++	gbIsSpawn = false;
++
++	ASSERT_TRUE(error.has_value());
++	EXPECT_NE(error->find("core roster has 3"), std::string::npos) << *error;
++	EXPECT_NE(error->find("Melee"), std::string::npos) << *error;
++}
++
+ TEST_F(LevelRosterTest, SortRosterByLevelThenFindLevelRosterKeepsAllMembersOfAnInterleavedLevel)
+ {
+ 	// FindLevelRoster() assumes same-level entries are contiguous. SortRosterByLevel()
+ 	// must sort by level first so interleaved TSV rows (level 1, 2, 1) don't silently drop
+ 	// the second level-1 batch, and must be stable so within-level file order survives.
+ 	std::vector<LevelRosterEntry> entries {
+ 		{ 1, MT_WSKELAX, LevelRosterRole::Core, false },
+ 		{ 2, MT_SNEAK, LevelRosterRole::Core, false },
+ 		{ 1, MT_NZOMBIE, LevelRosterRole::Core, false },
+ 	};
+diff --git a/test/sampling_behavior_test.cpp b/test/sampling_behavior_test.cpp
+index bc3b42945..029fbedca 100644
+--- a/test/sampling_behavior_test.cpp
++++ b/test/sampling_behavior_test.cpp
+@@ -26,21 +26,23 @@
+ #include <vector>
+ 
+ #include "drlg_test.hpp" // TestInitGame (mounts the hf overlay for the R28 fixture)
+ #include "engine/assets.hpp"
+ #include "engine/load_cl2.hpp"
+ #include "engine/random.hpp"
+ #include "game_mode.hpp"
+ #include "levels/gendung.h"
+ #include "monster.h"
+ #include "multi.h"
++#include "player.h"
+ #include "quests.h"
++#include "tables/questdat.hpp"
+ #include "tables/level_roster.h"
+ #include "tables/monstdat.h"
+ #include "utils/str_cat.hpp"
+ 
+ using namespace devilution;
+ 
+ namespace {
+ 
+ // Behavior classes come from the engine (monstdat.h GetBehaviorClass)
+ // so the harness tests the exact taxonomy the cap enforces.
+@@ -719,53 +721,69 @@ bool IsRosterEntryAvailableAt(uint8_t level, _monster_id type)
+ size_t AvailableCoreCount(uint8_t level)
+ {
+ 	size_t count = 0;
+ 	for (const LevelRosterEntry &entry : GetLevelRoster(level)) {
+ 		if (entry.role == LevelRosterRole::Core && IsRosterEntryAvailableAt(level, entry.type))
+ 			count++;
+ 	}
+ 	return count;
+ }
+ 
+-// Types that the B1 cap cannot constrain: MT_GOLEM (unconditional PLACE_SPECIAL
+-// pre-add) plus the level's core roster, which bypasses the cap by design
+-// (spec 4.2.2 - the cap lives inside the sampling loop only).
+-size_t CapExemptClassCount(uint8_t level, BehaviorClass cls)
++// Cap exemptions that come from the ENGINE, not from the roster (R29).
++//
++// The roster must NOT be used to compute this. Deriving the allowance from the
++// very table under test makes the assertion self-fulfilling: a core roster that
++// lists three same-class monsters would raise its own budget by three and the
++// check could never fail - exactly the class of data defect (L11's three kite
++// cores, L14's Melee cores) that this suite exists to catch. Core is therefore
++// held to the cap here, and the load-time validator (ValidateLevelRoster's
++// core-vs-cap check) rejects a roster that would break it.
++//
++// What genuinely cannot be capped is what GetLevelMTypes() pre-adds regardless
++// of any table: MT_GOLEM (unconditional PLACE_SPECIAL) and the quest uniques of
++// this level, whose base type is chosen by UniqueMonstersData rather than by the
++// roster. Those are counted from engine data only.
++size_t EnginePreAddClassCount(uint8_t level, BehaviorClass cls)
+ {
+ 	size_t count = 0;
+ 	if (GetBehaviorClass(MonstersData[MT_GOLEM].ai) == cls)
+ 		count++;
+-	for (const LevelRosterEntry &entry : GetLevelRoster(level)) {
+-		if (entry.role != LevelRosterRole::Core)
++	for (const UniqueMonsterData &unique : UniqueMonstersData) {
++		if (unique.mlevel != level)
+ 			continue;
+-		if (!IsRosterEntryAvailableAt(level, entry.type))
+-			continue;
+-		if (GetBehaviorClass(MonstersData[entry.type].ai) == cls)
++		if (GetBehaviorClass(MonstersData[unique.mtype].ai) == cls)
+ 			count++;
+ 	}
+ 	return count;
+ }
+ 
+ bool LevelHasType(_monster_id type)
+ {
+ 	return std::any_of(LevelMonsterTypes, LevelMonsterTypes + LevelMonsterTypeCount,
+ 	    [type](const CMonster &levelType) { return levelType.type == type; });
+ }
+ 
+ TEST_F(SamplingBaselineTest, RosterCoreAlwaysPresent)
+ {
+ 	if (missingMpqAssets_)
+ 		GTEST_SKIP() << "MPQ assets not found - skipping test";
+ 
+ 	// AC1: every available core member of a level is realised on 100% of seeds,
+ 	// and every core member is a candidate of that level (i.e. the roster row
+ 	// itself is available there, so pre-adding it is not a smuggled monster).
++	//
++	// Range note (R31): this case runs 1-16 while RosterTailDrawBounded and
++	// RosterQuotasSatisfied run 1-15. L16 has roster ROWS but no params row on
++	// purpose (spec 4.2.7): GetLevelMTypes() takes the hardcoded L16 branch and
++	// returns before any roster pre-add, so on L16 only the static half of AC1 is
++	// checkable - the rows are well-formed, available candidates and are
++	// registered - and the realised-core assertion below is skipped for it.
+ 	for (uint8_t level = 1; level <= 16; level++) {
+ 		const std::span<const LevelRosterEntry> roster = GetLevelRoster(level);
+ 		ASSERT_FALSE(roster.empty()) << "level " << static_cast<int>(level) << " must have roster rows";
+ 		size_t assertedCores = 0;
+ 		for (const LevelRosterEntry &entry : roster) {
+ 			if (entry.role != LevelRosterRole::Core)
+ 				continue;
+ 			// Availability is the level-band check too, so this doubles as the
+ 			// "core must be a candidate of its level" half of AC1.
+ 			EXPECT_TRUE(IsRosterEntryAvailableAt(level, entry.type))
+@@ -795,20 +813,25 @@ TEST_F(SamplingBaselineTest, RosterCoreAlwaysPresent)
+ }
+ 
+ TEST_F(SamplingBaselineTest, RosterTailDrawBounded)
+ {
+ 	if (missingMpqAssets_)
+ 		GTEST_SKIP() << "MPQ assets not found - skipping test";
+ 
+ 	// AC2: the tail draw is min(tail_draw, available candidates). Counting the
+ 	// tail as "types beyond the pre-adds" needs the pre-add count measured, not
+ 	// assumed: Golem is always pre-added and the roster's core count varies.
++	//
++	// Range note (R31): 1-15, not 1-16. A tail bound is only meaningful where a
++	// tail is drawn, and L16 deliberately has no params row (spec 4.2.7) because
++	// its hardcoded branch returns before the roster path runs. Extending this
++	// loop to 16 would only assert that a missing params row is missing.
+ 	for (uint8_t level = 1; level <= 15; level++) {
+ 		const LevelRosterParams *params = GetLevelRosterParams(level);
+ 		ASSERT_NE(params, nullptr) << "level " << static_cast<int>(level) << " must have a params row";
+ 		for (int seed = 0; seed < 50; seed++) {
+ 			currlevel = level;
+ 			InitLevelMonsters();
+ 			SetRndSeed(8000 + static_cast<uint32_t>(seed));
+ 			// Measure the pre-add count by replaying only the pre-add phase:
+ 			// run the real sampling, then subtract the types that the roster and
+ 			// the unconditional pre-adds account for.
+@@ -823,20 +846,25 @@ TEST_F(SamplingBaselineTest, RosterTailDrawBounded)
+ }
+ 
+ TEST_F(SamplingBaselineTest, RosterQuotasSatisfied)
+ {
+ 	if (missingMpqAssets_)
+ 		GTEST_SKIP() << "MPQ assets not found - skipping test";
+ 
+ 	// AC3: each level's class floors are met and the B1 caps are never broken.
+ 	// Caps come from BehaviorClassCapForLevel (the single source of truth the
+ 	// validator uses), so a drift between validator and sampling loop fails here.
++	//
++	// Range note (R31): 1-15 for the same reason as RosterTailDrawBounded - floors
++	// and caps are properties of the roster sampling loop, which L16 never enters
++	// (hardcoded branch + early return, spec 4.2.7). L16's cap guarantee is
++	// therefore a property of that hardcoded list, covered by Level16HardcodedTypes.
+ 	for (uint8_t level = 1; level <= 15; level++) {
+ 		const LevelRosterParams *params = GetLevelRosterParams(level);
+ 		ASSERT_NE(params, nullptr) << "level " << static_cast<int>(level);
+ 		for (int seed = 0; seed < 200; seed++) {
+ 			currlevel = level;
+ 			InitLevelMonsters();
+ 			SetRndSeed(9000 + static_cast<uint32_t>(seed));
+ 			ASSERT_TRUE(GetLevelMTypes().has_value());
+ 
+ 			std::array<size_t, static_cast<size_t>(BehaviorClass::Count)> counts {};
+@@ -845,25 +873,27 @@ TEST_F(SamplingBaselineTest, RosterQuotasSatisfied)
+ 
+ 			for (const auto &[cls, floor] : params->classFloors) {
+ 				EXPECT_GE(counts[static_cast<size_t>(cls)], static_cast<size_t>(floor))
+ 				    << "level " << static_cast<int>(level) << " seed " << seed
+ 				    << " misses class floor " << static_cast<int>(cls);
+ 			}
+ 			for (size_t i = 0; i < counts.size(); i++) {
+ 				const uint8_t cap = BehaviorClassCapForLevel(level, static_cast<BehaviorClass>(i));
+ 				if (cap == 0)
+ 					continue;
+-				// The cap constrains what the sampling loop may ADD; unconditional
+-				// pre-adds (Golem, quest uniques) and the level's core roster are
+-				// exempt by design, so compare against the core+preadd floor.
+-				const size_t exempt = CapExemptClassCount(level, static_cast<BehaviorClass>(i));
+-				EXPECT_LE(counts[i], std::max(static_cast<size_t>(cap), exempt))
++				// R29: the allowance is cap + the ENGINE's unconditional pre-adds
++				// (Golem and this level's quest uniques). It deliberately does not
++				// include the core roster: core is subject to the same cap, enforced
++				// at load time by ValidateLevelRoster, so a core row that broke a B1
++				// guarantee fails here instead of quietly raising its own budget.
++				const size_t enginePreAdds = EnginePreAddClassCount(level, static_cast<BehaviorClass>(i));
++				EXPECT_LE(counts[i], static_cast<size_t>(cap) + enginePreAdds)
+ 				    << "level " << static_cast<int>(level) << " seed " << seed
+ 				    << " breaks the B1 cap for class " << i;
+ 			}
+ 		}
+ 	}
+ }
+ 
+ TEST_F(SamplingBaselineTest, IdentityGuard)
+ {
+ 	if (missingMpqAssets_)
+@@ -948,44 +978,100 @@ TEST_F(SamplingBaselineTest, A1A3VariantsAreCore)
+ class HellfireNoParamsSamplingTest : public ::testing::Test {
+ protected:
+ 	static void SetUpTestSuite()
+ 	{
+ 		LoadCoreArchives();
+ 		LoadGameArchives();
+ 		if (!HaveMainData()) {
+ 			missingMpqAssets_ = true;
+ 			return;
+ 		}
++
++		// R30: this suite mounts the hf overlay and runs TestInitGame(), which
++		// mutates process-global state that the SamplingBaselineTest measurements
++		// above depend on. Most importantly InitQuests() lifts every
++		// Quests[*]._qactive out of its zero-initialised QUEST_NOTAVAIL, and an
++		// active quest pre-adds its unique's base type: leaving Q_WARLORD active
++		// would add Melee MT_BTBLACK to L13, pushing that level to 3 Melee types
++		// and breaking HellL13SameClassTailBaseline's EXPECT_EQ(tail, 0.0) - a
++		// failure that only appears once the suite order changes (--gtest_shuffle).
++		// So snapshot every global TestInitGame() touches and restore the snapshot
++		// in TearDownTestSuite(), rather than guessing at "initial" values.
++		savedQuests_.assign(std::begin(Quests), std::end(Quests));
++		// Player is not copyable, so snapshot the two things TestInitGame() changes
++		// about it (the vector's size and pOriginalCathedral) rather than the object.
++		savedPlayerCount_ = Players.size();
++		savedMyPlayerIsFirst_ = !Players.empty() && MyPlayer == &Players[0];
++		savedOriginalCathedral_ = Players.empty() ? true : Players[0].pOriginalCathedral;
++		savedGameInitInfo_ = sgGameInitInfo;
++		savedIsMultiplayer_ = gbIsMultiplayer;
++		savedIsHellfire_ = gbIsHellfire;
++		savedIsSpawn_ = gbIsSpawn;
++		snapshotTaken_ = true;
++
+ 		gbIsSpawn = false;
+ 		gbIsHellfire = true;
+ 		sgGameInitInfo.fullQuests = 1;
+ 		// TestInitGame(..., hellfire = true) mounts the hf overlay, which is what
+ 		// gives L17-24 a non-empty candidate pool.
+ 		TestInitGame(/*fullQuests=*/true, /*originalCathedral=*/true, /*hellfire=*/true);
+ 		LoadMonsterData();
+ 		LoadLevelRoster();
+ 	}
+ 
+ 	static void TearDownTestSuite()
+ 	{
+-		// Restore the Diablo-data state for any suite that runs after this one.
+-		gbIsHellfire = false;
++		if (!snapshotTaken_)
++			return;
++
++		std::copy(savedQuests_.begin(), savedQuests_.end(), std::begin(Quests));
++		Players.resize(savedPlayerCount_);
++		if (!Players.empty())
++			Players[0].pOriginalCathedral = savedOriginalCathedral_;
++		MyPlayer = savedMyPlayerIsFirst_ && !Players.empty() ? &Players[0] : nullptr;
++		sgGameInitInfo = savedGameInitInfo_;
++		gbIsMultiplayer = savedIsMultiplayer_;
++		gbIsHellfire = savedIsHellfire_;
++		gbIsSpawn = savedIsSpawn_;
++
++		// And put the Diablo monster/roster data back, since the overlay changed it.
+ 		UnloadModArchives();
+ 		LoadModArchives({});
+ 		LoadMonsterData();
+ 		LoadLevelRoster();
++		snapshotTaken_ = false;
+ 	}
+ 
+ 	static bool missingMpqAssets_;
++
++private:
++	static std::vector<Quest> savedQuests_;
++	static size_t savedPlayerCount_;
++	static bool savedMyPlayerIsFirst_;
++	static bool savedOriginalCathedral_;
++	static GameData savedGameInitInfo_;
++	static bool savedIsMultiplayer_;
++	static bool savedIsHellfire_;
++	static bool savedIsSpawn_;
++	static bool snapshotTaken_;
+ };
+ 
+ bool HellfireNoParamsSamplingTest::missingMpqAssets_ = false;
++std::vector<Quest> HellfireNoParamsSamplingTest::savedQuests_;
++size_t HellfireNoParamsSamplingTest::savedPlayerCount_ = 0;
++bool HellfireNoParamsSamplingTest::savedMyPlayerIsFirst_ = false;
++bool HellfireNoParamsSamplingTest::savedOriginalCathedral_ = true;
++GameData HellfireNoParamsSamplingTest::savedGameInitInfo_ {};
++bool HellfireNoParamsSamplingTest::savedIsMultiplayer_ = false;
++bool HellfireNoParamsSamplingTest::savedIsHellfire_ = false;
++bool HellfireNoParamsSamplingTest::savedIsSpawn_ = false;
++bool HellfireNoParamsSamplingTest::snapshotTaken_ = false;
+ 
+ TEST_F(HellfireNoParamsSamplingTest, LevelsWithoutParamsStillSampleTypes)
+ {
+ 	if (missingMpqAssets_)
+ 		GTEST_SKIP() << "MPQ assets not found - skipping test";
+ 
+ 	// Guard the premise first: if the overlay did not mount, the "still samples"
+ 	// assertion below would be vacuous, so fail loudly instead of passing.
+ 	ASSERT_TRUE(HaveHellfire()) << "hf overlay required: L17-24 have no candidates under base monstdat";
+ 

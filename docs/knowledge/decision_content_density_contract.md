@@ -6,7 +6,7 @@ created: 2026-09-18
 sources:
   - docs/superpowers/specs/2026-09-16-content-density-contract-design.md
   - docs/superpowers/plans/2026-09-16-content-density-contract.md
-  - .superpowers/sdd/2026-09-15-level-rosters-phase-a2/progress.md
+  - docs/superpowers/ledgers/2026-09-15-level-rosters-phase-a2/progress.md
 ---
 
 # 决策：内容密度契约（四轴地板 + 非对称 cap + R4 反转）

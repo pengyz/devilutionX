@@ -1,0 +1,56 @@
+# 门禁任务（T7-T10）评审包
+
+## 提交列表 (8e92687a9..HEAD)
+91e805149 fix(build): add panels/quest_log.hpp include after the upstream quest split
+
+## 变更文件
+Source/controls/plrctrls.cpp
+
+## 统计
+ Source/controls/plrctrls.cpp | 1 +
+ 1 file changed, 1 insertion(+)
+
+## 完整 diff
+diff --git a/Source/controls/plrctrls.cpp b/Source/controls/plrctrls.cpp
+index 129cd4d6a..b79aedc56 100644
+--- a/Source/controls/plrctrls.cpp
++++ b/Source/controls/plrctrls.cpp
+@@ -31,30 +31,31 @@
+ #include "levels/gendung.h"
+ #include "doom.h"
+ #include "engine/point.hpp"
+ #include "engine/points_in_rectangle_range.hpp"
+ #include "game_mode.hpp"
+ #include "gmenu.h"
+ #include "help.h"
+ #include "hwcursor.hpp"
+ #include "inv.h"
+ #include "items.h"
+ #include "levels/tile_properties.hpp"
+ #include "levels/town.h"
+ #include "levels/trigs.h"
+ #include "minitext.h"
+ #include "missiles.h"
++#include "panels/quest_log.hpp"
+ #include "panels/spell_icons.hpp"
+ #include "panels/spell_list.hpp"
+ #include "panels/ui_panels.hpp"
+ #include "qol/chatlog.h"
+ #include "qol/stash.h"
+ #include "qol/visual_store.h"
+ #include "stores.h"
+ #include "towners.h"
+ #include "track.h"
+ #include "utils/is_of.hpp"
+ #include "utils/log.hpp"
+ #include "utils/sdl_compat.h"
+ #include "utils/str_cat.hpp"
+ 
+ namespace devilution {
+
+## 门禁产物指针（评审者自行只读核对）
+- /tmp/ci-sync.json （本轮门禁 JSON）
+- /tmp/ci-before-sync.json （基线 JSON）
+- /tmp/drift-after-sync.txt 、 /tmp/drift-before-sync.txt
+- build/Testing/Temporary/LastTest.log
+- eval/results/ 下最新目录（eval smoke 产物）

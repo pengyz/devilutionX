@@ -4,7 +4,7 @@ description: 想无头跑 HF 层（L17-24）时的四个真实坑：LoadHellfire
 type: gotcha
 created: 2026-09-16
 sources:
-  - .superpowers/sdd/2026-09-15-level-rosters-phase-a2/task-1-report.md（实现者实测）
+  - docs/superpowers/ledgers/2026-09-15-level-rosters-phase-a2/task-1-report.md（实现者实测）
   - Source/engine/mpq_archive / Source/storm/...（MpqArchive::Open 的 priority 参数）
   - Source/levels/gendung.cpp:594（DRLG_LPass3 需要 .til 与触发器初始化）
 ---

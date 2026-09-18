@@ -1,0 +1,658 @@
+# Review package: 9d46b0ef1..HEAD
+
+## Commits
+fb31c8218 test(eval): sync the level-rosters case count to 9 and pin the fallback measurement
+c93a2664b test(roster): pin that squad_leashed rejects a non-boolean spelling
+cbc51d053 test(roster): guard the squad fallback adjacency and the distinct-partner rule
+29efdda31 feat(monster): record squad leader-to-minion distance in the roll counters
+4ef3a65f8 docs(knowledge): record two engine behaviours found while measuring core squads
+
+## Files changed
+ Source/monster.cpp                                 |  14 ++
+ Source/monster.h                                   |  18 +++
+ docs/knowledge/MEMORY.md                           |   2 +
+ ...lacegroup_leash_is_measured_from_a_neighbour.md |  17 +++
+ .../gotcha_unique_boss_packs_are_also_leashed.md   |  17 +++
+ eval/cases/rng/level-rosters.yaml                  |  19 ++-
+ test/Fixtures.cmake                                |   2 +
+ ...evel_roster_params_squad_leashed_outofrange.tsv |   3 +
+ .../level_roster_params_squad_leashed_typo.tsv     |   3 +
+ test/level_roster_baseline_test.cpp                | 143 ++++++++++++++++++++-
+ test/level_roster_test.cpp                         |  31 +++++
+ 11 files changed, 259 insertions(+), 10 deletions(-)
+
+## Diff
+diff --git a/Source/monster.cpp b/Source/monster.cpp
+index 96f6588cb..bd211503b 100644
+--- a/Source/monster.cpp
++++ b/Source/monster.cpp
+@@ -3980,23 +3980,37 @@ std::expected<void, std::string> InitMonsters()
+ 					Monster &leader = Monsters[ActiveMonsters[ActiveMonsterCount - 1]];
+ 					const size_t partnerIndex = PickCorePartnerTypeIndex(currlevel, LevelMonsterTypes[typeIndex].type);
+ 					if (partnerIndex >= LevelMonsterTypeCount) {
+ 						// No other available, registered core member on this level, so
+ 						// there is nothing to build a mixed squad from. The leader stays
+ 						// as an ordinary lone monster (never leashed, so its packSize is
+ 						// untouched) and the loop continues.
+ 						SquadRollStats.noPartnerAvailable++;
+ 						continue;
+ 					}
++					const size_t beforePartners = ActiveMonsterCount;
+ 					PlaceGroup(partnerIndex, rosterParams->squadSize, &leader,
+ 					    rosterParams->squadLeashed,
+ 					    MinionOptions { .tough = false, .inheritAi = false, .inheritIntelligence = false });
++					// Record how far each minion this roll actually placed ended up from its
++					// leader. Done here because an unleashed squad leaves no leader link on the
++					// minion (spec 4.3.4 keeps passing the leader to PlaceGroup but applies no
++					// setLeader), so this is the only point where the pairing is still known -
++					// see SquadRollCounters::maxPartnerLeaderDistance.
++					for (size_t minionIndex = beforePartners; minionIndex < ActiveMonsterCount; minionIndex++) {
++						const Point &minionTile = Monsters[ActiveMonsters[minionIndex]].position.tile;
++						const int dx = std::abs(minionTile.x - leader.position.tile.x);
++						const int dy = std::abs(minionTile.y - leader.position.tile.y);
++						SquadRollStats.partnersPlaced++;
++						SquadRollStats.maxPartnerLeaderDistance = std::max(
++						    SquadRollStats.maxPartnerLeaderDistance, static_cast<size_t>(std::max(dx, dy)));
++					}
+ 					// PlaceGroup only writes packSize when leashed; an unleashed squad
+ 					// deliberately leaves the leader an ordinary monster (spec 4.3.4).
+ 					if (rosterParams->squadLeashed && leader.packSize > 0)
+ 						SquadRollStats.realised++;
+ 				} else {
+ 					PlaceGroup(typeIndex, na);
+ 				}
+ 			}
+ 		}
+ 	}
+diff --git a/Source/monster.h b/Source/monster.h
+index 940d04469..2f1ea81c2 100644
+--- a/Source/monster.h
++++ b/Source/monster.h
+@@ -546,20 +546,38 @@ struct SquadRollCounters {
+ 	size_t rolls = 0;
+ 	/** Rolls whose leader could not be placed at all (fell back to a legacy group). */
+ 	size_t leaderPlacementFailed = 0;
+ 	/**
+ 	 * Rolls where the level had no other core member that is both available and registered, so
+ 	 * no mixed squad could be built.
+ 	 */
+ 	size_t noPartnerAvailable = 0;
+ 	/** Rolls that ended with a leashed leader actually holding >= 1 minion. */
+ 	size_t realised = 0;
++	/**
++	 * Minions the squad path actually placed for a leader, counted whether or not the squad is
++	 * leashed. This is the sample size the two figures below are measured over: an assertion on
++	 * them is vacuous while this is 0.
++	 */
++	size_t partnersPlaced = 0;
++	/**
++	 * Largest Chebyshev distance between a squad leader and one of its placed minions, over every
++	 * squad on the level.
++	 *
++	 * Recorded here rather than derived from the placed monsters because an UNLEASHED squad
++	 * (spec 4.3.4) leaves its minions with leaderRelation None and no back-pointer, so nothing
++	 * outside this loop can pair them with their leader again. The spec's guarantee for that
++	 * fallback is precisely that the leader is still passed to PlaceGroup, i.e. the minions are
++	 * still seeded from the leader's own neighbourhood; without this figure that guarantee has no
++	 * observable consequence and cannot be guarded.
++	 */
++	size_t maxPartnerLeaderDistance = 0;
+ };
+ 
+ /**
+  * @brief Returns the current level's squad roll counters.
+  *
+  * Read by the load-time verbose diagnostic (so a level whose squads never materialise shows up
+  * in a verbose log) and by the squad-rate measurement, which needs the loop's own roll
+  * denominator rather than a re-derivation of it.
+  */
+ const SquadRollCounters &GetSquadRollStats();
+diff --git a/docs/knowledge/MEMORY.md b/docs/knowledge/MEMORY.md
+index 1a36c80de..ed8399bb0 100644
+--- a/docs/knowledge/MEMORY.md
++++ b/docs/knowledge/MEMORY.md
+@@ -1,16 +1,18 @@
+ # DevilutionX 知识索引
+ 
+ ## Architecture
+ <!-- 设计决策、模块边界、为什么选 A 不选 B -->
+ 
+ ## Gotchas
++- [`gotcha_unique_boss_packs_are_also_leashed.md`](gotcha_unique_boss_packs_are_also_leashed.md) — unique boss pack 也带拴系随从（默认 MinionOptions），度量小队必须用 `isUnique()` 区分，并断言 unique 随从数 >0 防 A/B 空转
++- [`gotcha_placegroup_leash_is_measured_from_a_neighbour.md`](gotcha_placegroup_leash_is_measured_from_a_neighbour.md) — `PlaceGroup` 的 4 格拴系从 **leader 的邻格**量起，真实边界 >4；断言邻近性别照抄 4
+ - [`reference_ci_workflows_on_feature_branches.md`](reference_ci_workflows_on_feature_branches.md) — 推 `feature/**` 只触发 `better-d1-ci.yml`；**格式/tidy 检查仅在 master/PR**（"CI 绿"≠"格式合规"）；`docs/**` 提交不触发 CI
+ - [`gotcha_tsv_edits_need_mpq_rebuild.md`](gotcha_tsv_edits_need_mpq_rebuild.md) — 改 `assets/txtdata/**.tsv` 后必须先 `ninja devilutionx_mpq`，否则测试量到旧表
+ - [`decision_run_tests_test_builds_its_target.md`](decision_run_tests_test_builds_its_target.md) — `run_tests.py --test` **现在会先构建该目标**（历史坑与老版本注意事项）；改 TSV 仍需 `ninja devilutionx_mpq`
+ - [`gotcha_max_image_bump_exposes_drlg_oob.md`](gotcha_max_image_bump_exposes_drlg_oob.md) — 抬高 `max_image` 会曝光 `drlg_l2.cpp:2072` 的**既存**越界（改变生成期分支覆盖），先判"曝光 vs 引入"再决定回退
+ - [`gotcha_level_state_when_bypassing_loadgamelevel.md`](gotcha_level_state_when_bypassing_loadgamelevel.md) — 测试里自行建关必须补齐 SOLData / tile 元数据 / trigs；症状指纹：**所有层放置数完全相同**
+ <!-- 平台坑、反直觉行为（Diablo 引擎/存档/渲染/Lua 等） -->
+ 
+ - [SpellsData 位置索引 — 删行即错位（已修复）](gotcha_spelldata_positional_index.md) — 曾按行序 emplace 删行即错位；现已改名称键控加载，size 保持 max-enum+1 语义
+ - [光照双重计数 bug](gotcha_light_double_count.md) — 撤销前 `10*mult + (_pLightRad-10)` 装备加成叠加两次；正确是倍率作用于总量 `trunc(_pLightRad*mult)`（截断非四舍五入，见规格 §4.2）
+ - [存档/网络 bId 位覆写](gotcha_save_bid_overwrite.md) — 堆叠数存 `bId` 位域曾覆写物品品质与鉴定标志；存档须存 `count-1` 保持上游逐字节兼容
+diff --git a/docs/knowledge/gotcha_placegroup_leash_is_measured_from_a_neighbour.md b/docs/knowledge/gotcha_placegroup_leash_is_measured_from_a_neighbour.md
+new file mode 100644
+index 000000000..8815287d5
+--- /dev/null
++++ b/docs/knowledge/gotcha_placegroup_leash_is_measured_from_a_neighbour.md
+@@ -0,0 +1,17 @@
++---
++name: PlaceGroup 的 4 格拴系是从 leader 的邻格量起（真实边界 >4，不是 >=4）
++description: PlaceGroup 在 leader 分支里先取 leader 位置 + 随机方向作为初始点，再把该点当作 x1/y1 做 |xp-x1|<4 && |yp-y1|<4 的钳制 → 随从与 leader 的距离上限实际大于 4，不能用"距 leader <=4"来断言或推理。
++type: gotcha
++created: 2026-09-16
++sources:
++  - Source/monster.cpp（PlaceGroup 的 leader 分支：先 position = leader->position.tile + Direction(offset)，再 x1=xp/y1=yp 作为钳制中心）
++  - .superpowers/sdd/2026-09-15-level-rosters-phase-b/task-3-report.md（实现者实测发现）
++---
++
++**事实**：`PlaceGroup` 的拴系约束写作 `leashed && (std::abs(xp - x1) >= 4 || std::abs(yp - y1) >= 4) → 放弃该候选`，但 **`x1/y1` 不是 leader 的位置**——leader 分支先算 `position = leader->position.tile + Direction(GenerateRnd(8))` 作为初始点，再用它当钳制中心。也就是说钳制是**相对 leader 的一个邻格**。
++
++**后果**：随从与 **leader** 的距离上限实际 **>4**（邻格偏移 1 + 钳制半径 ~4）。任何"随从应在 leader 4 格内"的断言、图示或平衡推理都会偏差；反过来，写"必须 >4 才算越界"的说法也要小心——准确表述是"钳制相对 leader 的邻格"。
++
++**正确做法**：需要断言邻近性时，直接对**引擎实际使用的中心**（该邻格）比较，或断言一个**上界**（如"与 leader 的距离 ≤5"这类可证的上界），而不是照抄 4 这个数字。
++
++**何时使用**：写拴系/小队邻近性守卫、或解释"为什么随从看起来离 leader 超过 4 格"时。
+diff --git a/docs/knowledge/gotcha_unique_boss_packs_are_also_leashed.md b/docs/knowledge/gotcha_unique_boss_packs_are_also_leashed.md
+new file mode 100644
+index 000000000..6bb4dd606
+--- /dev/null
++++ b/docs/knowledge/gotcha_unique_boss_packs_are_also_leashed.md
+@@ -0,0 +1,17 @@
++---
++name: unique boss pack 也会产生拴系随从（度量"小队"时必须用 isUnique 区分）
++description: PlaceUniqueMonsters 在散布循环之前运行，且用默认 MinionOptions → unique boss pack 同样带 leashed 随从。任何"成队率/小队"度量若只看 leaderRelation==Leashed，会把 unique 队误计为小队。
++type: gotcha
++created: 2026-09-16
++sources:
++  - Source/monster.cpp（PlaceUniqueMonsters 在 InitMonsters 内先于散布循环；PlaceGroup 默认 MinionOptions 使 unique 随从 HP×2 且继承 AI）
++  - .superpowers/sdd/2026-09-15-level-rosters-phase-b/task-3-report.md 与 4807d157 评审（判别器设计）
++---
++
++**事实**：`PlaceUniqueMonsters`/`PrepareUniqueMonst` 走的是**默认** `MinionOptions{}`（`tough=true, inheritAi=true, inheritIntelligence=true`），因此 unique boss pack 的随从**也是 `LeaderRelation::Leashed`**。而它运行在散布循环**之前**。
++
++**后果**：任何"小队密度/成队率"的度量或断言，若只筛 `leaderRelation == Leashed`，会把**unique 队**当成"核心小队"计入——在统计上表现为"小队比实际多"，并可能掩盖核心小队根本没形成。
++
++**正确做法**：判别器要加 `leader->isUnique()` 排除（本仓实现即用此），并在测试里**额外断言 unique 随从数 > 0**，防止 A/B 因为"把全部 leashed 随从都归给 unique"而**静默空转**（本会话 Task 3 的 A/B 用例就是这么加固的）。
++
++**何时使用**：写任何与"怪成群"相关的度量、守卫或调试断言时。
+diff --git a/eval/cases/rng/level-rosters.yaml b/eval/cases/rng/level-rosters.yaml
+index f526b574c..aaedf9beb 100644
+--- a/eval/cases/rng/level-rosters.yaml
++++ b/eval/cases/rng/level-rosters.yaml
+@@ -1,43 +1,45 @@
+ # 维护提醒（R35）：本 case 的 `expected.passed_min` 与 `output_contains` 里的
+ # "[  PASSED  ] N tests." 是**硬编码的用例计数**。往 LevelRosterBaselineTest 里新增或删除用例后
+ # 必须同步这两处数字，否则门禁会静默失效（N 偏小 → 少跑也算过）或误红
+-# （N 偏大 → 全绿也判失败）。当前值对应 8 个用例（Phase B Task 3 追加 5 个 SquadPlacementTest 用例后核对）。
++# （N 偏大 → 全绿也判失败）。当前值对应 9 个用例（Phase B Task 3 追加 5 个 SquadPlacementTest 用例，
++# 修复轮次 1 再追加具名用例 SquadMinionsKeepOwnAi → 9）。
+ id: "level-rosters"
+ name: "逐层名册 Phase A：放置构成占比在基线带内（真实引擎放置路径）"
+ category: "rng"
+ difficulty: "medium"
+ tags: ["sampling", "monster-generation", "level-roster", "baseline"]
+ 
+ setup:
+   mpq_required: true
+   # U1（同类）：PlacedClassMix* 走真实建关放置，需 unique 怪染色 TRN（零售或 HF 提供）。
+   retail_or_hf_required: true
+   timeout: 900
+ 
+ run:
+   backend: "gtest"
+   binary: "level_roster_baseline_test"
+   filter: "LevelRosterBaselineTest.*:SquadPlacementTest.*"
+ 
+ expected:
+   exit_code: 0
+   failed: 0
+-  passed_min: 8
++  passed_min: 9
+   skipped_max: 1
+   output_contains:
+     - "[ MEASURED ] level 13 ranged share"
+     - "[ MEASURED ] level 14 ranged share"
+     - "[ MEASURED ] level 15 ranged share"
+     - "[ SQUADRATE ]"
+     - "[ SHIPPEDSQUAD ]"
+-    - "[  PASSED  ] 8 tests."
++    - "[ SQUADFALLBACK ]"
++    - "[  PASSED  ] 9 tests."
+ 
+ description: >
+   逐层名册 Phase A 的验收门禁：不看采样中间量，直接跑真实
+   CreateDungeon -> GetLevelMTypes -> InitMonsters 放置链路，统计 L13-15
+   每层 200 seed 的**已放置**怪物构成，断言远程占比（RangedTurret +
+   RangedKite / 放置怪总数）不超过「改动前基线 + 5 个百分点」。
+   基线取自计划 A-baseline 表（200 seed、同一 fixture、放置怪分母）：
+   L13 (3249+2076)/23405 = 22.8%、L14 (9674+3425)/23443 = 55.9%、
+   L15 13533/23193 = 58.3%；阈值即 27.8% / 60.9% / 63.3%，以具名
+   constexpr 数组落在 test/level_roster_baseline_test.cpp 中，出处写在注释里。
+@@ -65,10 +67,21 @@ description: >
+   用例无条件打印 [ SQUADRATE ]（squad_chance=100 下逐层实测成队率）与
+   [ SHIPPEDSQUAD ]（出厂表 squad_chance=30 下逐层实测成队率），output_contains
+   断言两行存在，因此小队一旦不成形，门禁不仅会红，还能直接读到逐层数字。
+   实测（出厂表、50 seed/层）：逐层 roll 率 26.8%-31.1%（名义 30%），
+   realisation 99.6%-100%，leader 放置失败与无 partner 计数全为 0。
+   同时记录：均匀 squad_chance=30 会把 L14 远程占比从 60.49% 推到 61.51%、越过
+   60.88% 阈值。按 R4 只改数据、不动阈值：先试 class_floors Melee=1 → Melee=2（占比
+   60.45% 达标），但全量门禁判红——该改动使 L14 的 unique base 可达性从 6/6 掉到 2/6，
+   违反验收 9c（HellUniqueBasesRemainReachable），故回退。最终采用 **L14 squad_chance
+   30 → 10**（占比 60.51% 达标，9c 恢复 6/6），其余各层保持 30。
++
++  Phase B Task 3 修复轮次 1（评审必须修项）：为两条此前**无守卫**的规格要求补上可失败断言，
++  用例数 8 → 9（新增具名用例 `SquadMinionsKeepOwnAi`，规格 §6 验收第 6 行点名）。
++  同时 `UnleashedFallbackPlacesNeighboursWithoutLeashing` 从"只测拴系数为 0"改为**真正断言邻近性**：
++  §4.3.4 回退的核心保证是"仍把 leader 传给 PlaceGroup"，此前把 `&leader` 改成 `nullptr` 全部用例仍绿。
++  unleashed 随从的 leaderRelation 是 None、无 leader 反向指针，放置后无法重新配对，
++  因此邻近性在**放置那一刻**由 `SquadRollCounters::{partnersPlaced,maxPartnerLeaderDistance}` 记录。
++  新增 `[ SQUADFALLBACK ]` 输出行（output_contains 断言其存在）报告实测最大距离与界。
++  另加"随从类型 ≠ leader 类型"断言（此前删掉 PickCorePartnerTypeIndex 的同类型跳过后 8 条用例全绿）。
++  四条反证均实跑"改坏→红→恢复→绿"。squad_leashed 解析器的拒绝拼写错误用例落在
++  `level_roster_test`（LevelRosterFixtureLoadTest，2 条 EXPECT_EXIT），非本 case 计数。
+diff --git a/test/Fixtures.cmake b/test/Fixtures.cmake
+index 3bbf29efe..67893f10d 100644
+--- a/test/Fixtures.cmake
++++ b/test/Fixtures.cmake
+@@ -92,20 +92,22 @@ set(devilutionx_fixtures
+   txtdata/empty_with_utf8_bom.tsv
+   txtdata/lf.tsv
+   txtdata/lf_no_trail.tsv
+   txtdata/sample.tsv
+   txtdata/utf8_bom.tsv
+   txtdata/monsters/level_rosters_interleaved.tsv
+   txtdata/monsters/level_roster_params_interleaved.tsv
+   txtdata/monsters/level_roster_params_squads_off.tsv
+   txtdata/monsters/level_roster_params_squads_always.tsv
+   txtdata/monsters/level_roster_params_squads_unleashed.tsv
++  txtdata/monsters/level_roster_params_squad_leashed_typo.tsv
++  txtdata/monsters/level_roster_params_squad_leashed_outofrange.tsv
+ )
+ 
+ copy_files(
+   FILES ${devilutionx_fixtures}
+   SRC_PREFIX test/fixtures/
+   OUTPUT_DIR "${DEVILUTIONX_TEST_FIXTURES_OUTPUT_DIRECTORY}"
+   OUTPUT_VARIABLE DEVILUTIONX_OUTPUT_TEST_FIXTURES_FILES
+ )
+ 
+ add_custom_target(devilutionx_copied_fixtures DEPENDS ${DEVILUTIONX_OUTPUT_TEST_FIXTURES_FILES})
+diff --git a/test/fixtures/txtdata/monsters/level_roster_params_squad_leashed_outofrange.tsv b/test/fixtures/txtdata/monsters/level_roster_params_squad_leashed_outofrange.tsv
+new file mode 100644
+index 000000000..0fe1a413e
+--- /dev/null
++++ b/test/fixtures/txtdata/monsters/level_roster_params_squad_leashed_outofrange.tsv
+@@ -0,0 +1,3 @@
++level	max_image	tail_draw	class_floors	squad_chance	squad_size	squad_leashed
++1	6000	2		40	3	2
++2	6000	2		0	0	false
+diff --git a/test/fixtures/txtdata/monsters/level_roster_params_squad_leashed_typo.tsv b/test/fixtures/txtdata/monsters/level_roster_params_squad_leashed_typo.tsv
+new file mode 100644
+index 000000000..e3dac5f06
+--- /dev/null
++++ b/test/fixtures/txtdata/monsters/level_roster_params_squad_leashed_typo.tsv
+@@ -0,0 +1,3 @@
++level	max_image	tail_draw	class_floors	squad_chance	squad_size	squad_leashed
++1	6000	2		40	3	yes
++2	6000	2		0	0	false
+diff --git a/test/level_roster_baseline_test.cpp b/test/level_roster_baseline_test.cpp
+index 65f740680..ee8223cb3 100644
+--- a/test/level_roster_baseline_test.cpp
++++ b/test/level_roster_baseline_test.cpp
+@@ -230,23 +230,37 @@ struct SquadObservation {
+ 	/** Distinct ordinary leaders that ended up with >= 1 leashed minion. */
+ 	size_t leadersWithMinions = 0;
+ 	/** Squad leaders holding a leashed minion while reporting packSize == 0 (must be 0). */
+ 	size_t leadersWithZeroPackSize = 0;
+ 	/** Squad minions whose ai differs from their own type's ai (G2 violation; must be 0). */
+ 	size_t minionsWithOverwrittenAi = 0;
+ 	/** Squad minions further from their leader than the engine leash allows. */
+ 	size_t minionsOutsideLeash = 0;
+ 	/** Squad minions whose leader is NOT a core roster member of this level (must be 0). */
+ 	size_t minionsUnderNonCoreLeader = 0;
++	/**
++	 * Squad minions whose own type EQUALS their leader's type (must be 0).
++	 *
++	 * Spec 4.3.3 requires a squad to mix two DIFFERENT core types: a same-type squad is just the
++	 * legacy same-type group with leash semantics bolted on, i.e. exactly the degenerate outcome
++	 * the feature exists to avoid. PickCorePartnerTypeIndex enforces it with a single
++	 * `entry.type == leaderType` skip, and review measured that deleting that skip left all eight
++	 * squad cases green - so the rule is recorded per minion here and asserted below.
++	 */
++	size_t minionsSharingLeaderType = 0;
+ 	/** Leashed minions under a UNIQUE leader: the pre-existing boss-pack path. */
+ 	size_t uniquePackMinions = 0;
+ 	size_t placed = 0;
++	/** Squad minions the loop placed for a leader this level, leashed or not (sample size). */
++	size_t partnersPlaced = 0;
++	/** Largest leader-to-minion Chebyshev distance the loop recorded this level. */
++	size_t maxPartnerLeaderDistance = 0;
+ };
+ 
+ bool IsCoreMemberOfLevel(uint8_t level, _monster_id type)
+ {
+ 	const std::span<const LevelRosterEntry> roster = GetLevelRoster(level);
+ 	return std::any_of(roster.begin(), roster.end(), [type](const LevelRosterEntry &e) {
+ 		return e.type == type && e.role == LevelRosterRole::Core;
+ 	});
+ }
+ 
+@@ -263,20 +277,27 @@ bool IsCoreMemberOfLevel(uint8_t level, _monster_id type)
+ // The scatter loop's squad path is the only producer of leashed minions under an
+ // ORDINARY leader (G1's fix, task 1, changed how such a leader's death is
+ // handled precisely because nothing else creates one), so leader->isUnique() is
+ // the exact discriminator. SquadsAreAbsentWhenTheTableDisablesThem pins that
+ // claim: with squads off, the ordinary-leader count must be 0 while the unique
+ // count stays non-zero.
+ SquadObservation ObserveSquads(uint8_t level)
+ {
+ 	SquadObservation obs;
+ 	obs.placed = ActiveMonsterCount;
++	// The leader<->minion pairing of an UNLEASHED squad is not recoverable from the placed
++	// monsters (spec 4.3.4 applies no setLeader, so those minions keep leaderRelation None and
++	// Monster::NoLeader), so the adjacency figures come from the loop's own per-level counters
++	// instead of being re-derived here. Read straight after the run, like the roll counters -
++	// InitLevelMonsters() resets them per level.
++	obs.partnersPlaced = GetSquadRollStats().partnersPlaced;
++	obs.maxPartnerLeaderDistance = GetSquadRollStats().maxPartnerLeaderDistance;
+ 
+ 	std::array<bool, MaxMonsters> counted {};
+ 	for (size_t i = 0; i < ActiveMonsterCount; i++) {
+ 		const Monster &monster = Monsters[ActiveMonsters[i]];
+ 		if (monster.leaderRelation != LeaderRelation::Leashed)
+ 			continue;
+ 		const Monster *leader = monster.getLeader();
+ 		if (leader == nullptr)
+ 			continue;
+ 		if (leader->isUnique()) {
+@@ -292,20 +313,22 @@ SquadObservation ObserveSquads(uint8_t level)
+ 		// Direction(GenerateRnd(8))), not from the leader itself: the check is
+ 		// |xp - x1| < 4 with x1 = leader +/- 1. So a leashed minion may sit up to
+ 		// 4 tiles from the leader, and asserting < 4 here would fail on legitimate
+ 		// placements - the first run of this case failed that way on L9 seed 2.
+ 		const int dx = std::abs(monster.position.tile.x - leader->position.tile.x);
+ 		const int dy = std::abs(monster.position.tile.y - leader->position.tile.y);
+ 		if (dx > 4 || dy > 4)
+ 			obs.minionsOutsideLeash++;
+ 		if (!IsCoreMemberOfLevel(level, leader->type().type))
+ 			obs.minionsUnderNonCoreLeader++;
++		if (monster.type().type == leader->type().type)
++			obs.minionsSharingLeaderType++;
+ 		if (leader->packSize == 0)
+ 			obs.leadersWithZeroPackSize++;
+ 
+ 		const size_t leaderId = leader->getId();
+ 		if (leaderId < counted.size() && !counted[leaderId]) {
+ 			counted[leaderId] = true;
+ 			obs.leadersWithMinions++;
+ 		}
+ 	}
+ 	return obs;
+@@ -588,23 +611,28 @@ TEST_F(SquadPlacementTest, SquadFormsAroundACoreLeader)
+ 		for (uint32_t seed = 0; seed < 10; seed++) {
+ 			const SquadObservation obs = RunLevel(level, 21000 + seed);
+ 			totalLeadersWithMinions += obs.leadersWithMinions;
+ 			totalLeashedMinions += obs.leashedMinions;
+ 
+ 			// (2)/(3) and the review's checks 1-2, asserted per sample so a
+ 			// violation names the level and seed rather than a global total.
+ 			EXPECT_EQ(obs.leadersWithZeroPackSize, 0u)
+ 			    << "level " << static_cast<int>(level) << " seed " << seed
+ 			    << ": a leader holding a leashed minion must report packSize >= 1";
++			// G2's own named case is SquadMinionsKeepOwnAi below (spec 6, acceptance
++			// row 6); kept here as well so a failure of this case reports it too.
+ 			EXPECT_EQ(obs.minionsWithOverwrittenAi, 0u)
+ 			    << "level " << static_cast<int>(level) << " seed " << seed
+ 			    << ": G2 requires squad minions to keep their own AI";
++			EXPECT_EQ(obs.minionsSharingLeaderType, 0u)
++			    << "level " << static_cast<int>(level) << " seed " << seed
++			    << ": spec 4.3.3 requires a squad to mix two DIFFERENT core types";
+ 			EXPECT_EQ(obs.minionsOutsideLeash, 0u)
+ 			    << "level " << static_cast<int>(level) << " seed " << seed
+ 			    << ": a leashed minion must sit within the engine's 4-tile leash";
+ 			EXPECT_EQ(obs.minionsUnderNonCoreLeader, 0u)
+ 			    << "level " << static_cast<int>(level) << " seed " << seed
+ 			    << ": squads may only form around a CORE roster member of that level";
+ 			// totalmonsters is a monster.cpp internal (not exported), so this
+ 			// asserts the engine-wide cap InitMonsters itself clamps
+ 			// totalmonsters to. Placing past totalmonsters would normally
+ 			// also breach this bound, since totalmonsters <= MaxMonsters - 10.
+@@ -614,21 +642,63 @@ TEST_F(SquadPlacementTest, SquadFormsAroundACoreLeader)
+ 		}
+ 	}
+ 
+ 	// (1) squads must actually happen. This is the only non-A/B floor in the
+ 	// case and it is deliberately the weakest possible one (> 0 over 40 runs at
+ 	// squad_chance 100): the quantitative per-level rate lives in
+ 	// SquadRateIsMeasuredPerLevel, and a stronger absolute floor here would be a
+ 	// bet on placement luck.
+ 	EXPECT_GT(totalLeadersWithMinions, 0u)
+ 	    << "L9-12 at squad_chance 100 produced no leader with a leashed minion";
+-	EXPECT_GT(totalLeashedMinions, 0u);
++	// Also the sample size behind the per-sample "count of violations == 0" assertions above
++	// (own AI, distinct partner type, leash, core leadership): all of them are vacuous on a run
++	// that placed no squad minion.
++	EXPECT_GT(totalLeashedMinions, 0u)
++	    << "no squad minion was placed at all, so the per-sample violation counts above"
++	    << " measured nothing";
++}
++
++// Spec 6, acceptance row 6 names this case: G2 requires a squad minion to keep its OWN AI, so
++// PlaceGroup must restore the `ai` that setLeader() overwrites (MinionOptions::inheritAi false).
++// It lives as its own case rather than an inline assertion inside
++// SquadFormsAroundACoreLeader because the acceptance row points at a case name, and because a
++// failure of the AI rule should be reported on its own rather than mixed into a case that also
++// checks packSize, leashing, core leadership and the placement cap.
++//
++// The sample size is asserted too: this is a "count of violations == 0" shape, which a run that
++// placed no squad minion at all would satisfy while measuring nothing.
++TEST_F(SquadPlacementTest, SquadMinionsKeepOwnAi)
++{
++	if (missingMpqAssets_)
++		GTEST_SKIP() << "MPQ assets not found - skipping test";
++	if (missingRetailTrn_)
++		GTEST_SKIP() << "retail/HF TRN (monsters\\monsters\\genrl.trn) not available - skipping test";
++
++	LoadSquadParams("txtdata\\monsters\\level_roster_params_squads_always.tsv");
++
++	size_t minions = 0;
++	size_t overwritten = 0;
++	for (uint8_t level = 9; level <= 12; level++) {
++		for (uint32_t seed = 0; seed < 10; seed++) {
++			const SquadObservation obs = RunLevel(level, 21000 + seed);
++			minions += obs.leashedMinions;
++			overwritten += obs.minionsWithOverwrittenAi;
++			EXPECT_EQ(obs.minionsWithOverwrittenAi, 0u)
++			    << "level " << static_cast<int>(level) << " seed " << seed
++			    << ": G2 requires a squad minion to keep its own type's AI, but setLeader's"
++			    << " leader AI survived on " << obs.minionsWithOverwrittenAi << " minion(s)";
++		}
++	}
++	EXPECT_EQ(overwritten, 0u);
++	EXPECT_GT(minions, 0u)
++	    << "no squad minion was placed over L9-12 x 10 seeds, so the AI assertions above"
++	    << " measured nothing";
+ }
+ 
+ TEST_F(SquadPlacementTest, SquadsAreAbsentWhenTheTableDisablesThem)
+ {
+ 	if (missingMpqAssets_)
+ 		GTEST_SKIP() << "MPQ assets not found - skipping test";
+ 	if (missingRetailTrn_)
+ 		GTEST_SKIP() << "retail/HF TRN (monsters\\monsters\\genrl.trn) not available - skipping test";
+ 
+ 	// The A side of the A/B: identical levels and seeds to
+@@ -664,30 +734,86 @@ TEST_F(SquadPlacementTest, SquadsAreAbsentWhenTheTableDisablesThem)
+ 
+ TEST_F(SquadPlacementTest, UnleashedFallbackPlacesNeighboursWithoutLeashing)
+ {
+ 	if (missingMpqAssets_)
+ 		GTEST_SKIP() << "MPQ assets not found - skipping test";
+ 	if (missingRetailTrn_)
+ 		GTEST_SKIP() << "retail/HF TRN (monsters\\monsters\\genrl.trn) not available - skipping test";
+ 
+ 	// Spec 4.3.4 fallback: squad_leashed = 0 keeps passing the leader to
+ 	// PlaceGroup (so minions are still seeded from the leader's neighbourhood)
+-	// but applies no leash, no setLeader and no packSize. The observable
+-	// consequence is that this configuration produces NO leashed minion at all,
+-	// while the leashed configuration (same seeds, same levels) does - a
+-	// same-seed A/B on the one column that differs.
++	// but applies no leash, no setLeader and no packSize. BOTH halves of that are
++	// asserted, because only the first is a property of the fallback's own code:
++	//
++	//   (a) no leashed minion at all - a same-seed A/B on the one column that differs;
++	//   (b) the minions are still ADJACENT to their leader, i.e. the leader really is
++	//       still passed to PlaceGroup.
++	//
++	// (b) is the fallback's core guarantee and used to be unguarded: review changed
++	// the `&leader` argument to nullptr and every case stayed green, because an
++	// unleashed minion carries leaderRelation None and no back-pointer, so this
++	// suite could not even see it. That is why the pairing is measured inside the
++	// loop (SquadRollCounters::maxPartnerLeaderDistance) and read back here.
++	//
++	// Deriving the bound. PlaceGroup with a leader and NO leash gives:
++	//   * the anchor is leader->position.tile + Direction(GenerateRnd(8)), so the first
++	//     candidate tile is always a NEIGHBOUR of the leader - Chebyshev 1, since
++	//     Displacement::fromDirection has |dx| <= 1 and |dy| <= 1;
++	//   * each rejected candidate walks one Displacement(Direction(...)) step, moving x and y
++	//     by at most 1 each (the `yp += ...deltaX` bug in that loop does not widen this -
++	//     deltaX is also in [-1, 1]);
++	//   * the inner loop abandons a try after try2 == 100 rejections.
++	// So the analytic ceiling is 1 + 100 = 101, and that number is USELESS as a guard: the
++	// scatter area is [16, 96), so any two tiles on the map are within 80 of each other and 101
++	// can never fail - not even for a group placed with no leader at all, which is precisely the
++	// mutation this case has to catch. The bound must therefore sit below what the leaderless
++	// anchor (GenerateRnd(80) + 16, uniform over the whole map) produces.
++	//
++	// Both sides were measured (see the fix report):
++	//   * as shipped, over L1-15 x 40 seeds / 25204 placed minions: max 17;
++	//   * with `&leader` replaced by nullptr, same L9-12 x 10 seeds as below: 66.
++	// 32 is picked out of that gap: ~1.9x the widest real placement observed anywhere, and less
++	// than half the leaderless figure. It tolerates placement luck on levels this case does not
++	// sweep while still failing the moment the anchor stops being a neighbour of the leader. It
++	// is not a spec constant and means nothing beyond that separation.
++	//
++	// Nothing tighter is available honestly: the walk is 100 unbounded steps, so no smaller
++	// number is provable from the code alone, and the two measurements are what make 32 a
++	// defensible separator rather than a guess. The measured maximum is printed unconditionally
++	// so drift toward the bound is visible before it becomes a failure.
++	constexpr size_t kUnleashedAdjacencyBound = 32;
++
+ 	LoadSquadParams("txtdata\\monsters\\level_roster_params_squads_unleashed.tsv");
+ 	size_t unleashedLeashedMinions = 0;
++	size_t unleashedPartners = 0;
++	size_t unleashedMaxDistance = 0;
+ 	for (uint8_t level = 9; level <= 12; level++) {
+-		for (uint32_t seed = 0; seed < 10; seed++)
+-			unleashedLeashedMinions += RunLevel(level, 21000 + seed).leashedMinions;
++		for (uint32_t seed = 0; seed < 10; seed++) {
++			const SquadObservation obs = RunLevel(level, 21000 + seed);
++			unleashedLeashedMinions += obs.leashedMinions;
++			unleashedPartners += obs.partnersPlaced;
++			unleashedMaxDistance = std::max(unleashedMaxDistance, obs.maxPartnerLeaderDistance);
++			EXPECT_LE(obs.maxPartnerLeaderDistance, kUnleashedAdjacencyBound)
++			    << "level " << static_cast<int>(level) << " seed " << seed
++			    << ": spec 4.3.4 keeps passing the leader to PlaceGroup, so an unleashed"
++			    << " minion must still be seeded from the leader's neighbourhood";
++		}
+ 	}
++	std::cout << "[ SQUADFALLBACK ] unleashed partners " << unleashedPartners
++	          << " max leader distance " << unleashedMaxDistance
++	          << " bound " << kUnleashedAdjacencyBound << std::endl;
++	// Without a sample the distance assertion above is vacuous: an unleashed squad
++	// places no leashed minion by construction, so partnersPlaced is the only
++	// evidence that the fallback ran at all.
++	EXPECT_GT(unleashedPartners, 0u)
++	    << "the unleashed runs placed no squad minion at all, so the adjacency assertions"
++	    << " above measured nothing";
+ 
+ 	LoadSquadParams("txtdata\\monsters\\level_roster_params_squads_always.tsv");
+ 	size_t leashedLeashedMinions = 0;
+ 	for (uint8_t level = 9; level <= 12; level++) {
+ 		for (uint32_t seed = 0; seed < 10; seed++)
+ 			leashedLeashedMinions += RunLevel(level, 21000 + seed).leashedMinions;
+ 	}
+ 
+ 	EXPECT_EQ(unleashedLeashedMinions, 0u)
+ 	    << "squad_leashed 0 must not leash minions (no setLeader / packSize / regroup)";
+@@ -816,20 +942,23 @@ TEST_F(SquadPlacementTest, ShippedSquadChanceRealisesSquadsOnEveryLevel)
+ 			noPartner += counters.noPartnerAvailable;
+ 			realised += obs.leadersWithMinions;
+ 			minions += obs.leashedMinions;
+ 
+ 			EXPECT_EQ(obs.leadersWithZeroPackSize, 0u)
+ 			    << "level " << static_cast<int>(level) << " seed " << seed;
+ 			EXPECT_EQ(obs.minionsWithOverwrittenAi, 0u)
+ 			    << "level " << static_cast<int>(level) << " seed " << seed;
+ 			EXPECT_EQ(obs.minionsUnderNonCoreLeader, 0u)
+ 			    << "level " << static_cast<int>(level) << " seed " << seed;
++			EXPECT_EQ(obs.minionsSharingLeaderType, 0u)
++			    << "level " << static_cast<int>(level) << " seed " << seed
++			    << ": spec 4.3.3 requires a squad to mix two DIFFERENT core types";
+ 		}
+ 		const double rollRate = eligible == 0 ? 0.0 : static_cast<double>(rolls) / static_cast<double>(eligible);
+ 		const double realisation = rolls == 0 ? 0.0 : static_cast<double>(realised) / static_cast<double>(rolls);
+ 		std::cout << "[ SHIPPEDSQUAD ] level " << static_cast<int>(level) << " eligible " << eligible
+ 		          << " rolls " << rolls << " rollRate " << rollRate << " realised " << realised
+ 		          << " realisation " << realisation << " minions " << minions
+ 		          << " lost(leader/partner) " << leaderFailures << "/" << noPartner << std::endl;
+ 		report += StrCat("| ", level, " | ", eligible, " | ", rolls, " | ");
+ 		report += StrCat(static_cast<int>(rollRate * 1000.0 + 0.5), "/1000 | ", realised, " | ");
+ 		report += StrCat(static_cast<int>(realisation * 1000.0 + 0.5), "/1000 | ", minions, " | ");
+diff --git a/test/level_roster_test.cpp b/test/level_roster_test.cpp
+index 92ec169b3..bb3d9fb13 100644
+--- a/test/level_roster_test.cpp
++++ b/test/level_roster_test.cpp
+@@ -525,20 +525,51 @@ TEST_F(LevelRosterFixtureLoadTest, ParamsCarrySquadColumns)
+ 	EXPECT_EQ(params1->maxImage, 6000);
+ 	EXPECT_EQ(params1->tailDraw, 2);
+ 
+ 	const LevelRosterParams *params2 = GetLevelRosterParams(2);
+ 	ASSERT_NE(params2, nullptr);
+ 	EXPECT_EQ(params2->squadChance, 0);
+ 	EXPECT_EQ(params2->squadSize, 0);
+ 	EXPECT_FALSE(params2->squadLeashed);
+ }
+ 
++// The squad_leashed parser accepts true/false and 1/0 and REJECTS everything else, on the
++// grounds that an unrecognised spelling is a mis-typed column rather than a falsy value: a
++// silent default would turn a typo into "squads are unleashed on this level", i.e. a behaviour
++// change nothing reports. That claim had no case pinning it, so a later "just default it"
++// simplification would have gone unnoticed. Both cases below feed a table that is otherwise
++// completely valid, so the fatal can only come from this column.
++//
++// Death-test shape follows the ParseClassFloors cases above: the loader reaches the fatal path
++// through RecordReader::failOnError -> DataFile::reportFatalFieldError -> app_fatal, which exits
++// with status 1. The matched text is the parser's OWN message ("Invalid squad_leashed value"),
++// not just the generic "Invalid value ... for squad_leashed" that reportFatalFieldError prints
++// for any rejected field, so the case pins this parser rather than merely "the load failed".
++TEST_F(LevelRosterFixtureLoadTest, LoadingRejectsANonBooleanSquadLeashedSpelling)
++{
++	// "yes" is a plausible boolean spelling that the column deliberately does not accept.
++	EXPECT_EXIT(LoadLevelRosterFromFiles(
++	                "txtdata\\monsters\\level_rosters_interleaved.tsv",
++	                "txtdata\\monsters\\level_roster_params_squad_leashed_typo.tsv"),
++	    ::testing::ExitedWithCode(1), "Invalid squad_leashed value");
++}
++
++TEST_F(LevelRosterFixtureLoadTest, LoadingRejectsAnOutOfRangeNumericSquadLeashed)
++{
++	// 1/0 are accepted because the params table is numeric elsewhere; that must not slide into
++	// "any integer is truthy", which is how a mis-shifted column would read.
++	EXPECT_EXIT(LoadLevelRosterFromFiles(
++	                "txtdata\\monsters\\level_rosters_interleaved.tsv",
++	                "txtdata\\monsters\\level_roster_params_squad_leashed_outofrange.tsv"),
++	    ::testing::ExitedWithCode(1), "Invalid squad_leashed value");
++}
++
+ TEST_F(LevelRosterShippedLoadTest, LoadsTheShippedRosterAndValidatesIt)
+ {
+ 	LoadLevelRoster();
+ 
+ 	// Real values from the shipped tables (assets/txtdata/monsters/level_roster_params.tsv row
+ 	// "9	16000	3	RangedKite=1"): assert the parsed numbers rather than just non-null/non-empty,
+ 	// so swapping the maxImage/tailDraw columns (both valid positive ints) would be caught.
+ 	const LevelRosterParams *params9 = GetLevelRosterParams(9);
+ 	ASSERT_NE(params9, nullptr);
+ 	EXPECT_EQ(params9->maxImage, 16000);

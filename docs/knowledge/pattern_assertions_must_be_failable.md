@@ -4,9 +4,9 @@ description: 本仓最常被独立评审抓到的不是"实现写错"，而是"�
 type: pattern
 created: 2026-09-15
 sources:
-  - .superpowers/sdd/2026-09-15-level-rosters-phase-a/progress.md（R22/R29/R38 等裁决）
-  - .superpowers/sdd/2026-09-15-level-rosters-phase-b/progress.md（Task 2 评审 S1/I3）
-  - .superpowers/reviews/ 与 .superpowers/sdd/**/task-*-review*.md（四次抓到的原始证据）
+  - docs/superpowers/ledgers/2026-09-15-level-rosters-phase-a/progress.md（R22/R29/R38 等裁决）
+  - docs/superpowers/ledgers/2026-09-15-level-rosters-phase-b/progress.md（Task 2 评审 S1/I3）
+  - .superpowers/reviews/ 与 docs/superpowers/ledgers/**/task-*-review*.md（四次抓到的原始证据）
 ---
 
 **规则**：每写一条守卫/断言，必须能**指名**"什么样的改动会让它变红"。指不出来，它就不是守卫，只是装饰。最便宜的证明方式：**临时把生产行为改坏 → 该用例必须变红 → 恢复 → 转绿**，把两次实跑都写进报告。（本会话已用此法四次，每次都真的抓到了东西。）

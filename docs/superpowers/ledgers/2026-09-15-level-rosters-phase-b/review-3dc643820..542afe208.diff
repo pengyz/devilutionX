@@ -1,0 +1,1119 @@
+# Review package: 3dc643820..HEAD
+
+## Commits
+542afe208 fix(tools): build the level_roster test targets in the full gate
+a4d0eebd0 test(rosters): make the squad leash, size and A/B fixture guards falsifiable
+00ad9173f test(monster): cover separated-minion release and the buffed-minion predicate
+a54666156 fix(monster): release separated minions and colour only truly buffed ones
+
+## Files changed
+ Source/monster.cpp                                 |  49 +++-
+ Source/monster.h                                   |  22 ++
+ Source/qol/monhealthbar.cpp                        |   6 +-
+ docs/knowledge/MEMORY.md                           |   2 +
+ .../gotcha_death_path_tests_need_loadspelldata.md  |  25 ++
+ ...ha_run_tests_target_list_misses_new_binaries.md |  24 ++
+ eval/cases/rng/level-rosters.yaml                  |  21 ++
+ eval/cases/rng/sampling-anti-monopoly.yaml         |  28 ++-
+ .../monsters/level_roster_params_squads_off.tsv    |  30 +--
+ test/level_roster_baseline_test.cpp                | 108 ++++++++-
+ test/sampling_behavior_test.cpp                    | 254 +++++++++++++++++++++
+ tools/run_tests.py                                 |   2 +-
+ 12 files changed, 530 insertions(+), 41 deletions(-)
+
+## Diff
+diff --git a/Source/monster.cpp b/Source/monster.cpp
+index b0d991946..a8e069518 100644
+--- a/Source/monster.cpp
++++ b/Source/monster.cpp
+@@ -1399,38 +1399,62 @@ bool MonsterGotHit(Monster &monster)
+ 	if (monster.animInfo.isLastFrame()) {
+ 		M_StartStand(monster, monster.direction);
+ 
+ 		return true;
+ 	}
+ 
+ 	return false;
+ }
+ 
+ /**
+- * @brief Breaks the leashed relation between @p leader and every minion following it.
++ * @brief Breaks the relation between @p leader and every minion that still references it.
++ *
++ * All THREE LeaderRelation states are handled here, and the split matters (RB26):
++ *
++ *   - None: nothing to break. Note the `leader` index can still be set in this state
++ *     (setLeader(nullptr) leaves it behind on purpose, see below), so the state - not
++ *     the index - is what decides whether a minion is still related to anyone.
++ *   - Leashed: the minion is following @p leader right now.
++ *   - Separated: GroupUnity puts a minion here as soon as the line of sight to its
++ *     leader is blocked, and KEEPS the `leader` index so the minion can rejoin the
++ *     pack once it gets close again. This is ordinary play - luring a leader more than
++ *     4 tiles away separates its minions - so filtering on Leashed alone skipped
++ *     exactly those minions: relation stayed Separated and the index stayed behind.
++ *     GroupUnity only refuses to run on None, so after an ORDINARY leader's slot was
++ *     recycled the next tick dereferenced that index into an unrelated live monster,
++ *     re-leashed the minion to it and let DirOK/FollowTheLeader pin the minion to that
++ *     stranger. Hence the filter below is `!= None`, not `== Leashed`.
++ *
++ * `packSize` is deliberately not adjusted for a Separated minion: GroupUnity already
++ * decremented the leader's packSize at the moment it separated the minion, and the
++ * leader is dying here anyway (that is ShrinkLeaderPacksize's job, for the dying
++ * monster's OWN leader).
+  *
+  * @param clearReference also reset the minion's `leader` index to Monster::NoLeader.
+  *        setLeader(nullptr) deliberately keeps that index so monhealthbar can colour a
+- *        unique's buffed minions, which is safe only because a unique's slot is never
+- *        recycled while the level lives. An ORDINARY leader's slot IS recycled
++ *        unique's buffed minions (IsBuffedMinion reads it), which is safe only because
++ *        a unique's slot is never recycled while the level lives - so the UNIQUE path
++ *        must keep behaving exactly this way. An ORDINARY leader's slot IS recycled
+  *        (DeleteMonster's swap + a later AddMonster), so keeping its index would leave
+  *        the minion pointing at an unrelated live monster (G1, spec 4.3.1).
+  */
+ void ReleaseMinions(const Monster &leader, bool clearReference = false)
+ {
+ 	for (size_t i = 0; i < ActiveMonsterCount; i++) {
+ 		Monster &minion = Monsters[ActiveMonsters[i]];
+-		if (minion.leaderRelation == LeaderRelation::Leashed && minion.getLeader() == &leader) {
+-			minion.setLeader(nullptr);
+-			if (clearReference)
+-				minion.leader = Monster::NoLeader;
+-		}
++		if (minion.leaderRelation == LeaderRelation::None)
++			continue;
++		if (minion.getLeader() != &leader)
++			continue;
++		minion.setLeader(nullptr);
++		if (clearReference)
++			minion.leader = Monster::NoLeader;
+ 	}
+ }
+ 
+ void ShrinkLeaderPacksize(const Monster &monster)
+ {
+ 	if (monster.leaderRelation == LeaderRelation::Leashed) {
+ 		monster.getLeader()->packSize--;
+ 	}
+ }
+ 
+@@ -4980,20 +5004,29 @@ Monster *FindGolemForPlayer(const Player &player)
+ }
+ 
+ bool IsTileAvailable(const Monster &monster, Point position)
+ {
+ 	if (!IsTileAvailable(position))
+ 		return false;
+ 
+ 	return IsTileSafe(monster, position);
+ }
+ 
++bool IsBuffedMinion(const Monster &minion)
++{
++	// See the doc comment in monster.h: the question is "did the leader's pack placement
++	// toughen this minion", which today is answered by the leader being unique - NOT by
++	// the mere presence of a leader index (squad minions have one and are unbuffed).
++	const Monster *leader = minion.getLeader();
++	return leader != nullptr && leader->isUnique();
++}
++
+ bool IsSkel(_monster_id mt)
+ {
+ 	return c_find(SkeletonTypes, mt) != SkeletonTypes.end();
+ }
+ 
+ bool IsGoat(_monster_id mt)
+ {
+ 	return IsAnyOf(mt,
+ 	    MT_NGOATMC, MT_BGOATMC, MT_RGOATMC, MT_GGOATMC,
+ 	    MT_NGOATBW, MT_BGOATBW, MT_RGOATBW, MT_GGOATBW);
+diff --git a/Source/monster.h b/Source/monster.h
+index b4fae0a7d..f9976385c 100644
+--- a/Source/monster.h
++++ b/Source/monster.h
+@@ -662,20 +662,42 @@ void PlayEffect(Monster &monster, MonsterSound mode);
+ void MissToMonst(Missile &missile, Point position);
+ 
+ Monster *FindMonsterAtPosition(Point position, bool ignoreMovingMonsters = false);
+ Monster *FindUniqueMonster(UniqueMonsterType monsterType);
+ Monster *FindGolemForPlayer(const Player &player);
+ 
+ /**
+  * @brief Check that the given tile is available to the monster
+  */
+ bool IsTileAvailable(const Monster &monster, Point position);
++/**
++ * @brief Is @p minion a minion that was actually BUFFED by its leader's pack placement?
++ *
++ * "Buffed" means PlaceGroup applied MinionOptions::tough to it (HP x2). That is NOT the
++ * same question as "does this monster have a leader index" (RB27):
++ *
++ *   - `leader != Monster::NoLeader` only says a leader was assigned at some point. The
++ *     index is deliberately retained after setLeader(nullptr) and while a minion is
++ *     Separated, and - since phase B - squad minions get a leader with
++ *     MinionOptions{ .tough = false }, i.e. no numeric change at all. Colouring on the
++ *     index therefore announces "strengthened" for a squad minion that is stock, which
++ *     contradicts the squad feature's "composition only, no numbers" promise.
++ *   - Today the only path that passes the default (toughening) MinionOptions is the
++ *     unique boss pack (PrepareUniqueMonst -> PlaceGroup with MinionOptions{}), so a
++ *     unique leader is exactly the buffed case.
++ *
++ * IMPORTANT: this is a proxy for "the leader's pack placement toughened me", tied to the
++ * current callers of PlaceGroup. If any NON-unique leader ever starts placing minions
++ * with opts.tough = true, this predicate must be re-evaluated (and probably replaced by
++ * a real per-minion flag) rather than silently kept - it would then under-report.
++ */
++[[nodiscard]] bool IsBuffedMinion(const Monster &minion);
+ bool IsSkel(_monster_id mt);
+ bool IsGoat(_monster_id mt);
+ /**
+  * @brief Reveals a monster that was hiding in a container
+  * @param monster instance returned from a previous call to PreSpawnSkeleton
+  * @param position tile to try spawn the monster at, neighboring tiles will be used as a fallback
+  */
+ void ActivateSkeleton(Monster &monster, Point position);
+ Monster *PreSpawnSkeleton();
+ void TalktoMonster(Player &player, Monster &monster);
+diff --git a/Source/qol/monhealthbar.cpp b/Source/qol/monhealthbar.cpp
+index 74f7a841a..6905c061f 100644
+--- a/Source/qol/monhealthbar.cpp
++++ b/Source/qol/monhealthbar.cpp
+@@ -7,20 +7,21 @@
+ 
+ #include <cstdint>
+ 
+ #include "control/control.hpp"
+ #include "cursor.h"
+ #include "engine/clx_sprite.hpp"
+ #include "engine/load_clx.hpp"
+ #include "engine/render/clx_render.hpp"
+ #include "engine/render/primitive_render.hpp"
+ #include "game_mode.hpp"
++#include "monster.h"
+ #include "options.h"
+ #include "utils/language.h"
+ #include "utils/str_cat.hpp"
+ 
+ namespace devilution {
+ namespace {
+ 
+ OptionalOwnedClxSpriteList healthBox;
+ OptionalOwnedClxSpriteList resistance;
+ OptionalOwnedClxSpriteList health;
+@@ -139,21 +140,24 @@ void DrawMonsterHealthBar(const Surface &out)
+ 		const int borderHeight = height - (border * 2) - 2;
+ 		UnsafeDrawVerticalLine(out, { position.x + border, position.y + border + 1 }, borderHeight, borderColor);
+ 		UnsafeDrawVerticalLine(out, { position.x + width - border - 1, position.y + border + 1 }, borderHeight, borderColor);
+ 	}
+ 
+ 	UiFlags style = UiFlags::AlignCenter | UiFlags::VerticalCenter;
+ 	DrawString(out, monster.name(), { position + Displacement { -1, 1 }, { width, height } },
+ 	    { .flags = style | UiFlags::ColorBlack });
+ 	if (monster.isUnique())
+ 		style |= UiFlags::ColorWhitegold;
+-	else if (monster.leader != Monster::NoLeader)
++	else if (IsBuffedMinion(monster))
++		// Blue means "this minion was strengthened by its leader" (HP x2). RB27: the old
++		// test was `leader != Monster::NoLeader`, which also caught phase B squad minions -
++		// placed with MinionOptions{ .tough = false }, i.e. not strengthened at all.
+ 		style |= UiFlags::ColorBlue;
+ 	else
+ 		style |= UiFlags::ColorWhite;
+ 	DrawString(out, monster.name(), { position, { width, height } },
+ 	    { .flags = style });
+ 
+ 	if (multiplier > 0)
+ 		DrawString(out, StrCat("x", multiplier), { position, { width - 2, height } },
+ 		    { .flags = UiFlags::ColorWhite | UiFlags::AlignRight | UiFlags::VerticalCenter });
+ 	if (monster.isUnique() || MonsterKillCounts[monster.type().type] >= 15) {
+diff --git a/docs/knowledge/MEMORY.md b/docs/knowledge/MEMORY.md
+index eb0a2a2d4..286e60dea 100644
+--- a/docs/knowledge/MEMORY.md
++++ b/docs/knowledge/MEMORY.md
+@@ -2,25 +2,27 @@
+ 
+ ## Architecture
+ <!-- 设计决策、模块边界、为什么选 A 不选 B -->
+ 
+ ## Gotchas
+ - [`gotcha_unique_boss_packs_are_also_leashed.md`](gotcha_unique_boss_packs_are_also_leashed.md) — unique boss pack 也带拴系随从（默认 MinionOptions），度量小队必须用 `isUnique()` 区分，并断言 unique 随从数 >0 防 A/B 空转
+ - [`gotcha_placegroup_leash_is_measured_from_a_neighbour.md`](gotcha_placegroup_leash_is_measured_from_a_neighbour.md) — `PlaceGroup` 的 4 格拴系从 **leader 的邻格**量起，真实边界 >4；断言邻近性别照抄 4
+ - [`reference_ci_workflows_on_feature_branches.md`](reference_ci_workflows_on_feature_branches.md) — 推 `feature/**` 只触发 `better-d1-ci.yml`；**格式/tidy 检查仅在 master/PR**（"CI 绿"≠"格式合规"）；`docs/**` 提交不触发 CI
+ - [`gotcha_tsv_edits_need_mpq_rebuild.md`](gotcha_tsv_edits_need_mpq_rebuild.md) — 改 `assets/txtdata/**.tsv` 后必须先 `ninja devilutionx_mpq`，否则测试量到旧表
+ - [`decision_run_tests_test_builds_its_target.md`](decision_run_tests_test_builds_its_target.md) — `run_tests.py --test` **现在会先构建该目标**（历史坑与老版本注意事项）；改 TSV 仍需 `ninja devilutionx_mpq`
++- [`gotcha_run_tests_target_list_misses_new_binaries.md`](gotcha_run_tests_target_list_misses_new_binaries.md) — 全量门禁只构建 `run_tests.py` 手抄的 `TEST_TARGETS`，ctest 却跑 `Tests.cmake` 全部用例；漏登记的二进制会被当**陈旧产物**执行（实例：两个 level_roster 目标；指纹是产物 mtime 早于源码）
+ - [`gotcha_max_image_bump_exposes_drlg_oob.md`](gotcha_max_image_bump_exposes_drlg_oob.md) — 抬高 `max_image` 会曝光 `drlg_l2.cpp:2072` 的**既存**越界（改变生成期分支覆盖），先判"曝光 vs 引入"再决定回退
+ - [`gotcha_level_state_when_bypassing_loadgamelevel.md`](gotcha_level_state_when_bypassing_loadgamelevel.md) — 测试里自行建关必须补齐 SOLData / tile 元数据 / trigs；症状指纹：**所有层放置数完全相同**
+ <!-- 平台坑、反直觉行为（Diablo 引擎/存档/渲染/Lua 等） -->
+ 
+ - [SpellsData 位置索引 — 删行即错位（已修复）](gotcha_spelldata_positional_index.md) — 曾按行序 emplace 删行即错位；现已改名称键控加载，size 保持 max-enum+1 语义
++- [`gotcha_death_path_tests_need_loadspelldata.md`](gotcha_death_path_tests_need_loadspelldata.md) — 夹具走死亡/掉落路径必须先 `LoadSpellData()`；空 `SpellsData` 让 `GetBookSpell` 死循环 → `items.cpp:648` 整型溢出，**症状是挂住不是失败**，别靠换种子绕开
+ - [光照双重计数 bug](gotcha_light_double_count.md) — 撤销前 `10*mult + (_pLightRad-10)` 装备加成叠加两次；正确是倍率作用于总量 `trunc(_pLightRad*mult)`（截断非四舍五入，见规格 §4.2）
+ - [存档/网络 bId 位覆写](gotcha_save_bid_overwrite.md) — 堆叠数存 `bId` 位域曾覆写物品品质与鉴定标志；存档须存 `count-1` 保持上游逐字节兼容
+ - [SaveItem 追加/LoadItem 条件读不对称](gotcha_save_stack_append.md) — 无条件追加 `_iStackCount` 而主存档路径从不设标志 → 偏移累积越界写；改存对齐填充字节
+ - [Infravision 是渲染级法术](gotcha_infra_render_only.md) — `_pInfraFlag` 只设渲染标志不改 tile Lit 位；暗处怪物可见但不可选。修复须新函数 `CanTarget` 而非改 `IsTileLit`（后者同时驱动渲染/自动地图）
+ - [IsTileLit 三用途耦合](gotcha_istilelit_gates.md) — 选择(cursor/track)、渲染(scrollrt)、自动地图(Explored) 共用；改它破坏三者。目标选择修复须独立函数
+ - [WitchItemOk 在匿名命名空间](gotcha_witchitemok_anon_ns.md) — `items.cpp:2009` 位于匿名 ns，测试不可直接调；测行为结果而非函数本身
+ - [网络物品更新要网格索引非 InvList 索引](gotcha_inv_grid_vs_list_index.md) — `NetSendCmdChInvItem` 期望网格索引；传 InvList 索引会 OOB 读 + 多人损坏。用 `NetSyncInvItem` 反查
+ - [多计数堆叠合并会静默丢物品](gotcha_multi_count_stack_merge.md) — `TryStackInInventory` 曾 +1 合并，叠 3 放到叠 1 变 2；多计数应开新格整放
+ - [怪物等级对战斗压力无贡献（GetMinHit 钳制）](gotcha_monster_level_no_combat_pressure.md) — `hit = 2×(怪级−玩家级) + 30 − AC` 被 `GetMinHit()` 钳制，地狱层 AC≥16 角色悬崖项完全无效；降怪级是错误杠杆（只影响掉落/XP/被钳制命中）
+ - [供应商谓词改动导致种子物品生成漂移](gotcha_vendor_predicate_seed_drift.md) — 改 `WitchItemOk`/`RndVendorItem` 过滤谓词 = 改 RNG 重试路径 = 同种子生成不同物品；pack 测试数组/golden SHA/demo 回放全部静默过期（实例：f474a64c0 开关移除后 War Staff→Book of Flame Wave）
+diff --git a/docs/knowledge/gotcha_death_path_tests_need_loadspelldata.md b/docs/knowledge/gotcha_death_path_tests_need_loadspelldata.md
+new file mode 100644
+index 000000000..a97cdcf9b
+--- /dev/null
++++ b/docs/knowledge/gotcha_death_path_tests_need_loadspelldata.md
+@@ -0,0 +1,25 @@
++---
++name: 测试走怪物死亡/掉落路径必须先 LoadSpellData — 否则 GetBookSpell 死循环 + 整型溢出
++description: SpellsData 为空时 GenerateRnd(0)+1 使 rv==1 永不归零，环绕判据 s == SpellsData.size() 也永不命中，GetBookSpell 无限自增 s 直至 items.cpp:648 signed overflow；夹具须按 diablo.cpp 顺序先 LoadSpellData 再 LoadItemData
++type: gotcha
++created: 2026-09-17
++sources:
++  - Source/items.cpp（GetBookSpell，630-660）
++  - Source/diablo.cpp:2809（LoadSpellData 在 LoadItemData 之前）
++  - test/sampling_behavior_test.cpp（PrepareDeathPathPrerequisites）
++---
++
++在测试里驱动怪物**真实死亡路径**（`MonsterDeath` → 掉落）时，只 `LoadItemData()` 是不够的：掉落可以抽到**书**，`GetBookSpell()` 会读 `SpellsData`。若夹具没调 `LoadSpellData()`，`SpellsData` 为空，于是：
++
++- `int rv = GenerateRnd(static_cast<int32_t>(SpellsData.size())) + 1;` → `GenerateRnd(0)` 返回 0 → `rv == 1`；
++- 循环体只有 `sLevel != -1 && lvl >= sLevel` 成立时才 `rv--`，空表下永不成立；
++- 环绕判据是 `if (static_cast<size_t>(s) == SpellsData.size()) s = 1;`，`size()==0` 而 `s` 从 1 起**单调递增**，永不相等。
++
++结果是 `while (rv > 0)` 无限循环，`s++` 一路涨到 `INT_MAX`，UBSan 报
++`signed integer overflow: 2147483647 + 1` at `Source/items.cpp:648`。**表现是测试挂住**（不是干净断言失败），很容易被误判成"这颗种子有问题"而去换种子绕开。
++
++修法：按 `Source/diablo.cpp:2809` 的真实加载顺序，在 `LoadItemData()` **之前**补 `LoadSpellData()`（`#include "tables/spelldat.h"`）。
++
++**为什么：** `SpellsData.size()` 同时充当 `GetBookSpell` 的 RNG 上限**和**环绕边界（见 `gotcha_spelldata_positional_index.md` 对 size 语义的要求），空表让这两个角色同时退化；游戏进程里两张表总是一起加载，所以生产代码从不校验，缺口只在测试夹具里暴露。
++
++**何时使用：** ① 夹具要走死亡/掉落/`CreateItem` 一类路径时，把 spell 表和 item 表当成一组前置一起加载；② 定向测试**挂住**而非失败时，优先怀疑"某张表没加载导致的空表死循环"，别先怀疑种子——换种子只是把缺陷推给下一个人；③ 逐条 `--gtest_filter` 配 `timeout` 可定位是哪条挂住（注意别用 `pkill -f` 匹配自己的命令行，会杀掉调用方 shell，用 `pkill -x <binary>`）。
+diff --git a/docs/knowledge/gotcha_run_tests_target_list_misses_new_binaries.md b/docs/knowledge/gotcha_run_tests_target_list_misses_new_binaries.md
+new file mode 100644
+index 000000000..a23c9b013
+--- /dev/null
++++ b/docs/knowledge/gotcha_run_tests_target_list_misses_new_binaries.md
+@@ -0,0 +1,24 @@
++---
++name: run_tests.py 的 TEST_TARGETS 是手抄清单 — 漏登记的测试二进制会被全量门禁当陈旧产物执行
++description: 全量门禁只构建 TEST_TARGETS 里的目标，但 ctest 会跑 CMake/Tests.cmake 注册的全部用例；两份清单脱同步时门禁会执行未重建的旧二进制，红/绿都不可信
++type: gotcha
++created: 2026-09-17
++sources:
++  - tools/run_tests.py（TEST_TARGETS / build_tests）
++  - CMake/Tests.cmake
++  - .superpowers/sdd/2026-09-15-level-rosters-phase-b/final-fix-report.md（门禁结果一节）
++---
++
++`python3 tools/run_tests.py --json <f>` 的构建阶段只 `cmake --build --target` **`tools/run_tests.py` 里 `TEST_TARGETS` 手抄的那批目标**，而随后的 `ctest --output-on-failure` 跑的是 **`CMake/Tests.cmake` 注册的全部用例**。两份清单没有任何自动校验，新增测试二进制若只注册进 `Tests.cmake`（漂移校验 A 只查"条目有源文件"，不查 `run_tests.py`），全量门禁就会**执行一个不曾重建的 `build/<name>`**。
++
++实例（2026-09-17，阶段 B 收尾）：`level_roster_test` 与 `level_roster_baseline_test` 都不在 `TEST_TARGETS` 里。反证实验改了 `test/level_roster_baseline_test.cpp` 又改回后直接跑全量门禁，门禁未重新链接该目标，ctest 执行的是仍带变异（`kLeashedAxisBound = 6`）的旧二进制，报出一条与工作树不符的失败：
++
++```
++[ SQUADLEASH ] minions 1275 at bound 0 beyond bound 0 (bound 6)
++```
++
++而工作树里该常量是 4。指纹：**构建产物 mtime 早于源码 mtime**（`ls -l --time-style=full-iso build/<name> test/<name>.cpp`），且失败信息里的常量/输出对不上源码。已把两个目标补进 `TEST_TARGETS`（构建日志里出现 `Linking CXX executable level_roster_baseline_test` 即为已覆盖）。
++
++**为什么：** `build_tests()` 不能简单地 `--target test`——那会连带 benchmark 目标触发 LTO 链接失败（见 `AGENTS.md`），所以只能显式列目标；显式清单就必然要手工同步，而 ctest 侧是 CMake 自动注册的，二者天然不对称。
++
++**何时使用：** ① 新增测试二进制时，除了 `CMake/Tests.cmake` + `test/<name>_test.cpp`，**必须同步 `tools/run_tests.py` 的 `TEST_TARGETS`**；② 门禁报出的失败与你读到的源码矛盾时，先比对二进制与源码 mtime，再怀疑逻辑；③ 做完"破坏→红→恢复→绿"的反证实验后，恢复源码之后要重新构建一次再跑门禁，别指望全量门禁替你重建。校验方法：对比 `Tests.cmake` 的目标名与 `TEST_TARGETS`，差集应只剩条件目标 `text_render_integration_test`。
+diff --git a/eval/cases/rng/level-rosters.yaml b/eval/cases/rng/level-rosters.yaml
+index 233c68b8b..17e2a1f41 100644
+--- a/eval/cases/rng/level-rosters.yaml
++++ b/eval/cases/rng/level-rosters.yaml
+@@ -30,20 +30,22 @@ expected:
+   passed_min: 10
+   skipped_max: 1
+   output_contains:
+     - "[ MEASURED ] level 13 ranged share"
+     - "[ MEASURED ] level 14 ranged share"
+     - "[ MEASURED ] level 15 ranged share"
+     - "[ SQUADRATE ]"
+     - "[ SHIPPEDSQUAD ]"
+     - "[ SQUADFALLBACK ]"
+     - "[ SQUADFORM ]"
++    - "[ SQUADLEASH ]"
++    - "[ SQUADSIZE ]"
+     - "[  PASSED  ] 10 tests."
+ 
+ description: >
+   逐层名册 Phase A 的验收门禁：不看采样中间量，直接跑真实
+   CreateDungeon -> GetLevelMTypes -> InitMonsters 放置链路，统计 L13-15
+   每层 200 seed 的**已放置**怪物构成，断言远程占比（RangedTurret +
+   RangedKite / 放置怪总数）不超过「改动前基线 + 5 个百分点」。
+   基线取自计划 A-baseline 表（200 seed、同一 fixture、放置怪分母）：
+   L13 (3249+2076)/23405 = 22.8%、L14 (9674+3425)/23443 = 55.9%、
+   L15 13533/23193 = 58.3%；阈值即 27.8% / 60.9% / 63.3%，以具名
+@@ -101,10 +103,29 @@ description: >
+   实测（**出厂表**、500 seed/层、seed base 51000）：逐层形成率 **99.890%-100%**，最差层 L10
+   （2718 roll 丢 3 次）。阈值取**统一 floor 0.95**，写进用例内具名数组 `kSquadFormationFloor`
+   并在注释里注明出处（本轮 500-seed 实测逐层数值 + 为何留 ~45 倍余量）：出厂配置不会产生
+   0.95-0.998 之间的值（放置一坏直接掉 0），故仍可失败；同时不把 squad_size/tail_draw/core 集的
+   合法数据调整变成红灯（计划自身建议的下限是 50%，0.95 远严于它）。**是实测分隔线，非紧界、非规格常量。**
+   两次反证实跑：(1) 仅 L10 的 PlaceGroup 随从数改 0 → 该层 rate 0.0 必红、邻层数值不动；
+   (2) `squadEligible` 加 `currlevel != 11` → 表仍写 chance=30 但分支失联 → 「rolls==0 跳过」豁免
+   同样判红（豁免只允许 squad_chance==0 即表自己关掉的层）。恢复后逐层数值与实测逐位一致。
+   处置：实测最低 99.890% 远高于计划下限 50%，**各层 squad_leashed 保持 1，本轮无任何层需要
+   §4.3.4 回退**，`level_roster_params.tsv` 零改动（RB17 L14 冻结、RB14 class_floors 均未触碰）。
++
++  Phase B 最终修复轮（I1/I2/M1，**用例数不变，仍为 10**：本轮只加断言与输出行，不加用例）：
++  I1 —— `minionsOutsideLeash` 原判据 `dx > 4` 恒真（通过钳制的候选必然 dx <= 4），指不出
++  什么改动会让它红。现改为具名常量 `kLeashedAxisBound = 4`（由钳制推导：接受条件
++  `|xp-x1| < 4` → <=3，而 x1 是 leader 的邻格 → 3+1=4），并新增计数 `minionsAtLeashBound`
++  断言**恰好落在界上的随从数 > 0**——这才让"不超过 4"成为紧界守卫。新增 `[ SQUADLEASH ]` 输出行。
++  实测：L9-12 x 10 seed 共 1275 只随从，其中 24 只正好在界上，越界 0。
++  反证：把 PlaceGroup 的钳制从 >= 4 放宽到 >= 8 → L11/L12 多个种子判红。
++  I2 —— `squad_size` 此前无任何守卫（把 PlaceGroup 第 2 参改成常量 1，10 条用例全绿）。
++  新增弱但可失败的断言：每支已成形小队的平均随从数 >= 1.5（`kMinMinionsPerSquad`）。
++  实测出厂配置 **1.989**（squad_size=2，与 SquadFormationRate 的 ~99.9% 形成率一致）；
++  改成常量 1 后实测恰为 **1.0**，必红。1.5 落在这两个值之间的空隙里，不把合法数据调整变成红灯。
++  新增 `[ SQUADSIZE ]` 输出行。反证：第 2 参改 1 → 判红（实测 per-squad 1）。
++  M1 —— `level_roster_params_squads_off.tsv` 此前同时改了 `squad_chance` 与 `squad_size` 两列，
++  而注释称"只差 squad_chance"；"A/B 只差一个变量"是这些用例的立论基础，故采用更强的修法：
++  把该夹具的 `squad_size` 改回出厂值 2，现在**真的只差 squad_chance** 一列（该输入合法：
++  加载器只拒绝反向组合 `squad_chance > 0 && squad_size == 0`）。反证：把该夹具 squad_chance
++  改回 30 → `SquadsAreAbsentWhenTheTableDisablesThem` 判红，确认这一列就是该用例真正测的东西。
++  出厂数据（assets/txtdata/**）与 `kRangedShareCeiling` / `kSquadFormationFloor` 阈值本轮零改动。
+diff --git a/eval/cases/rng/sampling-anti-monopoly.yaml b/eval/cases/rng/sampling-anti-monopoly.yaml
+index 942aac38b..c6f7fc477 100644
+--- a/eval/cases/rng/sampling-anti-monopoly.yaml
++++ b/eval/cases/rng/sampling-anti-monopoly.yaml
+@@ -1,19 +1,21 @@
+ # 维护提醒（R35）：本 case 的 `expected.passed_min` 与 `output_contains` 里的
+ # "[  PASSED  ] N tests." 是**硬编码的用例计数**。往 SamplingBaselineTest 里新增或删除用例后
+ # 必须同步这两处数字，否则门禁会静默失效（N 偏小 → 少跑也算过）或误红
+ # （N 偏大 → 全绿也判失败）。当前值对应 30 个用例（2026-09-16 核对；R38 两个结构守卫 RosterPerSeedVariety /
+ # HellUniqueBasesRemainReachable 后 24 -> 26；阶段 B Task 1 的两个 G1 用例
+ # LeaderDeathReleasesMinions / UniqueLeaderDeathBehaviourUnchanged 后 26 -> 28；阶段 B Task 2 的
+-# 两个 G2 用例 SquadMinionsUnbuffed / UniqueMinionsBehaviourUnchanged 后 28 -> 30）。
++# 两个 G2 用例 SquadMinionsUnbuffed / UniqueMinionsBehaviourUnchanged 后 28 -> 30；
++# 阶段 B 最终修复轮 RB26/RB27 的三个用例 LeaderDeathReleasesSeparatedMinions /
++# UniqueLeaderDeathKeepsSeparatedMinionIndex / BuffedMinionPredicateTracksToughening 后 30 -> 33）。
+ #
+-# 口径说明（2026-09-17，含 U1 修复）：30 是**有素材环境**（DIABDAT.MPQ 或 Hellfire 在位）的计数。
++# 口径说明（2026-09-17，含 U1 修复）：33 是**有素材环境**（DIABDAT.MPQ 或 Hellfire 在位）的计数。
+ # UniqueMinionsBehaviourUnchanged 会探测所选 Leashed unique 的 `monsters\monsters\<mTrnName>.trn`，
+ # 该素材只随零售/HF 数据发布，**不随 spawn.mpq**。因此本 case 显式声明真实数据依赖
+ # `setup.retail_or_hf_required: true`：在只有 spawn.mpq 的环境（如 nightly CI）下**整案跳过**，
+ # 而不是跑到一半判失败。**不要为迁就 spawn-only 下调 passed_min 或放宽断言**——
+ # 依赖由门控表达，断言强度保持不变。
+ id: "sampling-anti-monopoly-cap"
+ name: "采样反垄断：B1 cap 后契约（真实引擎 GetLevelMTypes）"
+ category: "rng"
+ difficulty: "medium"
+ tags: ["sampling", "monster-generation", "baseline"]
+@@ -25,23 +27,23 @@ setup:
+   timeout: 120
+ 
+ run:
+   backend: "gtest"
+   binary: "sampling_behavior_test"
+   filter: "SamplingBaselineTest.*"
+ 
+ expected:
+   exit_code: 0
+   failed: 0
+-  passed_min: 30
++  passed_min: 33
+   skipped_max: 1
+-  output_contains: ["[  PASSED  ] 30 tests."]
++  output_contains: ["[  PASSED  ] 33 tests."]
+ 
+ description: >
+   B1 采样反垄断 harness（纯测试 + cap 实施后）：直接驱动真实 GetLevelMTypes
+   采样循环，断言 cap 后契约——地狱 L15/L14 全同类尾 4.13%/0.70% -> 0、
+   L13 0%、洞穴风筝尾 L10 2.4% / L12 2.6% -> 0（风筝类 <=2）、洞穴任意类尾
+   记录值（L9 1.7% / L10 1.02% / L11 1.32% / L12 0%——非 cap 目标）、
+   L16 硬编码保留、采样终止（AC3）、教堂/墓穴无约束（AC4）、
+   MP 同种子同构成（AC8）、Counselor 映射 + AIID 穷尽性（含非 Boss 映射断言）、
+   quest 预加重抽双计数不放大 cap（QuestPreAddRePickDoesNotDoubleCount，Oracle 建议落地）。
+   任务状态条件：Quests 零初始化（全 NOTAVAIL），L13/L14 基线为"无任务"条件值。
+@@ -64,10 +66,28 @@ description: >
+   UniqueLeaderDeathBehaviourUnchanged 是 unique 路径回归——relation 置 None、
+   索引**仍保留**（monhealthbar 蓝色随从着色依赖它）。已验证前者在修复前红、后者在修复前后皆绿。
+   阶段 B Task 2 追加（G2，spec 2026-09-15-level-rosters-design §4.3.1）：PlaceGroup 新增
+   MinionOptions{tough,inheritAi,inheritIntelligence} 参数，把随从 HP 加倍 / AI 继承 /
+   intelligence 继承三件事从硬编码行为改为可选。SquadMinionsUnbuffed 用一对 AI 类型不同的
+   leashed leader/minion（避免"两者 AI 相同导致断言恒真"这一已反复出现的缺陷）驱动 PlaceGroup
+   显式传入全 false 的 MinionOptions，断言 HP 落在未加倍的 [min,max] 区间内、minion 保留自己的
+   AI 而非被 setLeader() 覆盖、intelligence 不从 leader 继承；UniqueMinionsBehaviourUnchanged
+   是回归——PrepareUniqueMonst 调用 PlaceGroup 时从不显式构造 MinionOptions，因此默认值必须
+   让 Leashed 词条 unique 的随从依旧 HP 加倍且继承 leader 的 AI，与本任务改动之前字节对齐。
++  阶段 B 最终修复轮追加（RB26/RB27，用例数 30 -> 33）：
++  LeaderDeathReleasesSeparatedMinions / UniqueLeaderDeathKeepsSeparatedMinionIndex 覆盖
++  `LeaderRelation::Separated`——GroupUnity 在视线被挡时把随从置为该态并**保留 leader 索引**
++  （引开 leader 即触发的正常玩法），而 ReleaseMinions 原先只过滤 Leashed，于是普通 leader
++  死亡时该随从既不改 relation 也不清索引；槽位被 AddMonster 复用后，GroupUnity（入口只挡 None）
++  会解引用到一只无关的活怪并把随从重新拴上去。修法把过滤放宽到 `!= None`，但**只在普通怪路径清索引**，
++  unique 路径（relation 置 None、索引保留）逐字节不变，由后一条回归用例守住。
++  BuffedMinionPredicateTracksToughening 覆盖新谓词 IsBuffedMinion：monhealthbar 的蓝名判据
++  从 `leader != NoLeader` 改为「真的被强化」（当前＝leader 为 unique），否则 tough=false 的
++  小队随从会被染蓝、与「只买构成不买数值」相反。用例两臂都断言 leader 索引已设置（证明旧判据
++  分辨不出），并用同种子 A/B 实测 HP 恰为 2 倍来确立「被强化」这一前提。
++  三条反证均实跑「改坏→红→恢复→绿」（过滤改回只 Leashed、unique 路径也清索引、谓词改回
++  `leader != NoLeader`），原始输出见
++  `.superpowers/sdd/2026-09-15-level-rosters-phase-b/final-fix-report.md`。
++  同时修掉夹具的一处真实缺陷：PrepareDeathPathPrerequisites 现按 diablo.cpp 的顺序补上
++  LoadSpellData()。死亡路径的掉落可以掉书，GetBookSpell 在 SpellsData 为空时
++  `while (rv > 0)` 永不收敛（rv 恒 1、`s++` 无法命中回绕），表现为挂死并在 items.cpp:648
++  报 UBSan 有符号溢出；命中与否只看掉落运气，所以是补依赖而不是换种子绕开。
+diff --git a/test/fixtures/txtdata/monsters/level_roster_params_squads_off.tsv b/test/fixtures/txtdata/monsters/level_roster_params_squads_off.tsv
+index 89832068b..b69295e05 100644
+--- a/test/fixtures/txtdata/monsters/level_roster_params_squads_off.tsv
++++ b/test/fixtures/txtdata/monsters/level_roster_params_squads_off.tsv
+@@ -1,16 +1,16 @@
+ level	max_image	tail_draw	class_floors	squad_chance	squad_size	squad_leashed
+-1	6000	2	Melee=2	0	0	1
+-2	9000	4	Melee=2	0	0	1
+-3	6000	4	Melee=2	0	0	1
+-4	9000	4	RangedTurret=1	0	0	1
+-5	9000	2	Melee=1	0	0	1
+-6	9000	2	Sneak=1	0	0	1
+-7	9000	2	Melee=1	0	0	1
+-8	12000	3	RangedKite=1	0	0	1
+-9	16000	3	RangedKite=1	0	0	1
+-10	16000	3	RangedKite=2	0	0	1
+-11	16000	3	RangedKite=2	0	0	1
+-12	16000	3	RangedKite=2,Melee=2	0	0	1
+-13	18000	1	Melee=2	0	0	1
+-14	18000	2	Melee=1	0	0	1
+-15	18000	3	Melee=2,RangedTurret=1	0	0	1
++1	6000	2	Melee=2	0	2	1
++2	9000	4	Melee=2	0	2	1
++3	6000	4	Melee=2	0	2	1
++4	9000	4	RangedTurret=1	0	2	1
++5	9000	2	Melee=1	0	2	1
++6	9000	2	Sneak=1	0	2	1
++7	9000	2	Melee=1	0	2	1
++8	12000	3	RangedKite=1	0	2	1
++9	16000	3	RangedKite=1	0	2	1
++10	16000	3	RangedKite=2	0	2	1
++11	16000	3	RangedKite=2	0	2	1
++12	16000	3	RangedKite=2,Melee=2	0	2	1
++13	18000	1	Melee=2	0	2	1
++14	18000	2	Melee=1	0	2	1
++15	18000	3	Melee=2,RangedTurret=1	0	2	1
+diff --git a/test/level_roster_baseline_test.cpp b/test/level_roster_baseline_test.cpp
+index a3b1cacd9..ac990d25e 100644
+--- a/test/level_roster_baseline_test.cpp
++++ b/test/level_roster_baseline_test.cpp
+@@ -217,31 +217,48 @@ std::array<size_t, static_cast<size_t>(BehaviorClass::Count)> MeasurePlacedClass
+ // Task 3 squad measurement helpers (spec 2026-09-15-level-rosters-design 4.3.3).
+ //
+ // A "realised squad" is what the level actually got, not what the table asked
+ // for: a squad roll can still end up with zero minions because PlaceGroup
+ // clamps `num` against totalmonsters, gives up after 10 placement attempts, and
+ // (when leashed) additionally requires every minion within 4 tiles of the
+ // leader. So the acceptance figure the brief asks for is measured from the
+ // placed monsters, never inferred from squad_chance.
+ // ---------------------------------------------------------------------------
+ 
++// The largest per-axis leader-to-minion distance PlaceGroup's leash can produce.
++//
++// DERIVED, not measured: PlaceGroup's accepted-candidate test is
++// `!(leashed && (|xp - x1| >= 4 || |yp - y1| >= 4))`, so an accepted tile is within 3 of the
++// FIRST candidate (x1, y1) on each axis; that first candidate is
++// `leader->position.tile + Direction(GenerateRnd(8))`, one step from the leader on each axis
++// (Displacement::fromDirection has |dx|, |dy| <= 1). 3 + 1 = 4.
++constexpr int kLeashedAxisBound = 4;
++
+ struct SquadObservation {
+ 	/** Squad minions: leashed minions under an ORDINARY (non-unique) leader. */
+ 	size_t leashedMinions = 0;
+ 	/** Distinct ordinary leaders that ended up with >= 1 leashed minion. */
+ 	size_t leadersWithMinions = 0;
+ 	/** Squad leaders holding a leashed minion while reporting packSize == 0 (must be 0). */
+ 	size_t leadersWithZeroPackSize = 0;
+ 	/** Squad minions whose ai differs from their own type's ai (G2 violation; must be 0). */
+ 	size_t minionsWithOverwrittenAi = 0;
+-	/** Squad minions further from their leader than the engine leash allows. */
++	/** Squad minions further from their leader than the engine leash allows (must be 0). */
+ 	size_t minionsOutsideLeash = 0;
++	/**
++	 * Squad minions sitting exactly ON the leash bound (Chebyshev 4 from the leader).
++	 *
++	 * This is what makes minionsOutsideLeash a real guard rather than a number nobody can
++	 * fail (fix review I1): the bound is only meaningful if the data reaches it. Asserted
++	 * NON-zero, so the "no minion past 4" check is known to sit on the clamp's boundary.
++	 */
++	size_t minionsAtLeashBound = 0;
+ 	/** Squad minions whose leader is NOT a core roster member of this level (must be 0). */
+ 	size_t minionsUnderNonCoreLeader = 0;
+ 	/**
+ 	 * Squad minions whose own type EQUALS their leader's type (must be 0).
+ 	 *
+ 	 * Spec 4.3.3 requires a squad to mix two DIFFERENT core types: a same-type squad is just the
+ 	 * legacy same-type group with leash semantics bolted on, i.e. exactly the degenerate outcome
+ 	 * the feature exists to avoid. PickCorePartnerTypeIndex enforces it with a single
+ 	 * `entry.type == leaderType` skip, and review measured that deleting that skip left all eight
+ 	 * squad cases green - so the rule is recorded per minion here and asserted below.
+@@ -301,30 +318,44 @@ SquadObservation ObserveSquads(uint8_t level)
+ 		if (leader == nullptr)
+ 			continue;
+ 		if (leader->isUnique()) {
+ 			obs.uniquePackMinions++;
+ 			continue;
+ 		}
+ 		obs.leashedMinions++;
+ 
+ 		if (monster.ai != monster.data().ai)
+ 			obs.minionsWithOverwrittenAi++;
+-		// PlaceGroup measures its 4-tile leash from the FIRST candidate tile,
+-		// which is a NEIGHBOUR of the leader (leader->position.tile +
+-		// Direction(GenerateRnd(8))), not from the leader itself: the check is
+-		// |xp - x1| < 4 with x1 = leader +/- 1. So a leashed minion may sit up to
+-		// 4 tiles from the leader, and asserting < 4 here would fail on legitimate
+-		// placements - the first run of this case failed that way on L9 seed 2.
++		// The leash bound, derived - and TIGHT (fix review I1).
++		//
++		// PlaceGroup measures its 4-tile leash from the FIRST candidate tile, which is a
++		// NEIGHBOUR of the leader (leader->position.tile + Direction(GenerateRnd(8))), not
++		// from the leader itself: the accepted-candidate check is |xp - x1| < 4, i.e.
++		// <= 3, with x1 = leader +/- 1 (Displacement::fromDirection has |dx|,|dy| <= 1).
++		// So the true per-axis ceiling relative to the LEADER is 3 + 1 = 4, and asserting
++		// < 4 here would fail on legitimate placements (the first run of this case failed
++		// that way on L9 seed 2).
++		//
++		// What review I1 objected to is that "dx > 4 must be 0" alone cannot be READ as a
++		// guard: nothing in the case showed that 4 is the real ceiling rather than a number
++		// far above the data, so the reader could not tell which change would turn it red.
++		// The bound is now named and, crucially, its TIGHTNESS is measured: 4 is actually
++		// REACHED by real placements (minionsAtLeashBound, asserted non-zero in
++		// SquadFormsAroundACoreLeader). That pins the metric to the boundary the clamp
++		// produces, so widening the clamp (or dropping the leash term from it) immediately
++		// pushes minions to 5+ and this counter goes non-zero.
+ 		const int dx = std::abs(monster.position.tile.x - leader->position.tile.x);
+ 		const int dy = std::abs(monster.position.tile.y - leader->position.tile.y);
+-		if (dx > 4 || dy > 4)
++		if (dx > kLeashedAxisBound || dy > kLeashedAxisBound)
+ 			obs.minionsOutsideLeash++;
++		if (dx == kLeashedAxisBound || dy == kLeashedAxisBound)
++			obs.minionsAtLeashBound++;
+ 		if (!IsCoreMemberOfLevel(level, leader->type().type))
+ 			obs.minionsUnderNonCoreLeader++;
+ 		if (monster.type().type == leader->type().type)
+ 			obs.minionsSharingLeaderType++;
+ 		if (leader->packSize == 0)
+ 			obs.leadersWithZeroPackSize++;
+ 
+ 		const size_t leaderId = leader->getId();
+ 		if (leaderId < counted.size() && !counted[leaderId]) {
+ 			counted[leaderId] = true;
+@@ -600,20 +631,21 @@ TEST_F(SquadPlacementTest, SquadFormsAroundACoreLeader)
+ 		GTEST_SKIP() << "MPQ assets not found - skipping test";
+ 	if (missingRetailTrn_)
+ 		GTEST_SKIP() << "retail/HF TRN (monsters\\monsters\\genrl.trn) not available - skipping test";
+ 
+ 	// squad_chance = 100 makes the branch deterministic-by-table; the realised
+ 	// minion count still depends on placement, which is exactly what is measured.
+ 	LoadSquadParams("txtdata\\monsters\\level_roster_params_squads_always.tsv");
+ 
+ 	size_t totalLeadersWithMinions = 0;
+ 	size_t totalLeashedMinions = 0;
++	size_t totalMinionsAtLeashBound = 0;
+ 	for (uint8_t level = 9; level <= 12; level++) {
+ 		for (uint32_t seed = 0; seed < 10; seed++) {
+ 			const SquadObservation obs = RunLevel(level, 21000 + seed);
+ 			totalLeadersWithMinions += obs.leadersWithMinions;
+ 			totalLeashedMinions += obs.leashedMinions;
+ 
+ 			// (2)/(3) and the review's checks 1-2, asserted per sample so a
+ 			// violation names the level and seed rather than a global total.
+ 			EXPECT_EQ(obs.leadersWithZeroPackSize, 0u)
+ 			    << "level " << static_cast<int>(level) << " seed " << seed
+@@ -621,21 +653,23 @@ TEST_F(SquadPlacementTest, SquadFormsAroundACoreLeader)
+ 			// G2's own named case is SquadMinionsKeepOwnAi below (spec 6, acceptance
+ 			// row 6); kept here as well so a failure of this case reports it too.
+ 			EXPECT_EQ(obs.minionsWithOverwrittenAi, 0u)
+ 			    << "level " << static_cast<int>(level) << " seed " << seed
+ 			    << ": G2 requires squad minions to keep their own AI";
+ 			EXPECT_EQ(obs.minionsSharingLeaderType, 0u)
+ 			    << "level " << static_cast<int>(level) << " seed " << seed
+ 			    << ": spec 4.3.3 requires a squad to mix two DIFFERENT core types";
+ 			EXPECT_EQ(obs.minionsOutsideLeash, 0u)
+ 			    << "level " << static_cast<int>(level) << " seed " << seed
+-			    << ": a leashed minion must sit within the engine's 4-tile leash";
++			    << ": a leashed minion must sit within kLeashedAxisBound (" << kLeashedAxisBound
++			    << ") tiles of its leader on each axis";
++			totalMinionsAtLeashBound += obs.minionsAtLeashBound;
+ 			EXPECT_EQ(obs.minionsUnderNonCoreLeader, 0u)
+ 			    << "level " << static_cast<int>(level) << " seed " << seed
+ 			    << ": squads may only form around a CORE roster member of that level";
+ 			// totalmonsters is a monster.cpp internal (not exported), so this
+ 			// asserts the engine-wide cap InitMonsters itself clamps
+ 			// totalmonsters to. Placing past totalmonsters would normally
+ 			// also breach this bound, since totalmonsters <= MaxMonsters - 10.
+ 			EXPECT_LE(obs.placed, MaxMonsters - 10)
+ 			    << "level " << static_cast<int>(level) << " seed " << seed
+ 			    << ": the squad path must not place past the engine placement cap";
+@@ -648,20 +682,60 @@ TEST_F(SquadPlacementTest, SquadFormsAroundACoreLeader)
+ 	// SquadRateIsMeasuredPerLevel, and a stronger absolute floor here would be a
+ 	// bet on placement luck.
+ 	EXPECT_GT(totalLeadersWithMinions, 0u)
+ 	    << "L9-12 at squad_chance 100 produced no leader with a leashed minion";
+ 	// Also the sample size behind the per-sample "count of violations == 0" assertions above
+ 	// (own AI, distinct partner type, leash, core leadership): all of them are vacuous on a run
+ 	// that placed no squad minion.
+ 	EXPECT_GT(totalLeashedMinions, 0u)
+ 	    << "no squad minion was placed at all, so the per-sample violation counts above"
+ 	    << " measured nothing";
++
++	// Fix review I1: the leash bound must be TIGHT, i.e. actually reached by real
++	// placements. Without this the "nothing beyond kLeashedAxisBound" assertions above
++	// could be satisfied by a bound far above the data, and no code change could turn
++	// them red. Printed unconditionally so the margin stays readable.
++	std::cout << "[ SQUADLEASH ] minions " << totalLeashedMinions
++	          << " at bound " << totalMinionsAtLeashBound
++	          << " beyond bound 0 (bound " << kLeashedAxisBound << ")" << std::endl;
++	EXPECT_GT(totalMinionsAtLeashBound, 0u)
++	    << "no squad minion reached Chebyshev " << kLeashedAxisBound << " from its leader over"
++	    << " L9-12 x 10 seeds, so kLeashedAxisBound is above what the clamp produces and the"
++	    << " minionsOutsideLeash assertions cannot fail on any placement";
++
++	// Fix review I2: squad_size had NO guard - replacing PlaceGroup's `num` argument in the
++	// squad branch with a constant 1 left all ten squad cases green, because `formed` only
++	// needs >= 1 minion, `realised` only needs packSize > 0, and the floor / adjacency /
++	// distinct-type / AI checks are all per minion rather than about how MANY there are.
++	//
++	// The guard is deliberately WEAK but falsifiable: minions per realised squad must stay
++	// >= 1.5. Measured on the shipped table through this very loop (L9-12 x 10 seeds,
++	// squads_always fixture): 1.98 minions per squad at squad_size = 2 - i.e. nearly every
++	// squad places both its minions, which matches SquadFormationRate's ~99.9% formation
++	// rate. Forcing the second argument to 1 caps the ratio at exactly 1.0, so it fails by a
++	// wide margin. 1.5 sits in the empty gap between those two values and does NOT pin the
++	// data: a level legitimately moving to squad_size 2 with worse placement luck, or the
++	// mean drifting to 1.6, still passes. It is a separator between "squad_size is honoured"
++	// and "squad_size is ignored", not a measured bound.
++	constexpr double kMinMinionsPerSquad = 1.5;
++	const double minionsPerSquad = totalLeadersWithMinions == 0
++	    ? 0.0
++	    : static_cast<double>(totalLeashedMinions) / static_cast<double>(totalLeadersWithMinions);
++	std::cout << "[ SQUADSIZE ] leaders " << totalLeadersWithMinions
++	          << " minions " << totalLeashedMinions
++	          << " per-squad " << minionsPerSquad
++	          << " floor " << kMinMinionsPerSquad << std::endl;
++	EXPECT_GE(minionsPerSquad, kMinMinionsPerSquad)
++	    << "squads averaged " << minionsPerSquad << " minions over L9-12 x 10 seeds, under the"
++	    << " floor " << kMinMinionsPerSquad << ": at squad_size 2 the measured mean is 1.98, and"
++	    << " a squad path that ignores squad_size (placing one minion per squad) reads exactly"
++	    << " 1.0. Check that the scatter loop still passes rosterParams->squadSize to PlaceGroup";
+ }
+ 
+ // Spec 6, acceptance row 6 names this case: G2 requires a squad minion to keep its OWN AI, so
+ // PlaceGroup must restore the `ai` that setLeader() overwrites (MinionOptions::inheritAi false).
+ // It lives as its own case rather than an inline assertion inside
+ // SquadFormsAroundACoreLeader because the acceptance row points at a case name, and because a
+ // failure of the AI rule should be reported on its own rather than mixed into a case that also
+ // checks packSize, leashing, core leadership and the placement cap.
+ //
+ // The sample size is asserted too: this is a "count of violations == 0" shape, which a run that
+@@ -694,23 +768,33 @@ TEST_F(SquadPlacementTest, SquadMinionsKeepOwnAi)
+ 	    << " measured nothing";
+ }
+ 
+ TEST_F(SquadPlacementTest, SquadsAreAbsentWhenTheTableDisablesThem)
+ {
+ 	if (missingMpqAssets_)
+ 		GTEST_SKIP() << "MPQ assets not found - skipping test";
+ 	if (missingRetailTrn_)
+ 		GTEST_SKIP() << "retail/HF TRN (monsters\\monsters\\genrl.trn) not available - skipping test";
+ 
+-	// The A side of the A/B: identical levels and seeds to
+-	// SquadFormsAroundACoreLeader, only squad_chance = 0. Everything the squad
+-	// branch produces must vanish here, which is what makes the B side's
++	// The A side of the A/B: identical levels and seeds to SquadFormsAroundACoreLeader, and
++	// the fixture differs from the shipped table in exactly ONE column - squad_chance, set to
++	// 0 on every level (the shipped value is 30, and 10 on L14).
++	//
++	// Fix review M1: the fixture used to zero squad_size as well, so the claim "A and B differ
++	// in one variable" - the premise every squad case argues from - was not true of the file
++	// it pointed at. squad_size is now held at the shipped 2. That is legal input (the loader
++	// only rejects the inverse, `squad_chance > 0 && squad_size == 0`, see
++	// Source/tables/level_roster.cpp) and it is also strictly better for this case: with
++	// squad_size still 2, a zero squad count here can only be attributed to squad_chance,
++	// whereas zeroing both left open which of the two suppressed the squads.
++	//
++	// Everything the squad branch produces must vanish here, which is what makes the B side's
+ 	// non-zero count attributable to the FEATURE rather than to unique boss
+ 	// packs - the pre-existing leashed-minion source that runs on these levels
+ 	// either way (PlaceUniqueMonsters, before the scatter loop).
+ 	//
+ 	// The unique-pack count is asserted NON-zero on purpose. Without it, a
+ 	// discriminator bug that classified every leashed minion as "unique" would
+ 	// satisfy the squad assertion below while measuring nothing at all, and the
+ 	// whole A/B would silently become vacuous.
+ 	LoadSquadParams("txtdata\\monsters\\level_roster_params_squads_off.tsv");
+ 
+diff --git a/test/sampling_behavior_test.cpp b/test/sampling_behavior_test.cpp
+index 606061ae3..328b29e18 100644
+--- a/test/sampling_behavior_test.cpp
++++ b/test/sampling_behavior_test.cpp
+@@ -33,20 +33,21 @@
+ #include "game_mode.hpp"
+ #include "levels/gendung.h"
+ #include "monster.h"
+ #include "multi.h"
+ #include "player.h"
+ #include "quests.h"
+ #include "tables/itemdat.h"
+ #include "tables/level_roster.h"
+ #include "tables/monstdat.h"
+ #include "tables/questdat.hpp"
++#include "tables/spelldat.h"
+ #include "utils/str_cat.hpp"
+ 
+ using namespace devilution;
+ 
+ namespace {
+ 
+ // Behavior classes come from the engine (monstdat.h GetBehaviorClass)
+ // so the harness tests the exact taxonomy the cap enforces.
+ // Run one real engine sampling pass for `level` with a fresh RNG seed.
+ // Returns the behavior classes of the sampled monster types.
+@@ -1640,22 +1641,32 @@ TEST_F(HellfireNoParamsSamplingTest, NoParamsTailExceedsTheParameterisedCap)
+ // the level, so the tests advance only the dying monster's death animation and
+ // then invoke the same engine hook the tick would - M_UpdateRelations, which
+ // monster.h exports.
+ // ---------------------------------------------------------------------------
+ 
+ // The sampling fixture only needs monster/roster data, but the death path also
+ // runs loot generation (SpawnLoot -> SpawnItem -> AllItemsList) and touches
+ // MyPlayer (PlayEffect, SetupAllItems). diablo.cpp loads item data and has a
+ // player before any monster can die; mirror that here so the tests exercise the
+ // real death path instead of a trimmed-down stand-in.
++//
++// SpellsData is part of that prerequisite set, in diablo.cpp's own order
++// (LoadSpellData before LoadItemData): loot generation can roll a BOOK, and
++// GetBookSpell (items.cpp) then walks SpellsData with `while (rv > 0) { ...; s++;
++// if (s == SpellsData.size()) s = 1; }`. With SpellsData empty, GenerateRnd(0) + 1
++// makes rv = 1, no spell can ever decrement it, and the wrap check never matches,
++// so the loop spins until `s++` overflows - a hang, then a UBSan signed-overflow
++// report at items.cpp:648. Which seed hits it is pure loot luck, which is exactly
++// why it is loaded here rather than worked around by choosing a quieter seed.
+ void PrepareDeathPathPrerequisites()
+ {
++	LoadSpellData();
+ 	LoadItemData();
+ 	Players.resize(1);
+ 	MyPlayer = &Players[0];
+ 	MyPlayer->pLvlLoad = 0;
+ }
+ 
+ // Drive `leader` through the engine's death sequence up to and including the
+ // relation update that MonsterDeath(Monster&) performs on the last death frame.
+ void RunEngineDeath(Monster &leader)
+ {
+@@ -1666,20 +1677,157 @@ void RunEngineDeath(Monster &leader)
+ 	// engine's own last-frame branch (which calls M_UpdateRelations) triggers.
+ 	for (int tick = 0; tick < 512 && !leader.animInfo.isLastFrame(); tick++)
+ 		leader.animInfo.processAnimation(false);
+ 	ASSERT_TRUE(leader.animInfo.isLastFrame()) << "death animation never reached its last frame";
+ 
+ 	// Same last-frame body as MonsterDeath(Monster&) in monster.cpp.
+ 	leader.isInvalid = true;
+ 	M_UpdateRelations(leader);
+ }
+ 
++// ---------------------------------------------------------------------------
++// RB26: the release must cover LeaderRelation::Separated too.
++//
++// GroupUnity moves a minion to Separated the moment the line of sight to its leader is
++// blocked (monster.cpp) and KEEPS the `leader` index so the minion can rejoin the pack.
++// That is ordinary play: luring a leader out of sight / more than 4 tiles away separates
++// its minions. ReleaseMinions used to filter on `== Leashed`, so an ordinary leader dying
++// while a minion was Separated left both the relation AND the index behind - and GroupUnity
++// only refuses to run on None, so after DeleteMonster's swap plus a later AddMonster reused
++// the slot, the next tick dereferenced that index into an unrelated LIVE monster,
++// re-leashed the minion to it (packSize++) and let DirOK/FollowTheLeader pin it there.
++//
++// Nothing else in the tree clears a Separated minion's index (only InitMonster and
++// ScavengerAi touch this area, and ScavengerAi does not clear it either), so the tests
++// below are the guard for that path.
++//
++// They set the state directly instead of driving a tick: reaching Separated organically
++// needs a blocked line of sight plus a full ProcessMonsters pass, which would run every AI
++// on the level. The state itself is what ReleaseMinions branches on, so it is set here and
++// the PUBLIC death path (RunEngineDeath, same as the Leashed cases) does the rest.
++// ---------------------------------------------------------------------------
++
++// Put `minion` into the state GroupUnity's separation branch leaves behind: relation
++// Separated, `leader` index RETAINED, and the leader's packSize already decremented (that
++// happens at the moment of separation, which is why ShrinkLeaderPacksize deliberately does
++// not decrement again for a Separated minion).
++void SeparateMinionFromLeader(Monster &minion, Monster &leader)
++{
++	ASSERT_EQ(minion.leaderRelation, LeaderRelation::Leashed)
++	    << "separation starts from a leashed minion, mirroring GroupUnity";
++	ASSERT_EQ(minion.leader, static_cast<uint8_t>(leader.getId()));
++	// Exactly GroupUnity's `else if (leaderRelation == Leashed)` body.
++	leader.packSize--;
++	minion.leaderRelation = LeaderRelation::Separated;
++	// The index must survive separation - that is what makes the dangling-index defect
++	// reachable, and what the fix has to clean up on the ordinary path.
++	ASSERT_EQ(minion.leader, static_cast<uint8_t>(leader.getId()));
++}
++
++TEST_F(SamplingBaselineTest, LeaderDeathReleasesSeparatedMinions)
++{
++	if (missingMpqAssets_)
++		GTEST_SKIP() << "MPQ assets not found - skipping test";
++
++	PrepareDeathPathPrerequisites();
++
++	// Level 1 has no unique monsters, so every placed monster is ordinary.
++	currlevel = 1;
++	InitLevelMonsters();
++	SetRndSeed(9400);
++	{
++		const auto typesResult = GetLevelMTypes();
++		ASSERT_TRUE(typesResult.has_value()) << typesResult.error();
++	}
++	ASSERT_GT(LevelMonsterTypeCount, 0U);
++
++	Monster *leaderPtr = AddMonster({ 40, 40 }, Direction::South, 0, /*inMap=*/false);
++	ASSERT_NE(leaderPtr, nullptr);
++	Monster *minionPtr = AddMonster({ 41, 40 }, Direction::South, 0, /*inMap=*/false);
++	ASSERT_NE(minionPtr, nullptr);
++
++	Monster &leader = *leaderPtr;
++	Monster &minion = *minionPtr;
++	ASSERT_FALSE(leader.isUnique()) << "this test must cover the ORDINARY leader path";
++
++	minion.setLeader(&leader);
++	leader.packSize = 1;
++	SeparateMinionFromLeader(minion, leader);
++	ASSERT_EQ(minion.leaderRelation, LeaderRelation::Separated);
++
++	RunEngineDeath(leader);
++
++	EXPECT_EQ(minion.leaderRelation, LeaderRelation::None)
++	    << "an ordinary leader's death must break a SEPARATED minion's relation too;"
++	    << " GroupUnity only skips None, so anything else keeps dereferencing the index";
++	EXPECT_EQ(minion.leader, Monster::NoLeader)
++	    << "the SEPARATED minion's index must be cleared as well - this is the RB26 hole:"
++	    << " filtering on Leashed alone leaves it pointing at a slot AddMonster can reuse";
++	EXPECT_EQ(minion.getLeader(), nullptr)
++	    << "getLeader() must stop resolving to the dead leader's slot";
++}
++
++TEST_F(SamplingBaselineTest, UniqueLeaderDeathKeepsSeparatedMinionIndex)
++{
++	if (missingMpqAssets_)
++		GTEST_SKIP() << "MPQ assets not found - skipping test";
++
++	// Regression twin of UniqueLeaderDeathBehaviourUnchanged for the Separated state: the
++	// RB26 fix widens the filter for BOTH paths, but only the ordinary path may clear the
++	// index. The unique path must stay byte-for-byte as before (spec 4.3.1), because the
++	// retained index is what IsBuffedMinion / monhealthbar colour a buffed minion from, and
++	// a unique's slot is never recycled while the level lives.
++	PrepareDeathPathPrerequisites();
++
++	currlevel = 1;
++	InitLevelMonsters();
++	SetRndSeed(9500);
++	{
++		const auto typesResult = GetLevelMTypes();
++		ASSERT_TRUE(typesResult.has_value()) << typesResult.error();
++	}
++	ASSERT_GT(LevelMonsterTypeCount, 0U);
++
++	Monster *leaderPtr = AddMonster({ 40, 40 }, Direction::South, 0, /*inMap=*/false);
++	ASSERT_NE(leaderPtr, nullptr);
++	Monster *minionPtr = AddMonster({ 41, 40 }, Direction::South, 0, /*inMap=*/false);
++	ASSERT_NE(minionPtr, nullptr);
++
++	Monster &leader = *leaderPtr;
++	Monster &minion = *minionPtr;
++
++	bool foundLeashedUnique = false;
++	for (size_t u = 0; u < UniqueMonstersData.size(); u++) {
++		if (UniqueMonstersData[u].monsterPack != UniqueMonsterPack::Leashed)
++			continue;
++		leader.uniqueType = static_cast<UniqueMonsterType>(u);
++		foundLeashedUnique = true;
++		break;
++	}
++	ASSERT_TRUE(foundLeashedUnique) << "unique monster data has no Leashed pack entry";
++	ASSERT_TRUE(leader.isUnique());
++
++	minion.setLeader(&leader);
++	const auto retainedIndex = static_cast<uint8_t>(leader.getId());
++	leader.packSize = 1;
++	SeparateMinionFromLeader(minion, leader);
++	ASSERT_EQ(minion.leaderRelation, LeaderRelation::Separated);
++
++	RunEngineDeath(leader);
++
++	EXPECT_EQ(minion.leaderRelation, LeaderRelation::None)
++	    << "a unique leader's death must clear a separated minion's relation";
++	EXPECT_EQ(minion.leader, retainedIndex)
++	    << "the unique path must RETAIN the leader index in the Separated case too"
++	    << " (IsBuffedMinion / monhealthbar colouring, spec 4.3.1)";
++}
++
+ TEST_F(SamplingBaselineTest, LeaderDeathReleasesMinions)
+ {
+ 	if (missingMpqAssets_)
+ 		GTEST_SKIP() << "MPQ assets not found - skipping test";
+ 
+ 	PrepareDeathPathPrerequisites();
+ 
+ 	// Level 1 has no unique monsters at all, so every placed monster is ordinary.
+ 	currlevel = 1;
+ 	InitLevelMonsters();
+@@ -1891,20 +2039,126 @@ TEST_F(SamplingBaselineTest, SquadMinionsUnbuffed)
+ 	// opts.tough must not disturb AI or intelligence either.
+ 	EXPECT_EQ(toughened.ai, squad.ai) << "opts.tough must not affect the minion's AI";
+ 
+ 	// (3) intelligence must not be inherited from the leader.
+ 	EXPECT_EQ(squad.intelligence, MonstersData[MT_TSKELBW].intelligence)
+ 	    << "opts.inheritIntelligence=false must not copy the leader's intelligence";
+ 	EXPECT_EQ(toughened.intelligence, squad.intelligence)
+ 	    << "opts.tough must not affect the minion's intelligence";
+ }
+ 
++// ---------------------------------------------------------------------------
++// RB27: monhealthbar's blue name means "this minion was STRENGTHENED by its leader"
++// (HP x2), and its test used to be `leader != Monster::NoLeader`. Since G2 a squad minion
++// gets a leader with MinionOptions{ .tough = false } - no numeric change at all - so that
++// test coloured stock monsters blue and the UI announced the opposite of the squad
++// feature's "composition only, no numbers" promise.
++//
++// IsBuffedMinion (monster.h) is the real predicate monhealthbar now calls. This case pins
++// both sides of it, and pins them against MEASURED HP rather than against the predicate's
++// own definition: each arm places a minion twice from the same seed with only opts.tough
++// flipped, so "buffed" is established by the HP doubling actually happening (or not) - the
++// same same-seed A/B judgement SquadMinionsUnbuffed uses, and for the same reason (the
++// doubled and un-doubled monstdat roll ranges overlap, so a range check proves nothing).
++//
++// The unique arm deliberately does NOT go through PrepareUniqueMonst: it only needs the
++// leader to BE unique (uniqueType set, as UniqueLeaderDeathBehaviourUnchanged does), so it
++// avoids InitTRNForUniqueMonster and therefore runs without retail/HF TRN assets.
++// ---------------------------------------------------------------------------
++
++TEST_F(SamplingBaselineTest, BuffedMinionPredicateTracksToughening)
++{
++	if (missingMpqAssets_)
++		GTEST_SKIP() << "MPQ assets not found - skipping test";
++
++	currlevel = 1;
++	InitLevelMonsters();
++
++	size_t leaderType = 0;
++	size_t minionType = 0;
++	{
++		const auto addResult = AddMonsterType(MT_WSKELAX, PLACE_SCATTER);
++		ASSERT_TRUE(addResult.has_value()) << addResult.error();
++		leaderType = addResult.value();
++	}
++	{
++		const auto addResult = AddMonsterType(MT_TSKELBW, PLACE_SCATTER);
++		ASSERT_TRUE(addResult.has_value()) << addResult.error();
++		minionType = addResult.value();
++	}
++
++	// Index of a unique whose pack really is Leashed, so the "unique leader" arm mirrors a
++	// configuration the engine actually produces rather than an arbitrary uniqueType.
++	size_t leashedUniqueIndex = UniqueMonstersData.size();
++	for (size_t u = 0; u < UniqueMonstersData.size(); u++) {
++		if (UniqueMonstersData[u].monsterPack != UniqueMonsterPack::Leashed)
++			continue;
++		leashedUniqueIndex = u;
++		break;
++	}
++	ASSERT_LT(leashedUniqueIndex, UniqueMonstersData.size())
++	    << "unique monster data has no Leashed pack entry";
++
++	struct MinionProbe {
++		bool buffed;
++		int maxHitPoints;
++		bool leaderIndexSet;
++	};
++	// makeLeaderUnique controls the ONLY thing IsBuffedMinion looks at; opts.tough controls
++	// the actual buff. Both are varied independently below, which is what shows the
++	// predicate tracks toughening rather than the presence of a leader.
++	const auto place = [&](Point leaderTile, bool makeLeaderUnique, bool tough) -> MinionProbe {
++		InitLevelMonsters();
++		SetRndSeed(9600);
++		Monster *leaderPtr = AddMonster(leaderTile, Direction::South, leaderType, /*inMap=*/false);
++		EXPECT_NE(leaderPtr, nullptr);
++		if (makeLeaderUnique)
++			leaderPtr->uniqueType = static_cast<UniqueMonsterType>(leashedUniqueIndex);
++		EXPECT_EQ(leaderPtr->isUnique(), makeLeaderUnique);
++		PlaceGroup(minionType, 1, leaderPtr, /*leashed=*/true,
++		    MinionOptions { .tough = tough, .inheritAi = false, .inheritIntelligence = false });
++		EXPECT_EQ(ActiveMonsterCount, 2u) << "minion must be placed";
++		const Monster &minion = Monsters[1];
++		return MinionProbe { IsBuffedMinion(minion), minion.maxHitPoints,
++			minion.leader != Monster::NoLeader };
++	};
++
++	// Squad path as the scatter loop drives it: ordinary leader, tough = false.
++	const MinionProbe squad = place({ 40, 40 }, /*makeLeaderUnique=*/false, /*tough=*/false);
++	// Unique boss pack as PrepareUniqueMonst drives it: unique leader, default toughening.
++	const MinionProbe uniquePack = place({ 60, 60 }, /*makeLeaderUnique=*/true, /*tough=*/true);
++	// Same seed, same minion type, tough flipped off: the HP reference that proves the
++	// unique arm above was really doubled instead of merely rolling high.
++	const MinionProbe uniqueUnbuffed = place({ 20, 20 }, /*makeLeaderUnique=*/true, /*tough=*/false);
++
++	ASSERT_GT(squad.maxHitPoints, 0) << "a zero HP roll would make the equalities below trivial";
++	// Premise: both arms DO have a leader index, so `leader != NoLeader` cannot tell them
++	// apart - i.e. the old test really was blind here and this case is not vacuous.
++	ASSERT_TRUE(squad.leaderIndexSet);
++	ASSERT_TRUE(uniquePack.leaderIndexSet);
++	// Premise: the squad minion is genuinely unbuffed and the unique's is genuinely buffed,
++	// measured as a same-seed 2x difference rather than assumed from the flags.
++	ASSERT_EQ(squad.maxHitPoints, uniqueUnbuffed.maxHitPoints)
++	    << "the two tough=false runs must roll identical HP, otherwise the A/B lost RNG"
++	    << " alignment and the doubling check below cannot distinguish anything";
++	ASSERT_EQ(uniquePack.maxHitPoints, 2 * uniqueUnbuffed.maxHitPoints)
++	    << "the unique arm must really be HP-doubled for 'buffed' to mean anything";
++
++	EXPECT_FALSE(squad.buffed)
++	    << "a squad minion (MinionOptions::tough = false) is NOT strengthened, so it must not"
++	    << " be reported as buffed - the blue name would contradict the squad feature's"
++	    << " composition-only promise";
++	EXPECT_TRUE(uniquePack.buffed)
++	    << "a unique boss pack's minion IS HP-doubled, so it must still be reported as buffed"
++	    << " (monhealthbar keeps colouring it blue)";
++}
++
+ // UniqueMinionsBehaviourUnchanged (regression): the unique path calls
+ // PlaceGroup with the DEFAULT MinionOptions{} (PrepareUniqueMonst never
+ // constructs one explicitly), so a Leashed-pack unique's minions must still
+ // come out HP-doubled and AI-inherited exactly as before this task's change.
+ // Mirrors UniqueLeaderDeathBehaviourUnchanged's approach of scanning
+ // UniqueMonstersData for a real Leashed-pack entry rather than hardcoding one.
+ //
+ // The scan additionally requires the unique's own mAi to DIFFER from its base
+ // monster type's ai. PrepareUniqueMonst sets leader.ai = uniqueData.mAi while
+ // the minion is placed with the base type's ai, so when the two match (e.g.
+diff --git a/tools/run_tests.py b/tools/run_tests.py
+index 018a3fc7f..3e627184b 100755
+--- a/tools/run_tests.py
++++ b/tools/run_tests.py
+@@ -43,21 +43,21 @@ TEST_TARGETS = [
+     "ai_registry_test", "animationinfo_test", "appfat_test", "assets_test",
+     "automap_test", "can_target_test", "cursor_test", "dead_test",
+     "diablo_test", "dark_expedition_light_test", "dark_expedition_scroll_test",
+     "dark_expedition_e2e_test", "dark_expedition_drop_test",
+     "drlg_common_test", "drlg_l1_test", "drlg_l2_test", "drlg_l3_test",
+     "drlg_l4_test", "effects_test", "inv_test", "items_test",
+     "lua_integration_test", "math_test", "missiles_test", "multi_logging_test",
+     "pack_test", "player_test", "quests_test", "quest_script_test",
+     "scrollrt_test", "stores_test", "tile_properties_test", "timedemo_test",
+     "townerdat_test", "writehero_test", "vendor_test", "panel_state_test",
+-    "sampling_behavior_test",
++    "sampling_behavior_test", "level_roster_test", "level_roster_baseline_test",
+     "store_transaction_test", "visual_store_test", "stash_test",
+     "inventory_ui_test", "spell_ui_test", "spelldat_test", "spell_tooltip_test",
+     "char_panel_test", "game_menu_test", "spell_ux_test", "consumable_stack_test",
+     "consume_scroll_test",
+     "codec_test", "crawl_test", "data_file_test", "file_util_test",
+     "format_int_test", "ini_test", "mod_identity_test", "palette_blending_test",
+     "parse_int_test", "path_test", "vision_test", "random_test",
+     "rectangle_test", "sheen_bidi_test", "static_vector_test", "str_cat_test",
+     "utf8_test", "text_render_integration_test",
+ ]

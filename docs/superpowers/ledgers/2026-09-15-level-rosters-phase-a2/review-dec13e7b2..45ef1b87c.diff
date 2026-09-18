@@ -1,0 +1,108 @@
+# Review package: dec13e7b2..HEAD
+
+## Commits
+45ef1b87c docs(knowledge+spec): record the HF headless traps and the L17-24 caliber gap
+
+## Files changed
+ docs/knowledge/MEMORY.md                             |  2 ++
+ .../gotcha_drift_check_c2_whole_file_crlf.md         | 19 +++++++++++++++++++
+ .../gotcha_testing_hellfire_levels_headlessly.md     | 20 ++++++++++++++++++++
+ .../specs/2026-09-15-level-rosters-design.md         |  3 +++
+ 4 files changed, 44 insertions(+)
+
+## Diff
+diff --git a/docs/knowledge/MEMORY.md b/docs/knowledge/MEMORY.md
+index 49b5a9f0d..f2a4ef467 100644
+--- a/docs/knowledge/MEMORY.md
++++ b/docs/knowledge/MEMORY.md
+@@ -1,16 +1,18 @@
+ # DevilutionX 知识索引
+ 
+ ## Architecture
+ <!-- 设计决策、模块边界、为什么选 A 不选 B -->
+ 
+ ## Gotchas
++- [`gotcha_testing_hellfire_levels_headlessly.md`](gotcha_testing_hellfire_levels_headlessly.md) — 无头测 HF 层：别调 `LoadHellfireArchives()`（会 FatalExit 整个二进制）、补齐 `.til`+触发器、快照还原全局、以真实依赖门控跳过
++- [`gotcha_drift_check_c2_whole_file_crlf.md`](gotcha_drift_check_c2_whole_file_crlf.md) — 漂移 **C2** 对"相对 merge-base 新增"的文件要求**整文件 CRLF**（不是只看你加的行）
+ - [`gotcha_unique_boss_packs_are_also_leashed.md`](gotcha_unique_boss_packs_are_also_leashed.md) — unique boss pack 也带拴系随从（默认 MinionOptions），度量小队必须用 `isUnique()` 区分，并断言 unique 随从数 >0 防 A/B 空转
+ - [`gotcha_placegroup_leash_is_measured_from_a_neighbour.md`](gotcha_placegroup_leash_is_measured_from_a_neighbour.md) — `PlaceGroup` 的 4 格拴系从 **leader 的邻格**量起，真实边界 >4；断言邻近性别照抄 4
+ - [`reference_ci_workflows_on_feature_branches.md`](reference_ci_workflows_on_feature_branches.md) — 推 `feature/**` 只触发 `better-d1-ci.yml`；**格式/tidy 检查仅在 master/PR**（"CI 绿"≠"格式合规"）；`docs/**` 提交不触发 CI
+ - [`gotcha_tsv_edits_need_mpq_rebuild.md`](gotcha_tsv_edits_need_mpq_rebuild.md) — 改 `assets/txtdata/**.tsv` 后必须先 `ninja devilutionx_mpq`，否则测试量到旧表
+ - [`decision_run_tests_test_builds_its_target.md`](decision_run_tests_test_builds_its_target.md) — `run_tests.py --test` **现在会先构建该目标**（历史坑与老版本注意事项）；改 TSV 仍需 `ninja devilutionx_mpq`
+ - [`gotcha_run_tests_target_list_misses_new_binaries.md`](gotcha_run_tests_target_list_misses_new_binaries.md) — 全量门禁只构建 `run_tests.py` 手抄的 `TEST_TARGETS`，ctest 却跑 `Tests.cmake` 全部用例；漏登记的二进制会被当**陈旧产物**执行（实例：两个 level_roster 目标；指纹是产物 mtime 早于源码）
+ - [`gotcha_max_image_bump_exposes_drlg_oob.md`](gotcha_max_image_bump_exposes_drlg_oob.md) — 抬高 `max_image` 会曝光 `drlg_l2.cpp:2072` 的**既存**越界（改变生成期分支覆盖），先判"曝光 vs 引入"再决定回退
+ - [`gotcha_level_state_when_bypassing_loadgamelevel.md`](gotcha_level_state_when_bypassing_loadgamelevel.md) — 测试里自行建关必须补齐 SOLData / tile 元数据 / trigs；症状指纹：**所有层放置数完全相同**
+ <!-- 平台坑、反直觉行为（Diablo 引擎/存档/渲染/Lua 等） -->
+ 
+diff --git a/docs/knowledge/gotcha_drift_check_c2_whole_file_crlf.md b/docs/knowledge/gotcha_drift_check_c2_whole_file_crlf.md
+new file mode 100644
+index 000000000..0705c85e8
+--- /dev/null
++++ b/docs/knowledge/gotcha_drift_check_c2_whole_file_crlf.md
+@@ -0,0 +1,19 @@
++---
++name: 漂移检查 C2 对"相对 merge-base 新增的文件"要求整文件 CRLF
++description: check_drift.py 的 C 只管既有文件的"保持既有行尾"，而 C2 管"相对 merge-base 新增的文件必须整体匹配 .editorconfig"。给一个新增的 C++/TSV 测试文件加几行注释时若用了 LF，哪怕只有一行，C2 也会 FAIL。
++type: gotcha
++created: 2026-09-16
++sources:
++  - tools/check_drift.py（check_modified_line_endings = C；check_added_line_endings = C2）
++  - .superpowers/sdd/2026-09-15-level-rosters-phase-a2/task-1-report.md（首跑 FAIL C2 的实测）
++---
++
++**事实**：`tools/check_drift.py` 有两条行尾检查：
++- **C**：对**已存在**的文件，要求"改动后仍保持它原有的行尾类型"（可只关心你改的区域）。
++- **C2**：对**相对 merge-base 属于新增**的文件，要求**整个文件**匹配 `.editorconfig`（C++/TSV → CRLF）。
++
++**坑**：一个在**本分支上新增**的测试文件（例如 `test/level_roster_baseline_test.cpp`，相对上游 merge-base 是 added），你往里加几行 LF 注释就会 **FAIL C2** —— 因为 C2 看的是**整文件**，而不是"你新加的那几行"。同一文件若被判定为"已存在"，则只受 C 约束，观感完全不同。
++
++**正确做法**：改动前先确认该文件相对 merge-base 是 added 还是 modified（`git diff --stat <merge-base> -- <file>`），added 的话把它**整文件规范化**（`sed -i 's/$/\r/'` 之前务必确认原文件无 CR 混入，或直接用编辑器统一 CRLF），再提交。
++
++**何时使用**：编辑任何"新文件"（尤其测试）时；排查 `FAIL C2` 时。
+diff --git a/docs/knowledge/gotcha_testing_hellfire_levels_headlessly.md b/docs/knowledge/gotcha_testing_hellfire_levels_headlessly.md
+new file mode 100644
+index 000000000..2f8367649
+--- /dev/null
++++ b/docs/knowledge/gotcha_testing_hellfire_levels_headlessly.md
+@@ -0,0 +1,20 @@
++---
++name: 无头测试 HF 的 L17-24 必须自己挂 hellfire.mpq（不能用 LoadHellfireArchives）并补齐 NEST/CRYPT 前置
++description: 想无头跑 HF 层（L17-24）时的四个真实坑：LoadHellfireArchives 会因缺 hfmonk/hfmusic/hfvoice 直接 FatalExit 整个二进制；缺 NEST/CRYPT 的 .til 与 Hive/Crypt 触发器分派会在 DRLG_LPass3 SEGV；必须快照/还原进程级全局；整段必须以真实依赖探测门控以让 CI 跳过。
++type: gotcha
++created: 2026-09-16
++sources:
++  - .superpowers/sdd/2026-09-15-level-rosters-phase-a2/task-1-report.md（实现者实测）
++  - Source/engine/mpq_archive / Source/storm/...（MpqArchive::Open 的 priority 参数）
++  - Source/levels/gendung.cpp:594（DRLG_LPass3 需要 .til 与触发器初始化）
++---
++
++**场景**：要在 GoogleTest 里无头驱动 HF 的 L17-24（Nest/Crypt）放置/采样。
++
++**四个坑（都实测过）**：
++1. **不要调 `LoadHellfireArchives()`** —— 它同时要求 `hfmonk.mpq`、`hfmusic.mpq`、`hfvoice.mpq`；本机/CI 通常缺这三个，它会 `DisplayFatalErrorAndExit()` **把整个测试二进制杀掉**（不是失败某个用例）。正确做法：自己 `MpqArchive::Open("hellfire.mpq", /*priority=*/8000)` 挂载。
++2. **必须补齐关卡前置**：NEST/CRYPT 的 `.til` 路径（`nlevels\l5data\l5.til`、`l6data\l6.til` 之类）与 `InitHiveTriggers`/`InitCryptTriggers` 的分派——缺任一会在 `DRLG_LPass3`（`Source/levels/gendung.cpp:594`）**SEGV**。
++3. **必须快照/还原进程级全局**（`Quests`/`Players`/`sgGameInitInfo`/`gbIsMultiplayer`/`gbIsHellfire`/`gbIsSpawn`/PrefPath + 重载 Diablo 数据），否则 HF 数据会泄漏到后续套件；**用 `--gtest_shuffle` 验证**。
++4. **整段必须以真实依赖探测门控**（例如探测 `nlevels\l6data\l6.til` 是否可读），缺失即 `GTEST_SKIP` —— CI 只有 `spawn.mpq`，否则必然红。
++
++**何时使用**：任何要覆盖 HF 内容（L17-24、HF 怪、HF 物品）的无头测试。
+diff --git a/docs/superpowers/specs/2026-09-15-level-rosters-design.md b/docs/superpowers/specs/2026-09-15-level-rosters-design.md
+index d006a4d9c..5974db1e0 100644
+--- a/docs/superpowers/specs/2026-09-15-level-rosters-design.md
++++ b/docs/superpowers/specs/2026-09-15-level-rosters-design.md
+@@ -287,13 +287,16 @@ level   max_image   tail_draw   class_floors          squad_chance   squad_size
+ 
+ ## 附录 E：阶段 B / A2 待决问题（本规格记录，不在阶段 A 范围）
+ 
+ 1. **地狱段名册曾退化为"零随机性"（最终评审核正后的严重度，2026-09-15）**：为压住远程占比 ceiling，任务 4 的 R4 数据调整把 L13/L14/L15 压成**每 seed 完全相同的固定组合**（500 seeds 实测各 1 种组合；改动前 20-175 种），并因 `PlaceUniqueMonsters` 要求 base 已在池中而使 **12 只 unique 永久不可达**（L13 5/9→0、L14 6/6→0、L15 2/3→0）。根因：L15 四个 core 把两个类别双双顶到 cap 2（尾池被清空）、L13/L14 `tail_draw=1` 且 floors 在 RNG 之前取第一个匹配项。**裁决更正（R37）**：原文"物种数 4-5 低于目标"低估了严重度；R32/R34 据此撤销/调整——采纳 L14 `tail_draw=2`（实测 0.5964 < ceiling 0.60876，余量 1.2pp 值得为恢复随机性支付），并新增 §6 的多样性守卫（9b）与 unique 可达性守卫（9c）。可选出路仍是：① 放宽 cap；② 提高占比上限；③ 扩充 Melee 池；④ 阶段 B 编组层。
+ 2. **O2**：加载期校验目前只看 core 是否超 cap，未把"quest 无条件预加的 base"计入合计；L13 的实际组合仍可能破 cap。属 §4.2.2 预算语义问题，留阶段 B。
+ 3. **阶段 B 前置**：G1（非 unique leader 死亡不释放随从 → 悬挂索引）、G2（`setLeader` 覆写随从 AI）必须先修，见 §4.3。
+ 4. **阶段 A2**：HF overlay 的 L17-24 名册表；L17-24 现走 R28 legacy fallback（保持旧行为，无身份）。
+ 5. **`tail_draw` 存在隐式上界 ≈4（跨任务耦合，2026-09-15 合并前复审记录）**：`test/sampling_behavior_test.cpp` 的 `HellfireNoParamsSamplingTest.NoParamsTailExceedsTheParameterisedCap` 以"无参数层的散布类型数 > 表内最大 `tail_draw`"来量化"不设上限"，因此把某层的 `tail_draw` 提到 ≥5 会让该守卫失败。将来确有需要时，应**重新论证该守卫的表述**（例如改成比较"是否达到候选上限"），而不是放宽它。
+ 7b. **小队形成率实测与阈值（2026-09-16，Task 4）**：出厂表（**全 15 层 `squad_chance=30`**，2026-09-16 起 L14 亦为 30）**500 seed/层**实测形成率 **99.890-100%**（最差 L10 99.890），统一 floor **0.95**（用例内具名数组 `kSquadFormationFloor`，按层索引、L16 为 unconstrained 哨兵；注释列全 15 层实测值与余量说明，并声明"**实测分隔线、非紧界、非规格常量**"）；逐层实测值无条件打印 `[ SQUADFORM ]`。**无任何层需要 §4.3.4 回退**，`level_roster_params.tsv` 零改动。分子用**leash 无关**的 `SquadRollCounters::formed`（若用带 `squadLeashed && packSize>0` 的 `realised`，任何采用回退的层会恒读 0% —— 即守卫因它自己要求的补救而变红）。运行时：该用例 500seed×15层 ≈290s（该二进制 ~475s），eval case `timeout: 900` 余量不宽，**再加长用例须同步上调**。
+ 
++8. **L17-24 的"行为类别口径缺口"（2026-09-16，A2/Task 1 交底；控制者裁决 RB33 本阶段不修）**：`GetBehaviorClass()`（`tables/monstdat.cpp:483`）只枚举 Diablo 的 AI，`default:` arm 返回 `Boss`；**只在 L17-24 出现的 10 个 AI**（ArchLich/Diablo/FireBat/FireMan/Lich/Necromorb/Psychorb/Scavenger/Torchant 等）都落进该 arm。后果：①基线里"Boss"计数很大是 default arm 的产物，不代表这些层塞满 boss；②其中数只是**远程施法者**，故 `rangedShare` **低估**真实远程压力——**share=0.000000 不等于没有远程**。
++**裁决（RB33）**：A2 沿用**同口径 like-for-like**（不改 `GetBehaviorClass`），因为改口径会变更 §4.5 的分类定义并**静默移动 L1-16 既有基线的测量前提**（需整体重测与重定 ceiling）。该 caveat 已写入测试源码注释与 `[ A2BASELINE ] NOTE:` 输出行。**遗留决策（阶段 C 候选）**：是否重分类这 10 个 HF AI 并重测 L1-16 基线——这会让 L17-24 的远程压力显露得更充分。
++
+ 7. **小队回退邻近性守卫的界与三个参数绑定（2026-09-16，RB18）**：`SquadPlacementTest` 的邻近性上界取 **32**（实测分隔线：出厂路径 max 17 / 去掉 leader 后 max 66；代码可证的 101 不可失败，因散布区 `[16,96)` 内任意两格距离 ≤80）。该界与 `PlaceGroup` 的 `try2` 上限、散布区范围、`squad_size` **绑定**——任一变化都必须重新实测并复核此界（用例无条件打印 `[ SQUADFALLBACK ]` 便于发现漂移）。
+ 6. **既存缺陷（非本规格引入，建议单独开单）**：`Source/levels/drlg_l2.cpp:2072`（`FixTilesPatterns` 一带）存在未加边界的 `dungeon[i][j+1]`/`dungeon[i+1][j]` 访问，在 `j+1 == DMAXY` 时越界；最后一次改动 `53b91fd7a`。合并前复审的全量日志中有 1 条 UBSan 记录，是在**抬高 L8 的 `max_image` 后曝光**（非本功能引入）。
+ 5. **L14 `tail_draw` 1 → 2 的替代解（任务 4 评审实测，裁决 R34 暂不采纳）**：把 L14 的 `tail_draw` 从 1 提到 2，远程占比实测 **0.5964**，仍低于 ceiling **0.60876**，物种数 **4 → 5**，零代码改动、全部测试绿——即阶段 A 的"L14 只有一个数据解"并非绝对，只是"在 ≥5pp 余量标准下唯一"。控制器裁决 R34 **本阶段不采纳**，理由：① 该解余量仅 **1.2pp**（现状 11.7pp），会让 `PlacedClassMixWithinBaseline` 这道守卫变脆，一次无关的采样微调就可能把它推翻；② 与阶段 A 内部一致性冲突——任务 4 曾以"太贴边"为由否掉过同等余量的 `MT_BALROG` 方案，采纳这个会自相矛盾；③ R32 精神是"阶段 A 守卫优先，多样性归阶段 B"。**阶段 B 收口（2026-09-16，任务 D + RB31）**：本项的语境已变——L14 经**重塑 core 名单**（删掉"该类在 L14 无 unique base"的 RangedKite core，见第 1 条出路⑤）把占比余量做到 **6.5pp**（0.543672 ≤ 0.60876）且 `squad_chance` 提到 **30**；物种数 3 → 2，但**每 seed 组合数实测 51**（不降）、unique 可达仍 **6/6**。故本项**已不再是"1.2pp 换一个物种"的取舍**：若将来要恢复"L14 4-5 物种"的初稿目标，应按 RB31 **抬 `tail_draw`**（**不得加 core**——加 Melee/Turret core 会因 cap=2 把该类整类剔出尾抽池、打掉该类 unique base），并同时重测占比与 9c。

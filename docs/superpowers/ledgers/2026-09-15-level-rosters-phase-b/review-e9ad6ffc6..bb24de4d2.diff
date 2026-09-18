@@ -1,0 +1,289 @@
+# Review package: e9ad6ffc6..bb24de4d2
+
+## Commits
+bb24de4d2 test(roster): make the squad realisation guard fallback-proof and its diagnostics truthful
+
+## Files changed
+ test/level_roster_baseline_test.cpp | 115 +++++++++++++++++++++++++++++++-----
+ 1 file changed, 99 insertions(+), 16 deletions(-)
+
+## Diff
+diff --git a/test/level_roster_baseline_test.cpp b/test/level_roster_baseline_test.cpp
+index a915d9e42..a3b1cacd9 100644
+--- a/test/level_roster_baseline_test.cpp
++++ b/test/level_roster_baseline_test.cpp
+@@ -910,83 +910,102 @@ TEST_F(SquadPlacementTest, ShippedSquadChanceRealisesSquadsOnEveryLevel)
+ 	//
+ 	//   roll rate      = rolls / eligible core draws  -> tracks squad_chance
+ 	//   realisation    = realised / rolls             -> tracks placement loss
+ 	//                                                    (totalmonsters clamp,
+ 	//                                                    PlaceGroup's 10 attempts,
+ 	//                                                    the 4-tile leash)
+ 	//
+ 	// No absolute band is asserted on either: both are placement- and
+ 	// roster-dependent, and pinning a literal here would turn a table tweak
+ 	// (task 4's job) into a test failure. What IS asserted is the structural
+-	// part - every level realises squads, no level loses ALL of its rolls, and
+-	// realised never exceeds rolls.
++	// part - every level FORMS squads (see the fix-review note on the `formed`
++	// assertion below for why the zero-rolls detector must not be leash-gated),
++	// no level loses ALL of its rolls, and neither counter ever exceeds rolls.
+ 	LoadLevelRoster(); // shipped tables (squad_chance 30)
+ 
+ 	constexpr uint32_t kSeeds = 50;
+ 	std::string report = "\n## Task 3: realised squad rate per level (SHIPPED table, squad_chance 30, 50 seeds)\n\n"
+ 	                     "| level | eligible core draws | rolls | roll rate | realised | realisation rate"
+ 	                     " | leashed minions | lost: leader / no partner |\n"
+ 	                     "|---|---|---|---|---|---|---|\n";
+ 	for (uint8_t level = 1; level <= 15; level++) {
+ 		size_t eligible = 0;
+ 		size_t rolls = 0;
+ 		size_t realised = 0;
++		size_t formed = 0;
+ 		size_t minions = 0;
+ 		size_t leaderFailures = 0;
+ 		size_t noPartner = 0;
+ 		for (uint32_t seed = 0; seed < kSeeds; seed++) {
+ 			const SquadObservation obs = RunLevel(level, 41000 + seed);
+ 			const SquadRollCounters &counters = GetSquadRollStats();
+ 			eligible += counters.eligibleCoreDraws;
+ 			rolls += counters.rolls;
+ 			leaderFailures += counters.leaderPlacementFailed;
+ 			noPartner += counters.noPartnerAvailable;
+ 			realised += obs.leadersWithMinions;
++			formed += counters.formed;
+ 			minions += obs.leashedMinions;
+ 
+ 			EXPECT_EQ(obs.leadersWithZeroPackSize, 0u)
+ 			    << "level " << static_cast<int>(level) << " seed " << seed;
+ 			EXPECT_EQ(obs.minionsWithOverwrittenAi, 0u)
+ 			    << "level " << static_cast<int>(level) << " seed " << seed;
+ 			EXPECT_EQ(obs.minionsUnderNonCoreLeader, 0u)
+ 			    << "level " << static_cast<int>(level) << " seed " << seed;
+ 			EXPECT_EQ(obs.minionsSharingLeaderType, 0u)
+ 			    << "level " << static_cast<int>(level) << " seed " << seed
+ 			    << ": spec 4.3.3 requires a squad to mix two DIFFERENT core types";
+ 		}
+ 		const double rollRate = eligible == 0 ? 0.0 : static_cast<double>(rolls) / static_cast<double>(eligible);
+ 		const double realisation = rolls == 0 ? 0.0 : static_cast<double>(realised) / static_cast<double>(rolls);
+ 		std::cout << "[ SHIPPEDSQUAD ] level " << static_cast<int>(level) << " eligible " << eligible
+ 		          << " rolls " << rolls << " rollRate " << rollRate << " realised " << realised
+-		          << " realisation " << realisation << " minions " << minions
++		          << " realisation " << realisation << " formed " << formed << " minions " << minions
+ 		          << " lost(leader/partner) " << leaderFailures << "/" << noPartner << std::endl;
+ 		report += StrCat("| ", level, " | ", eligible, " | ", rolls, " | ");
+ 		report += StrCat(static_cast<int>(rollRate * 1000.0 + 0.5), "/1000 | ", realised, " | ");
+ 		report += StrCat(static_cast<int>(realisation * 1000.0 + 0.5), "/1000 | ", minions, " | ");
+ 		report += StrCat(leaderFailures, " / ", noPartner, " |\n");
+ 
+ 		// Tripwire for the squad path's defensive leader-placement fallback in
+ 		// monster.cpp, which is unreachable today (PlaceGroup always places a
+ 		// leaderless group of 1 on its first candidate tile, and squadEligible
+ 		// guarantees room). If that ever stops holding, this says so rather than
+ 		// letting the fallback become live and untested.
+ 		EXPECT_EQ(leaderFailures, 0u)
+ 		    << "level " << static_cast<int>(level) << ": squad leader placement started failing,"
+ 		    << " so monster.cpp's defensive fallback is now a live path and needs its own coverage";
+ 		EXPECT_GT(eligible, 0u)
+ 		    << "level " << static_cast<int>(level) << " never draws a core type in the scatter loop,"
+ 		    << " so its squad columns can never do anything";
+-		EXPECT_GT(realised, 0u)
+-		    << "level " << static_cast<int>(level) << " realised no squad at all over " << kSeeds
++		// Fix review F1 (RB23): the numerator here MUST be `formed`, not the
++		// leash-gated `realised`. `realised` is only ever incremented via
++		// obs.leadersWithMinions, which walks getLeader() on LEASHED minions -
++		// setLeader() (and therefore the leader<->minion back-pointer this reads)
++		// is only called when PlaceGroup runs with leashed=true. A level that
++		// takes the spec 4.3.4 fallback (squad_leashed = 0) is therefore
++		// GUARANTEED to read realised == 0 forever, by construction, with no
++		// placement defect at all. Guarding on `realised` here would make this
++		// case fail the moment the spec-sanctioned remedy for a LOW formation
++		// rate (Task 4's own kSquadFormationFloor guard) is applied to any level,
++		// and the failure text below would misreport a compliant fallback as "no
++		// squad formed at all". `formed` (SquadRollCounters::formed) counts a
++		// roll that placed >= 1 minion for its leader regardless of leash, so it
++		// stays a true zero-roll detector across that fallback.
++		EXPECT_GT(formed, 0u)
++		    << "level " << static_cast<int>(level) << " formed no squad at all over " << kSeeds
+ 		    << " seeds despite " << rolls << " rolls";
+ 		EXPECT_LE(realised, rolls)
+ 		    << "level " << static_cast<int>(level) << " reports more realised squads than rolls";
++		EXPECT_LE(formed, rolls)
++		    << "level " << static_cast<int>(level) << " reports more formed squads than rolls";
+ 	}
+ 	AppendMeasurementReport(report);
+ }
+ 
+ // ---------------------------------------------------------------------------
+ // Task 4 (spec 2026-09-15-level-rosters-design §6 acceptance 7, §4.3.4).
+ //
+ // The formation rate is "of the squad rolls that were ATTEMPTED, what share
+ // really put down at least one minion". Its floors below are DERIVED FROM
+ // MEASUREMENT, not chosen: see kSquadFormationFloor.
+@@ -1080,91 +1099,155 @@ TEST_F(SquadPlacementTest, SquadFormationRate)
+ {
+ 	if (missingMpqAssets_)
+ 		GTEST_SKIP() << "MPQ assets not found - skipping test";
+ 	if (missingRetailTrn_)
+ 		GTEST_SKIP() << "retail/HF TRN (monsters\\monsters\\genrl.trn) not available - skipping test";
+ 
+ 	// The SHIPPED tables, deliberately: this case pins the formation rate of the
+ 	// configuration the game actually ships (squad_chance 30, L14 10), which is
+ 	// what acceptance 7 is about. The squads_always fixture would measure a
+ 	// different table and hide a shipped-data regression.
+-	LoadLevelRoster();
++	LoadLevelRoster(); // shipped tables (squad_chance 30)
+ 
+ 	constexpr uint32_t kSeeds = 500;
+ 	std::string report = "\n## Task 4: squad formation rate per level (SHIPPED table, 500 seeds)\n\n"
+ 	                     "| level | squad_leashed | rolls | formed | formation rate | floor |\n"
+ 	                     "|---|---|---|---|---|---|\n";
+ 	for (uint8_t level = 1; level <= 15; level++) {
+ 		size_t rolls = 0;
+ 		size_t formed = 0;
+ 		size_t leashedRealised = 0;
++		// Fix review F3: the two loss counters that explain a SHORTFALL between
++		// `formed` and `rolls`, so the failure text below can name the actual
++		// cause instead of always pointing at squad_leashed.
++		size_t leaderFailures = 0;
++		size_t noPartner = 0;
+ 		for (uint32_t seed = 0; seed < kSeeds; seed++) {
+ 			RunLevel(level, 51000 + seed);
+ 			const SquadRollCounters &counters = GetSquadRollStats();
+ 			rolls += counters.rolls;
+ 			formed += counters.formed;
+ 			leashedRealised += counters.realised;
++			leaderFailures += counters.leaderPlacementFailed;
++			noPartner += counters.noPartnerAvailable;
+ 		}
+ 
+ 		const LevelRosterParams *params = GetLevelRosterParams(level);
+ 		ASSERT_NE(params, nullptr) << "level " << static_cast<int>(level) << " has no params row";
+ 
+ 		// A level with no rolls has no formation rate to judge, and reporting 0.0
+ 		// for it would fail the floor for the wrong reason. The plan allows
+ 		// skipping such a level - but it must be skipped because the TABLE
+ 		// disabled squads, not because the branch quietly stopped being reached:
+ 		// the latter is the regression this case exists to catch.
+ 		if (rolls == 0) {
+ 			EXPECT_EQ(params->squadChance, 0u)
+ 			    << "level " << static_cast<int>(level) << " has squad_chance "
+ 			    << static_cast<int>(params->squadChance) << " but made no squad roll in " << kSeeds
+ 			    << " seeds, so the squad branch is no longer reached on it";
++			// Fix review F4: this line used to unconditionally print "squads
++			// disabled by the table (squad_chance 0)" even when squadChance was
++			// NOT 0 (the EXPECT above is what actually catches that case, and it
++			// goes red - but this cout line kept asserting the opposite of what
++			// just happened, which is self-contradictory when read in the log).
++			// Report the real squadChance and rolls instead of assuming why rolls
++			// is 0.
+ 			std::cout << "[ SQUADFORM ] level " << static_cast<int>(level)
+-			          << " squads disabled by the table (squad_chance 0)" << std::endl;
++			          << " squad_chance=" << static_cast<int>(params->squadChance)
++			          << " but the loop never rolled a squad (0 rolls in " << kSeeds << " seeds)"
++			          << std::endl;
+ 			continue;
+ 		}
+ 
+ 		const double rate = static_cast<double>(formed) / static_cast<double>(rolls);
+ 		// Unconditional, pass or fail: the floor is loose on purpose, so drift has
+-		// to be readable before it becomes a failure.
++		// to be readable before it becomes a failure. F3: report the loss
++		// counters too, so a level sitting near its floor shows WHY, not just
++		// the resulting rate.
+ 		std::cout << "[ SQUADFORM ] level " << static_cast<int>(level)
+ 		          << " leashed " << (params->squadLeashed ? 1 : 0)
+ 		          << " rolls " << rolls << " formed " << formed << " rate " << rate
++		          << " noPartnerAvailable " << noPartner << " leaderPlacementFailed " << leaderFailures
+ 		          << " floor " << kSquadFormationFloor[level] << std::endl;
+ 		report += StrCat("| ", level, " | ", params->squadLeashed ? 1 : 0, " | ", rolls, " | ", formed, " | ");
+ 		report += StrCat(static_cast<int>(rate * 10000.0 + 0.5), "/10000 | ");
+ 		report += StrCat(static_cast<int>(kSquadFormationFloor[level] * 10000.0 + 0.5), "/10000 |\n");
+ 
+-		// Acceptance 7. A level below its floor is the trigger for the §4.3.4
+-		// fallback (squad_leashed = 0) on THAT level, per the plan's step 2 - the
+-		// floor is not a request to retune squad_chance.
++		// Acceptance 7. F3: the old failure text opened a single prescription -
++		// "set this level's squad_leashed to 0" - regardless of WHY the level
++		// fell short. That is actively misleading when the real cause is
++		// upstream of leashing: `noPartnerAvailable` means the level had no
++		// second registered/available core type to build a mixed squad from (spec
++		// 4.3.3), and `leaderPlacementFailed` means the leader itself could not
++		// be placed (today's defensive, unreachable fallback in monster.cpp -
++		// see its comment there). Unleashing does not fix either: an unleashed
++		// squad still calls PickCorePartnerTypeIndex and still needs the leader
++		// placed BEFORE the leash/no-leash branch is ever reached. So the message
++		// points at whichever counter is actually nonzero, and reserves the
++		// squad_leashed suggestion for when neither of those loss paths explains
++		// the shortfall (i.e. the loss is genuinely coming from PlaceGroup's
++		// leash-gated placement attempts for the minion group itself).
++		std::string diagnosis;
++		if (noPartner > 0) {
++			diagnosis = StrCat(noPartner, " roll(s) had no available core partner"
++			                              " (PickCorePartnerTypeIndex found nothing) - the level's"
++			                              " roster needs a second usable core type for spec 4.3.3's"
++			                              " mixed squad, NOT squad_leashed: unleashing a squad that"
++			                              " never gets a partner chosen changes nothing");
++		} else if (leaderFailures > 0) {
++			diagnosis = StrCat(leaderFailures, " roll(s) failed to place the LEADER itself"
++			                                   " (monster.cpp's defensive leaderPlacementFailed"
++			                                   " fallback is now live) - this is a placement/slot"
++			                                   " failure that happens before the leash decision, so"
++			                                   " squad_leashed cannot fix it");
++		} else {
++			diagnosis = "leader placement and partner selection both succeeded on every roll"
++			            " (noPartnerAvailable=0, leaderPlacementFailed=0), so the loss is in"
++			            " PlaceGroup's own minion placement (the totalmonsters clamp, its"
++			            " 10-attempt give-up, or - only while squad_leashed=1 - the 4-tile leash):"
++			            " per spec 4.3.4 this level's squad_leashed goes to 0 and the measurement is"
++			            " recorded, rather than the floor being lowered";
++		}
+ 		EXPECT_GE(rate, kSquadFormationFloor[level])
+ 		    << "level " << static_cast<int>(level) << " formed only " << formed << " squads out of "
+ 		    << rolls << " rolls (" << rate << "), under its measured floor "
+-		    << kSquadFormationFloor[level] << "; per spec 4.3.4 this level's squad_leashed goes to 0"
+-		    << " and the measurement is recorded, rather than the floor being lowered";
++		    << kSquadFormationFloor[level] << "; " << diagnosis;
+ 
+ 		// Premise guard: `formed` must never exceed the rolls it is counted from -
+ 		// one roll places at most one squad. This is the invariant that caught the
+ 		// underflowing before/after accounting in Task 3.
+ 		EXPECT_LE(formed, rolls)
+ 		    << "level " << static_cast<int>(level) << " reports more formed squads than rolls,"
+ 		    << " so the denominator is not the loop's";
+ 
+ 		// The two counters must agree while the level is leashed. This is what
+ 		// keeps `formed` honest: if it ever started counting something other than
+ 		// a real squad, it would drift away from the packSize-gated figure that
+-		// Task 3's cases assert against. On an unleashed level they must NOT agree
+-		// (realised stays 0 by construction), which is what makes the fallback
+-		// observable here instead of silently reading as a formation collapse.
++		// Task 3's cases assert against.
+ 		if (params->squadLeashed) {
+ 			EXPECT_EQ(leashedRealised, formed)
+ 			    << "level " << static_cast<int>(level) << " is leashed, so every formed squad must"
+ 			    << " also show up as a packSize-carrying leader";
+ 		} else {
++			// Fix review F2 (honesty about this branch): `realised` is gated on
++			// `leader.packSize > 0`, and PlaceGroup only ever writes packSize when
++			// its `leashed` argument is true (see SquadRollCounters::realised /
++			// PlaceGroup in monster.cpp). So the moment `params->squadLeashed` is
++			// false, `leashedRealised` reads 0 unconditionally - this branch is
++			// NOT exercising any code path today; the shipped table leashes every
++			// level (see level_roster_params.tsv), so this `else` is dead in the
++			// current data and this EXPECT is currently a tautology, not a live
++			// discriminator. The assertion is kept (not weakened) because it is
++			// the ONLY thing that will actually observe a future §4.3.4 fallback
++			// if a level's squad_leashed is ever flipped to 0 in response to
++			// SquadFormationRate failing its floor: on that day this branch stops
++			// being dead, `formed` will read > 0 for that level while
++			// `leashedRealised` still reads 0, and this line is what confirms the
++			// fallback produced squads without leashing them rather than silently
++			// reading as a formation collapse.
+ 			EXPECT_EQ(leashedRealised, 0u)
+ 			    << "level " << static_cast<int>(level) << " runs the 4.3.4 fallback, so no roll may"
+ 			    << " report a leashed leader";
+ 		}
+ 	}
+ 	AppendMeasurementReport(report);
+ }

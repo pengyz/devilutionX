@@ -1,0 +1,242 @@
+# Review package: a1de8dcda..44e8bcb2e
+
+## Commits
+44e8bcb2e test(roster): fix the quest pre-add count comment
+6737a1a61 docs(roster): correct the uniqueness wording and harden the ceiling table
+f9fa34bb6 docs(spec): record the phase B open questions raised by the phase A threshold work
+
+## Files changed
+ .../plans/2026-09-15-level-rosters-phase-a.md      |  2 +-
+ .../specs/2026-09-15-level-rosters-design.md       | 10 +++-
+ eval/cases/rng/level-rosters.yaml                  |  4 ++
+ eval/cases/rng/sampling-anti-monopoly.yaml         |  4 ++
+ test/level_roster_baseline_test.cpp                | 60 ++++++++++++++++------
+ test/sampling_behavior_test.cpp                    | 11 ++--
+ 6 files changed, 68 insertions(+), 23 deletions(-)
+
+## Diff
+diff --git a/docs/superpowers/plans/2026-09-15-level-rosters-phase-a.md b/docs/superpowers/plans/2026-09-15-level-rosters-phase-a.md
+index ecf96a9b0..bbf2525e7 100644
+--- a/docs/superpowers/plans/2026-09-15-level-rosters-phase-a.md
++++ b/docs/superpowers/plans/2026-09-15-level-rosters-phase-a.md
+@@ -651,21 +651,21 @@ git commit -m "test(roster): pin placed class mix to the measured baseline and a
+ ---
+ 
+ ## 实施记录（执行者填写）
+ 
+ | 项 | 值 |
+ |---|---|
+ | 任务 1 基线表 | 见下方「A-baseline」表（200 seeds/level，L1-16） |
+ | L13-15 远程占比基线 | L13: (3249+2076)/23405=22.8%；L14: (9674+3425)/23443=55.9%；L15: 13533/23193=58.3% |
+ | `kRangedShareCeiling` | 基线 + 5 个百分点（任务 4 落地）：L13 27.8% / L14 60.9% / L15 63.3%；落在 `test/level_roster_baseline_test.cpp` 的具名 constexpr `kRangedShareBaseline`/`kRangedShareCeiling`，分子分母照抄下方 A-baseline 表 |
+ | 任务 4 阈值实测（改后） | L13 23.6%（5537/23413）/ L14 49.2%（11269/22915）/ L15 50.5%（11611/22978），三层均在带内 |
+-| 任务 4 名册调整（R4） | 首跑 L13 53.5%、L14 65.8% 超标。根因：L13-16 对**任意** class 都是 cap 2，候选池只有 Melee/Turret/Kite，type 多样性超过 2 个 Melee 的部分必然是远程；而放置在 `scattertypes` 上均匀，占比≈type 占比。按 R4 只改数据：L13 core 去掉 `MT_STORML`(Kite)、`MT_SUCCUBUS`(Turret)，L14 core 去掉一个 `MT_SUCCUBUS`(Turret)；L13/L14 `tail_draw` 3→1（保留 1 次抽取 + `RangedKite=1` floor，层里仍有风筝存在感，但不会出现第二个远程 type）。L15 未改动 |
++| 任务 4 名册调整（R4） | 首跑 L13 53.5%、L14 65.8% 超标。根因：L13-16 对**任意** class 都是 cap 2，候选池只有 Melee/Turret/Kite，type 多样性超过 2 个 Melee 的部分必然是远程；而放置在 `scattertypes` 上均匀，占比≈type 占比。按 R4 只改数据：L13 core 去掉 `MT_STORML`(Kite)、`MT_SUCCUBUS`(Turret)，L14 core 去掉一个 `MT_SUCCUBUS`(Turret)；L13/L14 `tail_draw` 3→1（保留 1 次抽取 + `RangedKite=1` floor，层里仍有风筝存在感，但不会出现第二个远程 type）。L15 未改动。**准确表述**：这是「在我们接受的余量标准（≥5pp）下唯一」的数据解，不是绝对唯一——L13 侧确实无解（最小放松实测 0.3792 vs ceiling 0.2775，超 10pp）；但 L14 侧 `tail_draw` 1→2 是**可行的替代解**（实测 0.5964 < ceiling 0.60876，物种 4→5，零代码改动、全测试绿），本阶段因余量仅 1.2pp（现状 11.7pp）会让守卫变脆而**有意不采纳**（裁决 R34，多样性归阶段 B；取舍已记入规格附录 E）|
+ | 小队形成率 | 阶段 B 才需要，本计划不测 |
+ | 夹具重生成记录 | 无新增/重生成夹具；本任务复用 `test/fixtures/levels/` 既有夹具（rnd6.dun / skngdo.dun / banner2.dun / blood2.dun 等） |
+ 
+ ## A-baseline: placed class mix (200 seeds per level)
+ 
+ | level | placed | Melee | RangedTurret | RangedKite | Rally | Charge | Sneak | Summon | Boss |
+ |---|---|---|---|---|---|---|---|---|---|
+ | 1 | 18235 | 9247 | 0 | 0 | 6055 | 0 | 0 | 0 | 2933 |
+ | 2 | 23453 | 8668 | 2149 | 0 | 7747 | 1619 | 635 | 0 | 2635 |
+ | 3 | 25642 | 9731 | 2819 | 0 | 5542 | 3084 | 1239 | 0 | 3227 |
+diff --git a/docs/superpowers/specs/2026-09-15-level-rosters-design.md b/docs/superpowers/specs/2026-09-15-level-rosters-design.md
+index caca23505..e38a83bfd 100644
+--- a/docs/superpowers/specs/2026-09-15-level-rosters-design.md
++++ b/docs/superpowers/specs/2026-09-15-level-rosters-design.md
+@@ -262,11 +262,19 @@ level   max_image   tail_draw   class_floors          squad_chance   squad_size
+ **约束**：每层 4-5 只；必须含该层 A1/A3 承载；不得含 unique 的 base（除非白名单）；`Σimage` 远低于逐层上限（实测 2.2k-6.3k）。
+ 
+ ## 附录 D：玩家可感预测（实现成败判据，来自 R2）
+ 
+ 1. 同一层连进三次，都能遇到同一批 core 怪。
+ 2. 地狱 13-15 单局可见种类从 3.2-3.3 升到 ≥6，且玩家能说出怪名。
+ 3. 能看到"一只 + 1-2 只贴身的同/异种怪同行"（小队）。
+ 4. 随从被击杀所需攻击次数与野外同类怪**相同**（无强化）。
+ 5. 把 leader 引开 >4 格，leashed 随从脱队；靠近后重新贴回。
+ 
+-**若实现后 1/2/4 未出现 → 规格失败；3/5 未出现 → 阶段 B 的小队卖点失败（回到阶段 A 的交付水平）。**
+\ No newline at end of file
++**若实现后 1/2/4 未出现 → 规格失败；3/5 未出现 → 阶段 B 的小队卖点失败（回到阶段 A 的交付水平）。**
++
++## 附录 E：阶段 B / A2 待决问题（本规格记录，不在阶段 A 范围）
++
++1. **地狱段名册被双重挤压（本次实测）**：L13-16 的 B1 `cap ≤ 2/类` 与 L13 偏低的远程占比基线（22.8%）共同把核心名册压到"2 core + 1 尾抽"，实现出的物种数（≈4-5）低于设计目标（7-9）。可选出路：① 放宽 `cap ≤ 2/类`（需论证"名册已保证类别多样性，故 cap 可放宽"）；② 提高远程占比上限（+5pp）；③ 扩充 Melee 候选池；④ **由阶段 B 的编组层提供多样性**（推荐在 B 中权衡）。控制器裁决 R32 选择"阶段 A 不动守卫"，本项留待 B。
++2. **O2**：加载期校验目前只看 core 是否超 cap，未把"quest 无条件预加的 base"计入合计；L13 的实际组合仍可能破 cap。属 §4.2.2 预算语义问题，留阶段 B。
++3. **阶段 B 前置**：G1（非 unique leader 死亡不释放随从 → 悬挂索引）、G2（`setLeader` 覆写随从 AI）必须先修，见 §4.3。
++4. **阶段 A2**：HF overlay 的 L17-24 名册表；L17-24 现走 R28 legacy fallback（保持旧行为，无身份）。
++5. **L14 `tail_draw` 1 → 2 的替代解（任务 4 评审实测，裁决 R34 暂不采纳）**：把 L14 的 `tail_draw` 从 1 提到 2，远程占比实测 **0.5964**，仍低于 ceiling **0.60876**，物种数 **4 → 5**，零代码改动、全部测试绿——即阶段 A 的"L14 只有一个数据解"并非绝对，只是"在 ≥5pp 余量标准下唯一"。控制器裁决 R34 **本阶段不采纳**，理由：① 该解余量仅 **1.2pp**（现状 11.7pp），会让 `PlacedClassMixWithinBaseline` 这道守卫变脆，一次无关的采样微调就可能把它推翻；② 与阶段 A 内部一致性冲突——任务 4 曾以"太贴边"为由否掉过同等余量的 `MT_BALROG` 方案，采纳这个会自相矛盾；③ R32 精神是"阶段 A 守卫优先，多样性归阶段 B"。**阶段 B 需要决的取舍**：是否值得用 1.2pp 的守卫余量换 L14 一个物种？若阶段 B 按第 1 条的出路①/②放宽了 cap 或占比上限，本项自然消解（余量重新变宽后 `tail_draw=2` 不再贴边）；若阶段 B 决定守卫余量必须 ≥5pp，则本项应正式关闭为"不采纳"。
+diff --git a/eval/cases/rng/level-rosters.yaml b/eval/cases/rng/level-rosters.yaml
+index 24406bb6d..893ecda95 100644
+--- a/eval/cases/rng/level-rosters.yaml
++++ b/eval/cases/rng/level-rosters.yaml
+@@ -1,10 +1,14 @@
++# 维护提醒（R35）：本 case 的 `expected.passed_min` 与 `output_contains` 里的
++# "[  PASSED  ] N tests." 是**硬编码的用例计数**。往 LevelRosterBaselineTest 里新增或删除用例后
++# 必须同步这两处数字，否则门禁会静默失效（N 偏小 → 少跑也算过）或误红
++# （N 偏大 → 全绿也判失败）。当前值对应 3 个用例（2026-09-16 核对）。
+ id: "level-rosters"
+ name: "逐层名册 Phase A：放置构成占比在基线带内（真实引擎放置路径）"
+ category: "rng"
+ difficulty: "medium"
+ tags: ["sampling", "monster-generation", "level-roster", "baseline"]
+ 
+ setup:
+   mpq_required: true
+   timeout: 300
+ 
+diff --git a/eval/cases/rng/sampling-anti-monopoly.yaml b/eval/cases/rng/sampling-anti-monopoly.yaml
+index 296a4054e..d268ccddd 100644
+--- a/eval/cases/rng/sampling-anti-monopoly.yaml
++++ b/eval/cases/rng/sampling-anti-monopoly.yaml
+@@ -1,10 +1,14 @@
++# 维护提醒（R35）：本 case 的 `expected.passed_min` 与 `output_contains` 里的
++# "[  PASSED  ] N tests." 是**硬编码的用例计数**。往 SamplingBaselineTest 里新增或删除用例后
++# 必须同步这两处数字，否则门禁会静默失效（N 偏小 → 少跑也算过）或误红
++# （N 偏大 → 全绿也判失败）。当前值对应 24 个用例（2026-09-16 核对）。
+ id: "sampling-anti-monopoly-cap"
+ name: "采样反垄断：B1 cap 后契约（真实引擎 GetLevelMTypes）"
+ category: "rng"
+ difficulty: "medium"
+ tags: ["sampling", "monster-generation", "baseline"]
+ 
+ setup:
+   mpq_required: true
+   timeout: 120
+ 
+diff --git a/test/level_roster_baseline_test.cpp b/test/level_roster_baseline_test.cpp
+index 98cb57785..ecd6c5694 100644
+--- a/test/level_roster_baseline_test.cpp
++++ b/test/level_roster_baseline_test.cpp
+@@ -132,46 +132,72 @@ void CreateDungeonForMeasurement(uint8_t level, uint32_t seed)
+ // numbers stay auditable against their source instead of being rounded literals:
+ //
+ //   L13 (3249 RangedTurret + 2076 RangedKite) / 23405 placed = 22.8%
+ //   L14 (9674 + 3425) / 23443                               = 55.9%
+ //   L15 (13533 + 0)   / 23193                               = 58.3%
+ //
+ // The criterion is "ranged share <= baseline + 5 percentage points" (R4): the
+ // roster may reshape a level's mix, but it must not turn Hell into a ranged
+ // gallery. The 5-point band absorbs seed noise, not a design shift. If a level
+ // exceeds it, the roster or its class_floors is what changes - never this ceiling.
++//
++// Indexing: both tables are indexed BY LEVEL NUMBER and sized 17 so level 16 is
++// a valid index rather than a buffer overrun. Only L13-15 have a baseline; every
++// other level is UNCONSTRAINED, which is spelled as the sentinel 1.0 (a share can
++// never exceed 1.0) rather than 0.0. 0.0 would read as "ceiling zero" and turn a
++// missing baseline into a silent misjudgement - a guaranteed failure, or worse, a
++// pass that means nothing - the moment someone widens the measured level range.
++// Widening that range therefore REQUIRES filling in the corresponding baseline
++// here first; the sentinel keeps the omission honest instead of hiding it.
+ constexpr double kRangedShareTolerance = 0.05;
+-
+-constexpr std::array<double, 16> kRangedShareBaseline {
+-	0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0,
++constexpr double kRangedShareUnconstrained = 1.0;
++
++constexpr std::array<double, 17> kRangedShareBaseline {
++	kRangedShareUnconstrained,   // L0 (unused)
++	kRangedShareUnconstrained,   // L1
++	kRangedShareUnconstrained,   // L2
++	kRangedShareUnconstrained,   // L3
++	kRangedShareUnconstrained,   // L4
++	kRangedShareUnconstrained,   // L5
++	kRangedShareUnconstrained,   // L6
++	kRangedShareUnconstrained,   // L7
++	kRangedShareUnconstrained,   // L8
++	kRangedShareUnconstrained,   // L9
++	kRangedShareUnconstrained,   // L10
++	kRangedShareUnconstrained,   // L11
++	kRangedShareUnconstrained,   // L12
+ 	(3249.0 + 2076.0) / 23405.0, // L13
+ 	(9674.0 + 3425.0) / 23443.0, // L14
+ 	(13533.0 + 0.0) / 23193.0,   // L15
++	kRangedShareUnconstrained,   // L16
+ };
+ 
+-constexpr std::array<double, 16> kRangedShareCeiling {
+-	0.0,
+-	0.0,
+-	0.0,
+-	0.0,
+-	0.0,
+-	0.0,
+-	0.0,
+-	0.0,
+-	0.0,
+-	0.0,
+-	0.0,
+-	0.0,
+-	0.0,
++// A ceiling of exactly kRangedShareUnconstrained stays unconstrained: adding the
++// tolerance to the sentinel would push it above 1.0 and obscure that reading.
++constexpr std::array<double, 17> kRangedShareCeiling {
++	kRangedShareUnconstrained, // L0 (unused)
++	kRangedShareUnconstrained, // L1
++	kRangedShareUnconstrained, // L2
++	kRangedShareUnconstrained, // L3
++	kRangedShareUnconstrained, // L4
++	kRangedShareUnconstrained, // L5
++	kRangedShareUnconstrained, // L6
++	kRangedShareUnconstrained, // L7
++	kRangedShareUnconstrained, // L8
++	kRangedShareUnconstrained, // L9
++	kRangedShareUnconstrained, // L10
++	kRangedShareUnconstrained, // L11
++	kRangedShareUnconstrained, // L12
+ 	kRangedShareBaseline[13] + kRangedShareTolerance,
+ 	kRangedShareBaseline[14] + kRangedShareTolerance,
+ 	kRangedShareBaseline[15] + kRangedShareTolerance,
++	kRangedShareUnconstrained, // L16
+ };
+ 
+ std::array<size_t, static_cast<size_t>(BehaviorClass::Count)> MeasurePlacedClassMix()
+ {
+ 	std::array<size_t, static_cast<size_t>(BehaviorClass::Count)> mix {};
+ 	for (size_t i = 0; i < ActiveMonsterCount; i++) {
+ 		const Monster &monster = Monsters[ActiveMonsters[i]];
+ 		mix[static_cast<size_t>(GetBehaviorClass(monster.ai))]++;
+ 	}
+ 	return mix;
+diff --git a/test/sampling_behavior_test.cpp b/test/sampling_behavior_test.cpp
+index 073cf09c0..985604b06 100644
+--- a/test/sampling_behavior_test.cpp
++++ b/test/sampling_behavior_test.cpp
+@@ -732,28 +732,31 @@ size_t AvailableCoreCount(uint8_t level)
+ //
+ // The roster must NOT be used to compute this. Deriving the allowance from the
+ // very table under test makes the assertion self-fulfilling: a core roster that
+ // lists three same-class monsters would raise its own budget by three and the
+ // check could never fail - exactly the class of data defect (L11's three kite
+ // cores, L14's Melee cores) that this suite exists to catch. Core is therefore
+ // held to the cap here, and the load-time validator (ValidateLevelRoster's
+ // core-vs-cap check) rejects a roster that would break it.
+ //
+ // What genuinely cannot be capped is what GetLevelMTypes() pre-adds regardless
+-// of any table: MT_GOLEM (unconditional PLACE_SPECIAL) and the base types of the
+-// six QUEST uniques (monster.cpp:3463-3475), which are chosen by
+-// UniqueMonstersData rather than by the roster.
++// of any table: MT_GOLEM (unconditional PLACE_SPECIAL) plus the SIX quest-gated
++// type pre-adds at monster.cpp:3464-3475. Those six are not six uniques: Q_BUTCHER
++// adds the plain monster type MT_CLEAVER, while the other five (Q_GARBUD, Q_ZHAR,
++// Q_LTBANNER, Q_VEIL, Q_WARLORD) add a UNIQUE's base type, chosen by
++// UniqueMonstersData rather than by the roster. That is why the table below has
++// five entries and MT_CLEAVER is counted separately in EnginePreAddClassCount.
+ //
+ // O1 (task 3 review): the exemption used to include EVERY unique whose mlevel
+ // matched, which made this allowance so wide that the grid cell could not fail
+ // (L13 alone lists nine uniques spread over most classes). That is wrong about
+-// the engine: only these six are added as monster TYPES by GetLevelMTypes. All
++// the engine: only these six pre-adds take a monster TYPE slot. All
+ // other uniques are placed by PlaceUniqueMonsters(), which picks from the types
+ // the level ALREADY has (see monster.cpp's PlaceUniqueMonsters: it searches
+ // LevelMonsterTypes for a matching base type and skips the unique when absent),
+ // so they occupy no additional type slot and must not widen the cap.
+ constexpr std::array<std::pair<quest_id, UniqueMonsterType>, 5> kQuestUniquePreAdds {
+ 	std::pair { Q_GARBUD, UniqueMonsterType::Garbud },
+ 	std::pair { Q_ZHAR, UniqueMonsterType::Zhar },
+ 	std::pair { Q_LTBANNER, UniqueMonsterType::SnotSpill },
+ 	std::pair { Q_VEIL, UniqueMonsterType::Lachdan },
+ 	std::pair { Q_WARLORD, UniqueMonsterType::WarlordOfBlood },

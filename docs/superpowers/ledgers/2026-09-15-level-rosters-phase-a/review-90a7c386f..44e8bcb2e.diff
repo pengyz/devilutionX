@@ -1,0 +1,3075 @@
+# Review package: 90a7c386f..HEAD
+
+## Commits
+44e8bcb2e test(roster): fix the quest pre-add count comment
+6737a1a61 docs(roster): correct the uniqueness wording and harden the ceiling table
+f9fa34bb6 docs(spec): record the phase B open questions raised by the phase A threshold work
+a1de8dcda docs(plan): record task 4 threshold values and the R4 roster adjustment
+5171fb9fb test(eval): add level-rosters case and record the levelType format change
+85471bee0 test(roster): pin L13-15 placed ranged share to baseline + 5pp
+9095a2397 fix(roster): enforce core-vs-cap at load and stop leaking quest state across suites
+c62a07e0f test(roster): prove levels without roster params keep legacy sampling (R28)
+c1e5d357c feat(roster): sample each level from its roster (core + bounded tail + class floors)
+5f74250d1 test(roster): load the roster in the placement baseline fixture
+462f12ed1 docs(spec+plan): rule that levels without roster params keep legacy sampling (R28)
+33a656a7e test(roster): assert parsed values and make the assets path switch order-independent
+1e07b0a9f test(roster): cover class-floor parsing, uniqueness rejection, and e2e load
+dce5b1aac feat(roster): export a file-path loader/parser and add two uniqueness checks
+8859ab4b9 feat(roster): ship the L1-16 core roster tables and wire the loader
+c0592301a fix(roster): make the sort/lookup helpers production-used and test them directly
+c51a03977 docs(spec): note that the hell-class cap is unreachable at L16 (its branch returns early)
+d62cc26ab fix(roster): enforce B1 caps, sort by level, and share the existence check
+94e3b3201 docs(spec+plan): fold the task-2a review rulings into the spec and plan
+13a974a93 feat(roster): relax validation under shareware data as specified
+1ea83ec25 feat(roster): add the roster table types, loader and validation
+fae55b914 docs(knowledge): record the level-state prerequisites for test-side dungeon creation
+26df82431 fix(roster): load SOL data before measuring so placement matches retail levels
+504522f8a test(roster): skip when MPQ assets are missing and drop the cross-binary helper
+48dfd6f17 docs(plan): drop the cross-binary test helper claim (ruling R6)
+85a1da18a test(roster): measure the placed class-mix baseline per level
+
+## Files changed
+ CMake/Assets.cmake                                 |   2 +
+ CMake/Tests.cmake                                  |   2 +
+ Source/CMakeLists.txt                              |   1 +
+ Source/diablo.cpp                                  |   2 +
+ Source/lua/lua_global.cpp                          |   2 +
+ Source/monster.cpp                                 | 102 +++-
+ Source/tables/level_roster.cpp                     | 357 +++++++++++
+ Source/tables/level_roster.h                       | 120 ++++
+ assets/txtdata/monsters/level_roster_params.tsv    |  16 +
+ assets/txtdata/monsters/level_rosters.tsv          |  62 ++
+ docs/knowledge/MEMORY.md                           |   1 +
+ docs/knowledge/decision_save_format_policy.md      |   1 +
+ ...cha_level_state_when_bypassing_loadgamelevel.md |  23 +
+ .../plans/2026-09-15-level-rosters-phase-a.md      |  40 +-
+ .../specs/2026-09-15-level-rosters-design.md       |  20 +-
+ eval/cases/_nightly.yaml                           |   2 +
+ eval/cases/rng/level-rosters.yaml                  |  43 ++
+ eval/cases/rng/sampling-anti-monopoly.yaml         |  12 +-
+ test/Fixtures.cmake                                |   2 +
+ .../monsters/level_roster_params_interleaved.tsv   |   3 +
+ .../txtdata/monsters/level_rosters_interleaved.tsv |   4 +
+ test/level_roster_baseline_test.cpp                | 343 +++++++++++
+ test/level_roster_test.cpp                         | 458 ++++++++++++++
+ test/sampling_behavior_test.cpp                    | 680 ++++++++++++++++++++-
+ 24 files changed, 2252 insertions(+), 46 deletions(-)
+
+## Diff
+diff --git a/CMake/Assets.cmake b/CMake/Assets.cmake
+index f81028db1..aa22b2e0f 100644
+--- a/CMake/Assets.cmake
++++ b/CMake/Assets.cmake
+@@ -201,20 +201,22 @@ set(devilutionx_assets
+   txtdata/classes/warrior/sounds.tsv
+   txtdata/classes/warrior/sprites.tsv
+   txtdata/classes/warrior/starting_loadout.tsv
+   txtdata/classes/classdat.tsv
+   txtdata/items/item_prefixes.tsv
+   txtdata/items/item_suffixes.tsv
+   txtdata/items/itemdat.tsv
+   txtdata/items/unique_itemdat.tsv
+   txtdata/missiles/misdat.tsv
+   txtdata/missiles/missile_sprites.tsv
++  txtdata/monsters/level_rosters.tsv
++  txtdata/monsters/level_roster_params.tsv
+   txtdata/monsters/monstdat.tsv
+   txtdata/monsters/unique_monstdat.tsv
+   txtdata/objects/objdat.tsv
+   txtdata/quests/questdat.tsv
+   txtdata/sound/effects.tsv
+   txtdata/spells/spelldat.tsv
+   txtdata/spells/spelldesc.tsv
+   txtdata/text/textdat.tsv
+   txtdata/towners/quest_dialog.tsv
+   txtdata/towners/towners.tsv
+diff --git a/CMake/Tests.cmake b/CMake/Tests.cmake
+index 1564b06f9..2cca5d4d5 100644
+--- a/CMake/Tests.cmake
++++ b/CMake/Tests.cmake
+@@ -51,20 +51,22 @@ set(tests
+   quest_script_test
+   scrollrt_test
+   stores_test
+   tile_properties_test
+   timedemo_test
+   townerdat_test
+   writehero_test
+   vendor_test
+   panel_state_test
+   sampling_behavior_test
++  level_roster_baseline_test
++  level_roster_test
+   store_transaction_test
+   visual_store_test
+   stash_test
+   inventory_ui_test
+   spell_ui_test
+   spelldat_test
+   spell_tooltip_test
+   char_panel_test
+   game_menu_test
+   spell_ux_test
+diff --git a/Source/CMakeLists.txt b/Source/CMakeLists.txt
+index 52b4275a3..a94c2b70f 100644
+--- a/Source/CMakeLists.txt
++++ b/Source/CMakeLists.txt
+@@ -624,20 +624,21 @@ target_link_dependencies(libdevilutionx_level_objects PUBLIC
+   libdevilutionx_options
+   libdevilutionx_player
+   libdevilutionx_random
+   libdevilutionx_sdl2_to_1_2_backports
+   libdevilutionx_txtdata
+   libdevilutionx_questdat
+ )
+ 
+ add_devilutionx_object_library(libdevilutionx_monster
+   tables/monstdat.cpp
++  tables/level_roster.cpp
+   monster.cpp
+ )
+ 
+ target_link_dependencies(libdevilutionx_monster
+   PUBLIC
+   DevilutionX::SDL
+   magic_enum::magic_enum
+   sol2::sol2
+   tl
+   unordered_dense::unordered_dense
+diff --git a/Source/diablo.cpp b/Source/diablo.cpp
+index cc5d27cfa..08a0c6d7d 100644
+--- a/Source/diablo.cpp
++++ b/Source/diablo.cpp
+@@ -95,20 +95,21 @@
+ #include "qol/itemlabels.h"
+ #include "qol/monhealthbar.h"
+ #include "qol/stash.h"
+ #include "qol/visual_store.h"
+ #include "qol/xpbar.h"
+ #include "quick_messages.hpp"
+ #include "restrict.h"
+ #include "stores.h"
+ #include "storm/storm_net.hpp"
+ #include "storm/storm_svid.h"
++#include "tables/level_roster.h"
+ #include "tables/monstdat.h"
+ #include "tables/playerdat.hpp"
+ #include "towners.h"
+ #include "track.h"
+ #include "utils/console.h"
+ #include "utils/display.h"
+ #include "utils/format.hpp"
+ #include "utils/is_of.hpp"
+ #include "utils/language.h"
+ #include "utils/parse_int.hpp"
+@@ -2802,20 +2803,21 @@ int DiabloMain(int argc, char **argv)
+ 	LoadTextData();
+ 
+ 	// Load dynamic data before we go into the menu as we need to initialise player characters in memory pretty early.
+ 	LoadPlayerDataFiles();
+ 
+ 	// TODO: We can probably load this much later (when the game is starting).
+ 	LoadSpellData();
+ 	LoadSpellDescData();
+ 	LoadMissileData();
+ 	LoadMonsterData();
++	LoadLevelRoster();
+ 	LoadItemData();
+ 	LoadObjectData();
+ 	LoadQuestData();
+ 
+ 	DiabloInit();
+ #ifdef __UWP__
+ 	onInitialized();
+ #endif
+ 	if (!demo::IsRunning()) SaveOptions();
+ 
+diff --git a/Source/lua/lua_global.cpp b/Source/lua/lua_global.cpp
+index b4110665e..2f97cbb15 100644
+--- a/Source/lua/lua_global.cpp
++++ b/Source/lua/lua_global.cpp
+@@ -35,20 +35,21 @@
+ #include "lua/modules/monsters.hpp"
+ #include "lua/modules/player.hpp"
+ #include "lua/modules/render.hpp"
+ #include "lua/modules/spells.hpp"
+ #include "lua/modules/system.hpp"
+ #include "lua/modules/towners.hpp"
+ #include "lua/modules/world.hpp"
+ #include "options.h"
+ #include "plrmsg.h"
+ #include "stores.h"
++#include "tables/level_roster.h"
+ #include "utils/console.h"
+ #include "utils/log.hpp"
+ #include "utils/str_cat.hpp"
+ 
+ #ifdef _DEBUG
+ #include "lua/modules/dev.hpp"
+ #include "lua/repl.hpp"
+ #endif
+ 
+ namespace devilution {
+@@ -268,20 +269,21 @@ void LuaReloadActiveMods()
+ 		sound_init();
+ 	else
+ 		ui_sound_init();
+ 
+ 	// Reload game data (this can probably be done later in the process to avoid having to reload it)
+ 	LoadTextData();
+ 	LoadPlayerDataFiles();
+ 	LoadSpellData();
+ 	LoadMissileData();
+ 	LoadMonsterData();
++	LoadLevelRoster();
+ 	LoadItemData();
+ 	LoadObjectData();
+ 	LoadQuestData();
+ 
+ 	lua::LoadModsComplete();
+ }
+ 
+ void LuaInitialize()
+ {
+ 	CurrentLuaState.emplace();
+diff --git a/Source/monster.cpp b/Source/monster.cpp
+index 791cbc68b..a58013a37 100644
+--- a/Source/monster.cpp
++++ b/Source/monster.cpp
+@@ -74,20 +74,21 @@
+ #include "movie.h"
+ #include "msg.h"
+ #include "multi.h"
+ #include "objects.h"
+ #include "options.h"
+ #include "player.h"
+ #include "quests.h"
+ #include "sound_effect_enums.h"
+ #include "storm/storm_net.hpp"
+ #include "tables/itemdat.h"
++#include "tables/level_roster.h"
+ #include "tables/misdat.h"
+ #include "tables/monstdat.h"
+ #include "tables/objdat.h"
+ #include "tables/playerdat.hpp"
+ #include "tables/spelldat.h"
+ #include "tables/textdat.h"
+ #include "utils/algorithm/container.hpp"
+ #include "utils/attributes.h"
+ #include "utils/cl2_to_clx.hpp"
+ #include "utils/endian_swap.hpp"
+@@ -3481,79 +3482,136 @@ std::expected<void, std::string> GetLevelMTypes()
+ 			_monster_id skeltypes[NUM_MAX_MTYPES];
+ 			for (const _monster_id skeletonType : SkeletonTypes) {
+ 				if (!IsMonsterAvailable(MonstersData[skeletonType]))
+ 					continue;
+ 
+ 				skeltypes[skeletonTypeCount++] = skeletonType;
+ 			}
+ 			RETURN_IF_ERROR(AddMonsterType(skeltypes[GenerateRnd(skeletonTypeCount)], PLACE_SCATTER));
+ 		}
+ 
++		// A-roster core pre-add (spec 4.2.2): every core member of the level is
++		// added unconditionally, so a level's identity no longer depends on the
++		// RNG. Core bypasses the behaviour-class caps - those live inside the
++		// sampling loop below - but it does count against the per-level sprite
++		// budget through AddMonsterType, and it is included in classCounts below,
++		// so the caps are computed against the full composition rather than being
++		// underestimated.
++		// GetLevelRoster() deliberately does not filter by availability (see
++		// level_roster.h), so filter here: under shareware data most L5-16 core
++		// rows are Retail-only, and pre-adding an unavailable type would spend the
++		// level's budget on a monster the data set cannot place.
++		for (const LevelRosterEntry &entry : GetLevelRoster(currlevel)) {
++			if (entry.role != LevelRosterRole::Core)
++				continue;
++			if (!IsMonsterAvailable(MonstersData[entry.type]))
++				continue;
++
++			RETURN_IF_ERROR(AddMonsterType(entry.type, PLACE_SCATTER));
++		}
++
++		// Levels without a params row keep the legacy sampling behaviour (R28):
++		// the historical global sprite budget and an unbounded tail draw, so the
++		// loop below is limited only by the budget / MaxLvlMTypes exactly as before.
++		// This currently covers L17-24 (Nest/Crypt), which get their own tables in
++		// phase A2. Falling back to tailDraw = 0 would make the loop condition
++		// tailAdded < tailDraw permanently false, leaving those levels with no
++		// PLACE_SCATTER type at all - i.e. no scattered monsters, a regression
++		// against the pre-roster behaviour.
++		const LevelRosterParams *rosterParams = GetLevelRosterParams(currlevel);
++		const int maxImage = rosterParams != nullptr ? rosterParams->maxImage : 4000;
++		const int tailDraw = rosterParams != nullptr ? rosterParams->tailDraw : std::numeric_limits<int>::max();
++
+ 		_monster_id typelist[MaxMonsters];
+ 
+ 		int nt = 0;
+ 		for (size_t i = 0; i < MonstersData.size(); i++) {
+ 			if (!IsMonsterAvailable(MonstersData[i]))
+ 				continue;
++			// Spec 4.2.3: the tail pool is the candidate pool minus the types the
++			// level already carries (core roster plus the unconditional/quest
++			// pre-adds), so a bounded tail draw is never spent re-picking a type
++			// that is already present.
++			if (GetMonsterTypeIndex(static_cast<_monster_id>(i)) != LevelMonsterTypeCount)
++				continue;
+ 
+ 			typelist[nt++] = (_monster_id)i;
+ 		}
+ 
+ 		// B1 sampling-anti-monopoly: cap the per-level behavior mix so random
+ 		// sampling cannot produce an all-kite Caves level or an all-same-class
+-		// Hell level. Caves 9-12: at most 2 RangedKite types. Hell 13-15: at
+-		// most 2 of any single class (L16 hardcodes its types and returns
+-		// before the cap). Other level ranges are unconstrained.
+-		// Counts start from the pre-added types (Golem + quest monsters), so
+-		// the cap reflects the full LevelMonsterTypes composition a player
+-		// faces, not just the random-sampled portion.
++		// Hell level. The caps themselves come from BehaviorClassCapForLevel
++		// (level_roster.h), which the roster validator uses as well, so the
++		// admissible mix cannot drift between load-time validation and sampling.
++		// Counts start from the pre-added types (Golem + quest monsters + the core
++		// roster), so the cap reflects the full LevelMonsterTypes composition a
++		// player faces, not just the random-sampled portion.
+ 		uint8_t classCounts[static_cast<size_t>(BehaviorClass::Count)] = {};
+ 		for (size_t i = 0; i < LevelMonsterTypeCount; i++) {
+ 			classCounts[static_cast<size_t>(GetBehaviorClass(MonstersData[LevelMonsterTypes[i].type].ai))]++;
+ 		}
+-		const bool capKite = currlevel >= 9 && currlevel <= 12;
+-		const bool capSameClass = currlevel >= 13 && currlevel <= 16;
+ 
+-		while (nt > 0 && LevelMonsterTypeCount < MaxLvlMTypes && monstimgtot < 4000) {
++		// Spec 4.2.4: the tail is drawn at most tailDraw times, counting only
++		// draws that actually added a new type.
++		int tailAdded = 0;
++		while (nt > 0 && LevelMonsterTypeCount < MaxLvlMTypes && monstimgtot < maxImage && tailAdded < tailDraw) {
+ 			for (int i = 0; i < nt;) {
+-				if (MonstersData[typelist[i]].image > 4000 - monstimgtot) {
++				if (MonstersData[typelist[i]].image > maxImage - monstimgtot) {
+ 					typelist[i] = typelist[--nt];
+ 					continue;
+ 				}
+ 
+ 				i++;
+ 			}
+ 
+ 			if (nt != 0) {
+-				if (capKite || capSameClass) {
+-					for (int i = 0; i < nt;) {
+-						const BehaviorClass cls = GetBehaviorClass(MonstersData[typelist[i]].ai);
+-						const uint8_t count = classCounts[static_cast<size_t>(cls)];
+-						const bool overCap = capSameClass ? count >= 2 : (cls == BehaviorClass::RangedKite && count >= 2);
+-						if (overCap) {
+-							typelist[i] = typelist[--nt];
+-							continue;
+-						}
+-
+-						i++;
++				for (int i = 0; i < nt;) {
++					const BehaviorClass cls = GetBehaviorClass(MonstersData[typelist[i]].ai);
++					const uint8_t cap = BehaviorClassCapForLevel(currlevel, cls);
++					if (cap != 0 && classCounts[static_cast<size_t>(cls)] >= cap) {
++						typelist[i] = typelist[--nt];
++						continue;
+ 					}
++
++					i++;
+ 				}
+ 
+ 				if (nt != 0) {
+-					const int i = GenerateRnd(nt);
++					// Class floors (spec 4.5): a class still below its floor is
++					// drawn before the random pick. This only tops an unmet minimum
++					// up; it never lifts a class above what the caps already allow,
++					// so it cannot be used to raise the ranged share.
++					int preferred = -1;
++					if (rosterParams != nullptr) {
++						for (const auto &[cls, floor] : rosterParams->classFloors) {
++							if (classCounts[static_cast<size_t>(cls)] >= floor)
++								continue;
++							for (int i = 0; i < nt; i++) {
++								if (GetBehaviorClass(MonstersData[typelist[i]].ai) == cls) {
++									preferred = i;
++									break;
++								}
++							}
++							if (preferred >= 0)
++								break;
++						}
++					}
++
++					const int i = preferred >= 0 ? preferred : GenerateRnd(nt);
+ 					const size_t countBefore = LevelMonsterTypeCount;
+ 					RETURN_IF_ERROR(AddMonsterType(typelist[i], PLACE_SCATTER));
+ 					// Only count newly added slots. A type that was already
+ 					// pre-added (e.g. a quest-unique whose base type is also a
+ 					// regular pool member) must not double-count its class.
+ 					if (LevelMonsterTypeCount != countBefore) {
+ 						classCounts[static_cast<size_t>(GetBehaviorClass(MonstersData[typelist[i]].ai))]++;
++						tailAdded++;
+ 					}
+ 					typelist[i] = typelist[--nt];
+ 				}
+ 			}
+ 		}
+ 	} else {
+ 		if (setlvlnum == SL_SKELKING) {
+ 			RETURN_IF_ERROR(AddMonsterType(MT_SKING, PLACE_UNIQUE));
+ 		}
+ 	}
+diff --git a/Source/tables/level_roster.cpp b/Source/tables/level_roster.cpp
+new file mode 100644
+index 000000000..ea5d244ed
+--- /dev/null
++++ b/Source/tables/level_roster.cpp
+@@ -0,0 +1,357 @@
++/**
++ * @file level_roster.cpp
++ *
++ * Implementation of the per-level monster roster tables (types, loader, validation).
++ */
++#include "tables/level_roster.h"
++
++#include <algorithm>
++#include <charconv>
++#include <cstddef>
++#include <expected>
++#include <optional>
++#include <string>
++#include <string_view>
++#include <system_error>
++#include <utility>
++#include <vector>
++
++#include <magic_enum/magic_enum.hpp>
++
++#include "appfat.h"
++#include "data/file.hpp"
++#include "data/record_reader.hpp"
++#include "game_mode.hpp"
++#include "tables/monstdat.h"
++#include "utils/log.hpp"
++#include "utils/str_cat.hpp"
++#include "utils/str_split.hpp"
++
++namespace devilution {
++
++namespace {
++
++std::vector<LevelRosterEntry> Entries;
++std::vector<LevelRosterParams> Params;
++
++// Same semantics as monster.cpp's IsMonsterAvailable (that function has internal
++// linkage there, so this validator re-implements the check rather than reusing it).
++bool IsAvailableAt(uint8_t level, _monster_id type)
++{
++	const MonsterData &data = MonstersData[static_cast<size_t>(type)];
++	if (data.availability == MonsterAvailability::Never)
++		return false;
++	if (gbIsSpawn && data.availability == MonsterAvailability::Retail)
++		return false;
++	return level >= data.minDunLvl && level <= data.maxDunLvl;
++}
++
++bool IsUniqueBaseForLevel(uint8_t level, _monster_id type)
++{
++	for (const UniqueMonsterData &unique : UniqueMonstersData) {
++		if (unique.mlevel == level && unique.mtype == type)
++			return true;
++	}
++	return false;
++}
++
++} // namespace
++
++std::vector<std::pair<BehaviorClass, uint8_t>> ParseClassFloors(std::string_view value)
++{
++	std::vector<std::pair<BehaviorClass, uint8_t>> result;
++	if (value.empty())
++		return result;
++	for (const std::string_view part : SplitByChar(value, ',')) {
++		const size_t eq = part.find('=');
++		if (eq == std::string_view::npos)
++			app_fatal(StrCat("Invalid class_floors entry (missing '='): \"", part, "\""));
++		const std::string_view clsName = part.substr(0, eq);
++		const std::string_view floorStr = part.substr(eq + 1);
++		const std::optional<BehaviorClass> cls = magic_enum::enum_cast<BehaviorClass>(clsName);
++		if (!cls.has_value())
++			app_fatal(StrCat("Invalid class_floors entry (unknown BehaviorClass): \"", clsName, "\""));
++		uint8_t floor = 0;
++		const std::from_chars_result parsed = std::from_chars(floorStr.data(), floorStr.data() + floorStr.size(), floor);
++		if (parsed.ec != std::errc() || parsed.ptr != floorStr.data() + floorStr.size())
++			app_fatal(StrCat("Invalid class_floors entry (bad integer): \"", floorStr, "\""));
++		result.emplace_back(*cls, floor);
++	}
++	return result;
++}
++
++namespace {
++
++void LoadLevelRosterEntriesFromFile(DataFile &dataFile, std::string_view filename)
++{
++	dataFile.skipHeaderOrDie(filename);
++	Entries.reserve(Entries.size() + dataFile.numRecords());
++	for (DataFileRecord record : dataFile) {
++		RecordReader reader { record, filename };
++		LevelRosterEntry entry {};
++		reader.readInt("level", entry.level);
++		reader.read("monster_id", entry.type, [](std::string_view value) -> std::expected<_monster_id, std::string> {
++			const std::optional<_monster_id> id = magic_enum::enum_cast<_monster_id>(value);
++			if (!id.has_value())
++				return std::unexpected(StrCat("Unknown monster id \"", value, "\""));
++			return *id;
++		});
++		reader.read("role", entry.role, [](std::string_view value) -> std::expected<LevelRosterRole, std::string> {
++			if (value == "core")
++				return LevelRosterRole::Core;
++			if (value == "tail")
++				return LevelRosterRole::Tail;
++			return std::unexpected(StrCat("Unknown role \"", value, "\""));
++		});
++		reader.read("allow_unique_boost", entry.allowUniqueBoost, [](std::string_view value) -> std::expected<bool, std::string> {
++			if (value == "-" || value.empty())
++				return false;
++			if (value == "true")
++				return true;
++			if (value == "false")
++				return false;
++			return std::unexpected(StrCat("Invalid allow_unique_boost value \"", value, "\""));
++		});
++		Entries.push_back(entry);
++	}
++}
++
++void LoadLevelRosterParamsFromFile(DataFile &dataFile, std::string_view filename)
++{
++	dataFile.skipHeaderOrDie(filename);
++	Params.reserve(Params.size() + dataFile.numRecords());
++	for (DataFileRecord record : dataFile) {
++		RecordReader reader { record, filename };
++		LevelRosterParams params {};
++		reader.readInt("level", params.level);
++		reader.readInt("max_image", params.maxImage);
++		reader.readInt("tail_draw", params.tailDraw);
++		std::string classFloorsStr;
++		reader.readString("class_floors", classFloorsStr);
++		params.classFloors = ParseClassFloors(classFloorsStr);
++		Params.push_back(params);
++	}
++}
++
++} // namespace
++
++uint8_t BehaviorClassCapForLevel(uint8_t level, BehaviorClass cls)
++{
++	// Mirrors monster.cpp's B1 scatter-sampling cap (see :3513-3531): L9-12 caps the
++	// RangedKite class at 2, L13-16 caps any single class at 2, everything else is uncapped.
++	// The validator and the sampling loop share this single source of truth so they cannot drift.
++	if (level >= 13 && level <= 16)
++		return 2;
++	if (level >= 9 && level <= 12 && cls == BehaviorClass::RangedKite)
++		return 2;
++	return 0;
++}
++
++void SortRosterByLevel(std::span<LevelRosterEntry> entries)
++{
++	std::stable_sort(entries.begin(), entries.end(), [](const LevelRosterEntry &a, const LevelRosterEntry &b) {
++		return a.level < b.level;
++	});
++}
++
++std::span<const LevelRosterEntry> FindLevelRoster(std::span<const LevelRosterEntry> entries, uint8_t level)
++{
++	const auto begin = std::find_if(entries.begin(), entries.end(), [level](const LevelRosterEntry &e) { return e.level == level; });
++	if (begin == entries.end())
++		return {};
++	const auto end = std::find_if(begin, entries.end(), [level](const LevelRosterEntry &e) { return e.level != level; });
++	return { &*begin, static_cast<size_t>(std::distance(begin, end)) };
++}
++
++std::optional<std::string> ValidateLevelRoster(std::span<const LevelRosterEntry> entries, std::span<const LevelRosterParams> params)
++{
++	// Type existence/bounds is shared by both modes: a row naming an id outside
++	// MonstersData's range (e.g. a smuggled MT_INVALID) must be rejected before either
++	// mode's relaxed or full checks run, otherwise downstream code could index out of bounds.
++	for (const LevelRosterEntry &entry : entries) {
++		if (static_cast<size_t>(entry.type) >= MonstersData.size())
++			return StrCat("roster row names unknown monster id ", static_cast<int>(entry.type));
++	}
++
++	// Range/shape sanity checks apply in both modes; they are basic structural
++	// requirements, not retail-specific availability/unique semantics.
++	for (const LevelRosterParams &param : params) {
++		if (param.maxImage <= 0)
++			return StrCat("level ", param.level, " has a non-positive max_image (", param.maxImage, ")");
++		if (param.tailDraw < 0)
++			return StrCat("level ", param.level, " has a negative tail_draw (", param.tailDraw, ")");
++		for (const auto &[cls, floor] : param.classFloors) {
++			if (cls == BehaviorClass::Count)
++				return StrCat("level ", param.level, " class floor names the sentinel BehaviorClass::Count, which is not a real category");
++		}
++	}
++
++	// Uniqueness checks (R21 + 2a rulings): a duplicate params row for the same level would
++	// have its second occurrence silently ignored by GetLevelRosterParams() (linear
++	// find_if returns the first match); a duplicate (level, monster_id) entry row would
++	// silently double-count that monster in caps/floor bookkeeping. Both apply in both modes
++	// since they are structural, not availability-related.
++	{
++		std::vector<uint8_t> paramLevels;
++		for (const LevelRosterParams &param : params)
++			paramLevels.push_back(param.level);
++		std::sort(paramLevels.begin(), paramLevels.end());
++		const auto dup = std::adjacent_find(paramLevels.begin(), paramLevels.end());
++		if (dup != paramLevels.end())
++			return StrCat("level ", *dup, " has more than one params row");
++	}
++	{
++		std::vector<std::pair<uint8_t, _monster_id>> entryKeys;
++		for (const LevelRosterEntry &entry : entries)
++			entryKeys.emplace_back(entry.level, entry.type);
++		std::sort(entryKeys.begin(), entryKeys.end());
++		const auto dup = std::adjacent_find(entryKeys.begin(), entryKeys.end());
++		if (dup != entryKeys.end())
++			return StrCat("level ", dup->first, " has more than one roster row for monster ", static_cast<int>(dup->second));
++	}
++
++	// Core-non-empty check: every distinct level appearing in entries or params must have
++	// at least one core member. This is enforced in both modes.
++	std::vector<uint8_t> levels;
++	for (const LevelRosterEntry &entry : entries)
++		levels.push_back(entry.level);
++	for (const LevelRosterParams &param : params)
++		levels.push_back(param.level);
++	std::sort(levels.begin(), levels.end());
++	levels.erase(std::unique(levels.begin(), levels.end()), levels.end());
++	for (const uint8_t level : levels) {
++		const bool hasCore = std::any_of(entries.begin(), entries.end(), [level](const LevelRosterEntry &e) {
++			return e.level == level && e.role == LevelRosterRole::Core;
++		});
++		if (!hasCore)
++			return StrCat("level ", level, " has no core roster members");
++	}
++
++	// Core-vs-cap self-consistency (R29). The sampling loop applies the B1 caps to the
++	// tail draw only: the core roster is pre-added ahead of the loop and therefore bypasses
++	// them by design (spec 4.2.2). That makes it possible for the DATA to break a B1
++	// guarantee that the code can no longer defend - e.g. a level whose core lists three
++	// RangedKite monsters is an all-kite level no matter what the loop does afterwards.
++	// Reject that here, at load time, so the guarantee is structural rather than something
++	// a percentage baseline happens to notice. Checked in both modes: it is a property of
++	// the table itself, and the availability filter the pre-add applies can only ever make
++	// the realised core a SUBSET of these rows, so passing here is the conservative bound.
++	for (const uint8_t level : levels) {
++		uint8_t coreClassCounts[static_cast<size_t>(BehaviorClass::Count)] = {};
++		for (const LevelRosterEntry &entry : entries) {
++			if (entry.level != level || entry.role != LevelRosterRole::Core)
++				continue;
++			coreClassCounts[static_cast<size_t>(GetBehaviorClass(MonstersData[static_cast<size_t>(entry.type)].ai))]++;
++		}
++		for (size_t i = 0; i < static_cast<size_t>(BehaviorClass::Count); i++) {
++			const auto cls = static_cast<BehaviorClass>(i);
++			const uint8_t cap = BehaviorClassCapForLevel(level, cls);
++			if (cap == 0)
++				continue;
++			if (coreClassCounts[i] > cap)
++				return StrCat("level ", level, " core roster has ", static_cast<int>(coreClassCounts[i]),
++				    " monsters of behaviour class ", magic_enum::enum_name(cls),
++				    " but the B1 sampling cap for that level and class is ", static_cast<int>(cap),
++				    "; core bypasses the cap, so this breaks the guarantee in the data");
++		}
++	}
++
++	if (gbIsSpawn) {
++		// Shareware (spawn) data ships a much smaller monster/unique set, so the full
++		// retail-style checks (per-row availability, unique-base whitelist, class floor
++		// satisfiability) are not meaningful here and are relaxed. Type existence and the
++		// core-non-empty check above are still shared with retail mode.
++		return std::nullopt;
++	}
++
++	for (const LevelRosterEntry &entry : entries) {
++		if (!IsAvailableAt(entry.level, entry.type))
++			return StrCat("monster ", static_cast<int>(entry.type), " is not available at level ", entry.level);
++		if (!entry.allowUniqueBoost && IsUniqueBaseForLevel(entry.level, entry.type))
++			return StrCat("monster ", static_cast<int>(entry.type), " is a unique's base at level ", entry.level, " and needs allow_unique_boost");
++	}
++	for (const LevelRosterParams &param : params) {
++		// Class floor satisfiability: the level's available candidate pool, after being
++		// truncated by the B1 sampling cap, must still contain at least `floor` monsters
++		// of that behavior class.
++		for (const auto &[cls, floor] : param.classFloors) {
++			size_t available = 0;
++			for (size_t i = 0; i < MonstersData.size(); i++) {
++				const auto type = static_cast<_monster_id>(i);
++				if (IsAvailableAt(param.level, type) && GetBehaviorClass(MonstersData[i].ai) == cls)
++					available++;
++			}
++			const uint8_t cap = BehaviorClassCapForLevel(param.level, cls);
++			const size_t effective = cap == 0 ? available : std::min(available, static_cast<size_t>(cap));
++			if (effective < floor)
++				return StrCat("level ", param.level, " class floor ", static_cast<int>(cls), " needs ", floor, " but only ", effective, " candidates exist (", available, " raw candidates, B1 sampling caps this class to ", static_cast<int>(cap), ")");
++		}
++	}
++	return std::nullopt;
++}
++
++namespace {
++
++// Verbose-only load-time diagnostic: reports each Phase A level's roster size and params so a
++// missing/short level shows up in a verbose log instead of only surfacing later as a silent
++// empty span at GetLevelRoster() call sites. This is the production caller for
++// GetLevelRoster()/GetLevelRosterParams() (Task 3's sampling loop is its own, separate caller,
++// out of this task's scope); it does not affect gameplay.
++void LogLoadedRosterSummary()
++{
++	// Iterate the levels actually present in Params (rather than a hardcoded Phase A range like
++	// 1..16) so this diagnostic keeps covering every loaded level once Phase A2 adds the L17-24
++	// HF overlay rows, with no edit required here.
++	for (const LevelRosterParams &param : Params) {
++		const std::span<const LevelRosterEntry> roster = GetLevelRoster(param.level);
++		const LevelRosterParams *params = GetLevelRosterParams(param.level);
++		LogVerbose("Level roster: level {} has {} entries, params {}", param.level, roster.size(),
++		    params != nullptr ? "present" : "missing");
++	}
++}
++
++} // namespace
++
++void LoadLevelRosterFromFiles(std::string_view rosterFile, std::string_view paramsFile)
++{
++	Entries.clear();
++	Params.clear();
++
++	DataFile rosterDataFile = DataFile::loadOrDie(rosterFile);
++	LoadLevelRosterEntriesFromFile(rosterDataFile, rosterFile);
++
++	DataFile paramsDataFile = DataFile::loadOrDie(paramsFile);
++	LoadLevelRosterParamsFromFile(paramsDataFile, paramsFile);
++
++	// GetLevelRoster() relies on same-level rows being physically contiguous. Nothing
++	// guarantees the TSV rows are grouped by level, so sort them here (stably, so rows
++	// sharing a level keep their file order, which matters for tail draw ordering).
++	SortRosterByLevel(Entries);
++
++	Entries.shrink_to_fit();
++	Params.shrink_to_fit();
++
++	const std::optional<std::string> error = ValidateLevelRoster(Entries, Params);
++	if (error.has_value())
++		app_fatal(StrCat("Level roster validation failed: ", *error));
++
++	LogLoadedRosterSummary();
++}
++
++void LoadLevelRoster()
++{
++	LoadLevelRosterFromFiles("txtdata\\monsters\\level_rosters.tsv", "txtdata\\monsters\\level_roster_params.tsv");
++}
++
++std::span<const LevelRosterEntry> GetLevelRoster(uint8_t level)
++{
++	return FindLevelRoster(Entries, level);
++}
++
++const LevelRosterParams *GetLevelRosterParams(uint8_t level)
++{
++	const auto it = std::find_if(Params.begin(), Params.end(), [level](const LevelRosterParams &p) { return p.level == level; });
++	return it == Params.end() ? nullptr : &*it;
++}
++
++} // namespace devilution
+diff --git a/Source/tables/level_roster.h b/Source/tables/level_roster.h
+new file mode 100644
+index 000000000..3498f4c9b
+--- /dev/null
++++ b/Source/tables/level_roster.h
+@@ -0,0 +1,120 @@
++/**
++ * @file level_roster.h
++ *
++ * Interface of the per-level monster roster tables (types, loader, validation).
++ */
++#pragma once
++
++#include <cstdint>
++#include <optional>
++#include <span>
++#include <string>
++#include <string_view>
++#include <utility>
++#include <vector>
++
++#include "tables/monstdat.h"
++
++namespace devilution {
++
++enum class LevelRosterRole : uint8_t {
++	Core,
++	Tail,
++};
++
++struct LevelRosterEntry {
++	uint8_t level;
++	_monster_id type;
++	LevelRosterRole role;
++	bool allowUniqueBoost;
++};
++
++struct LevelRosterParams {
++	uint8_t level;
++	int maxImage;
++	int tailDraw;
++	std::vector<std::pair<BehaviorClass, uint8_t>> classFloors;
++};
++
++/**
++ * @brief Loads and validates the shipped level roster tables. Fatal on any validation failure.
++ *
++ * Must be called after LoadMonsterData(): validation reads MonstersData/UniqueMonstersData,
++ * which LoadMonsterData() populates.
++ *
++ * Each call clears and rebuilds the internal Entries/Params storage, so any std::span or
++ * pointer previously returned by GetLevelRoster()/GetLevelRosterParams() is invalidated the
++ * moment this runs again; callers must not retain those views across a reload.
++ */
++void LoadLevelRoster();
++
++/**
++ * @brief Loads and validates the level roster tables from the given file paths (instead of the
++ * shipped `txtdata\monsters\level_rosters.tsv`/`level_roster_params.tsv`). Fatal on any
++ * validation failure.
++ *
++ * `LoadLevelRoster()` calls this with the shipped paths; tests use it directly against
++ * `test/fixtures/` tables so this has a production caller.
++ */
++void LoadLevelRosterFromFiles(std::string_view rosterFile, std::string_view paramsFile);
++
++/**
++ * @brief Parses a `class_floors` cell (e.g. "Melee=2,Ranged=1") into class/floor pairs.
++ *
++ * Fatal (`app_fatal`) on a malformed entry: missing '=', an unknown BehaviorClass name, or a
++ * non-integer floor. An empty `value` yields an empty result (no floors for that level).
++ */
++std::vector<std::pair<BehaviorClass, uint8_t>> ParseClassFloors(std::string_view value);
++
++/**
++ * @brief Stable-sorts `entries` by level, preserving each level's relative file order.
++ *
++ * GetLevelRoster()/FindLevelRoster() rely on same-level rows being physically contiguous,
++ * which the source TSV does not guarantee, so LoadLevelRoster() calls this before use.
++ */
++void SortRosterByLevel(std::span<LevelRosterEntry> entries);
++
++/**
++ * @brief Returns the contiguous run of rows for `level` from an already sorted table.
++ *
++ * `entries` must already be sorted by level (see SortRosterByLevel()); otherwise rows for
++ * `level` that are not contiguous will not all be included.
++ *
++ * The returned span is a view into `entries` and shares its lifetime: it is only valid as long
++ * as the backing storage is not reallocated, resized, or destroyed. In particular, a span
++ * returned from GetLevelRoster() (which is backed by LoadLevelRoster()'s internal storage) is
++ * invalidated by the next LoadLevelRoster()/LoadLevelRosterFromFiles() call; callers must not
++ * retain it across a reload.
++ */
++std::span<const LevelRosterEntry> FindLevelRoster(std::span<const LevelRosterEntry> entries, uint8_t level);
++
++/**
++ * This function does not filter by monster availability (spawn/retail/hellfire): under spawn
++ * data most core rows are `availability=Retail` and therefore unavailable, so a caller that
++ * samples from this roster (Task 3's sampling loop) must apply its own availability filter
++ * against the currently loaded MonstersData before treating a returned entry as usable; a
++ * non-empty span here is not itself a guarantee of spawn-mode availability.
++ *
++ * Level 16 is a documented exception (spec 4.2.7, R31): GetLevelMTypes() hardcodes L16's types
++ * and returns before the roster pre-add runs, so `level_rosters.tsv`'s L16 rows are
++ * REGISTRATION ONLY - they record which monsters the level fields for the validator and for
++ * later phases, and never influence sampling. `level_roster_params.tsv` deliberately has no L16
++ * row for the same reason: a params row there would be unreachable table data. The TSV format
++ * carries no comment syntax, so that fact is recorded here rather than beside the rows.
++ */
++std::span<const LevelRosterEntry> GetLevelRoster(uint8_t level);
++const LevelRosterParams *GetLevelRosterParams(uint8_t level);
++
++/**
++ * @brief Validates a candidate roster against the currently loaded MonstersData/UniqueMonstersData.
++ * @return An error description, or an empty optional when the roster is valid.
++ */
++std::optional<std::string> ValidateLevelRoster(std::span<const LevelRosterEntry> entries, std::span<const LevelRosterParams> params);
++
++/**
++ * B1 sampling cap for this level's behaviour mix (monster.cpp:3513-3531).
++ * Task 3's sampling loop must use this too, so the two cannot drift.
++ */
++uint8_t BehaviorClassCapForLevel(uint8_t level, BehaviorClass cls);
++
++} // namespace devilution
+diff --git a/assets/txtdata/monsters/level_roster_params.tsv b/assets/txtdata/monsters/level_roster_params.tsv
+new file mode 100644
+index 000000000..4ab8b46d1
+--- /dev/null
++++ b/assets/txtdata/monsters/level_roster_params.tsv
+@@ -0,0 +1,16 @@
++level	max_image	tail_draw	class_floors
++1	6000	2	Melee=2
++2	6000	2	Melee=2
++3	6000	2	Melee=2
++4	6000	2	RangedTurret=1
++5	9000	2	Melee=1
++6	9000	2	Sneak=1
++7	9000	2	Melee=1
++8	9000	2	RangedKite=1
++9	16000	3	RangedKite=1
++10	16000	3	RangedKite=2
++11	16000	3	RangedKite=2
++12	16000	3	RangedKite=2,Melee=2
++13	18000	1	Melee=2,RangedKite=1
++14	18000	1	Melee=2,RangedKite=1
++15	18000	3	Melee=2,RangedTurret=2
+diff --git a/assets/txtdata/monsters/level_rosters.tsv b/assets/txtdata/monsters/level_rosters.tsv
+new file mode 100644
+index 000000000..00e28a9ca
+--- /dev/null
++++ b/assets/txtdata/monsters/level_rosters.tsv
+@@ -0,0 +1,62 @@
++level	monster_id	role	allow_unique_boost
++1	MT_WSKELAX	core	-
++1	MT_NZOMBIE	core	-
++1	MT_RFALLSP	core	-
++1	MT_NSCAV	core	-
++2	MT_RSKELAX	core	-
++2	MT_TSKELBW	core	-
++2	MT_GZOMBIE	core	-
++2	MT_DFALLSP	core	-
++3	MT_RSKELAX	core	-
++3	MT_XSKELAX	core	-
++3	MT_RSKELBW	core	-
++3	MT_YZOMBIE	core	-
++4	MT_XSKELAX	core	-
++4	MT_TSKELBW	core	-
++4	MT_XSKELBW	core	-
++4	MT_YFALLSD	core	-
++5	MT_XSKELAX	core	-
++5	MT_RSKELBW	core	-
++5	MT_FAT	core	-
++5	MT_STALKER	core	-
++6	MT_NGOATMC	core	-
++6	MT_NGOATBW	core	-
++6	MT_STALKER	core	-
++6	MT_UNSEEN	core	-
++7	MT_BGOATMC	core	-
++7	MT_BGOATBW	core	-
++7	MT_FAT	core	-
++7	MT_UNSEEN	core	-
++8	MT_TOAD	core	-
++8	MT_GGOATBW	core	-
++8	MT_YMAGMA	core	-
++8	MT_UNSEEN	core	-
++9	MT_BMAGMA	core	-
++9	MT_MUDMAN	core	-
++9	MT_GGOATBW	core	-
++9	MT_ILLWEAV	core	-
++10	MT_BACID	core	-
++10	MT_TOAD	core	-
++10	MT_STORM	core	-
++10	MT_ILLWEAV	core	-
++11	MT_STORML	core	-
++11	MT_BMAGMA	core	-
++11	MT_MEGA	core	-
++11	MT_OBLORD	core	-
++12	MT_STORML	core	-
++12	MT_MEGA	core	-
++12	MT_NSNAKE	core	-
++12	MT_BACID	core	-
++13	MT_NBLACK	core	-
++13	MT_GUARD	core	-
++14	MT_VTEXLRD	core	-
++14	MT_SNOWWICH	core	-
++14	MT_XACID	core	-
++15	MT_BALROG	core	-
++15	MT_SNOWWICH	core	-
++15	MT_MAGISTR	core	-
++15	MT_GSNAKE	core	-
++16	MT_GSNAKE	core	-
++16	MT_BTBLACK	core	-
++16	MT_CABALIST	core	-
++16	MT_ADVOCATE	core	-
+diff --git a/docs/knowledge/MEMORY.md b/docs/knowledge/MEMORY.md
+index 0887ae098..eebfcfb26 100644
+--- a/docs/knowledge/MEMORY.md
++++ b/docs/knowledge/MEMORY.md
+@@ -1,16 +1,17 @@
+ # DevilutionX 知识索引
+ 
+ ## Architecture
+ <!-- 设计决策、模块边界、为什么选 A 不选 B -->
+ 
+ ## Gotchas
++- [`gotcha_level_state_when_bypassing_loadgamelevel.md`](gotcha_level_state_when_bypassing_loadgamelevel.md) — 测试里自行建关必须补齐 SOLData / tile 元数据 / trigs；症状指纹：**所有层放置数完全相同**
+ <!-- 平台坑、反直觉行为（Diablo 引擎/存档/渲染/Lua 等） -->
+ 
+ - [SpellsData 位置索引 — 删行即错位（已修复）](gotcha_spelldata_positional_index.md) — 曾按行序 emplace 删行即错位；现已改名称键控加载，size 保持 max-enum+1 语义
+ - [光照双重计数 bug](gotcha_light_double_count.md) — 撤销前 `10*mult + (_pLightRad-10)` 装备加成叠加两次；正确是倍率作用于总量 `trunc(_pLightRad*mult)`（截断非四舍五入，见规格 §4.2）
+ - [存档/网络 bId 位覆写](gotcha_save_bid_overwrite.md) — 堆叠数存 `bId` 位域曾覆写物品品质与鉴定标志；存档须存 `count-1` 保持上游逐字节兼容
+ - [SaveItem 追加/LoadItem 条件读不对称](gotcha_save_stack_append.md) — 无条件追加 `_iStackCount` 而主存档路径从不设标志 → 偏移累积越界写；改存对齐填充字节
+ - [Infravision 是渲染级法术](gotcha_infra_render_only.md) — `_pInfraFlag` 只设渲染标志不改 tile Lit 位；暗处怪物可见但不可选。修复须新函数 `CanTarget` 而非改 `IsTileLit`（后者同时驱动渲染/自动地图）
+ - [IsTileLit 三用途耦合](gotcha_istilelit_gates.md) — 选择(cursor/track)、渲染(scrollrt)、自动地图(Explored) 共用；改它破坏三者。目标选择修复须独立函数
+ - [WitchItemOk 在匿名命名空间](gotcha_witchitemok_anon_ns.md) — `items.cpp:2009` 位于匿名 ns，测试不可直接调；测行为结果而非函数本身
+ - [网络物品更新要网格索引非 InvList 索引](gotcha_inv_grid_vs_list_index.md) — `NetSendCmdChInvItem` 期望网格索引；传 InvList 索引会 OOB 读 + 多人损坏。用 `NetSyncInvItem` 反查
+diff --git a/docs/knowledge/decision_save_format_policy.md b/docs/knowledge/decision_save_format_policy.md
+index ecbf1651e..09bcfcf0a 100644
+--- a/docs/knowledge/decision_save_format_policy.md
++++ b/docs/knowledge/decision_save_format_policy.md
+@@ -20,18 +20,19 @@ sources:
+ 
+ > 从本文档建立（2026-09-15）时起完整记录；此前的变更可从决策 21/24/25 追溯。
+ 
+ | 日期 | 变更 | 触碰 | 兼容处置 |
+ |---|---|---|---|
+ | 2026-07（决策 21） | `ItemPack` 增加堆叠计数字段，存 `count-1` | `Source/pack.h`、`Source/items.cpp`、`Source/loadsave.cpp` | **已做兼容**：`count-1` 使旧档读出 `count=1`，与上游存档逐字节兼容 |
+ | 2026-07（决策 24） | `SaveItem` 曾无条件追加、`LoadItem` 条件读取 → 写读不对称 | `Source/loadsave.cpp` | **已修**（P0 数据损坏），教训见 `gotcha_save_stack_append.md` |
+ | 2026-07（决策 25） | 抽象金币计数器改变英雄状态表示 | 玩家状态/存档 | 已接受：与上游对照基准改为"与本分支一致"（timedemo 参考存档重生成） |
+ | 2026-09-15（计划中） | `Monster::chargeCooldown`（`int8_t`）新增并序列化 | `Source/monster.h`、`Source/loadsave.cpp` | **不做兼容**（决策 35）；需重生成夹具。用于 A1/A3 冲锋冷却 |
+ | 2026-09-15（计划中） | 采样/名册/配额改造 → `monster.levelType`（`LevelMonsterTypes` 索引）语义变化 | `Source/monster.cpp`、`Source/loadsave.cpp` | **不做兼容**（决策 35）；旧档怪物种类会被重新解释 |
++| 2026-09-16（**已落地**，Phase A） | 逐层名册改变采样顺序 → `monster.levelType`（`LevelMonsterTypes` 索引）语义变化：core 预加先入表，尾部抽取受 B1 cap 与 `class_floors` 约束，同层同 seed 的索引与旧档不再对应 | `Source/monster.cpp`、`assets/txtdata/monsters/level_rosters.tsv`、`assets/txtdata/monsters/level_roster_params.tsv` | **不做兼容**（宪章决策 35）；旧档 `levelType` 会被重新解释成另一种怪，需重开新档 |
+ | 2026-06-29（**未合入主线**） | `_iProcFlags`/`_iProcChance` 字段与序列化、`StashVersion` bump | `engine-mod-infra` 分支 | 仅作参考：该分支未合入，主线 `StashVersion` 仍为 0，**不要直接套用其版本号** |
+ 
+ ## 将来做兼容层时需要什么
+ 
+ 1. 本台账的完整列表（哪些字段/顺序/语义变过）。
+ 2. 一个**显式版本标记**（主线目前**没有**存档版本字段——`StashVersion` 为 0 且仅用于仓库；这是兼容层要加的第一件东西）。
+ 3. 迁移方向：只支持"旧 → 新"单向迁移即可（决策 34 已放弃双向兼容）。
+ 4. 失败语义：版本不匹配时**明确拒绝或明确忽略**，**不得静默误读**——本仓库两起数据损坏事故（`gotcha_save_bid_overwrite.md`、`gotcha_save_stack_append.md`）的共同点正是"静默误读"而非崩溃。
+diff --git a/docs/knowledge/gotcha_level_state_when_bypassing_loadgamelevel.md b/docs/knowledge/gotcha_level_state_when_bypassing_loadgamelevel.md
+new file mode 100644
+index 000000000..272d1979c
+--- /dev/null
++++ b/docs/knowledge/gotcha_level_state_when_bypassing_loadgamelevel.md
+@@ -0,0 +1,23 @@
++---
++name: 在测试里绕过 LoadGameLevel 必须补齐关卡状态（SOLData / tile 元数据 / trigs）
++description: 直接调用 CreateDungeon 建关而不走 LoadGameLevel 时，SOLData、pMegaTiles/.til、trigs 都处于未初始化状态；后果是 InitMonsters 的放置规模恒定撞上限（MaxMonsters-10=190），并触发 lighting.cpp 的 UBSan 越界。含忠实复刻的调用顺序与症状指纹。
++type: gotcha
++created: 2026-09-15
++sources:
++  - Source/diablo.cpp:3419-3473（LoadGameLevel 的真实执行顺序）
++  - Source/monster.cpp:3751-3763（na / numplacemonsters / MaxMonsters-10 截断）
++  - Source/levels/dun_tile_data.hpp:205-208（TileHasAny → SOLData[dPiece]）
++  - test/level_roster_baseline_test.cpp（修复后的忠实夹具）
++---
++
++**事实**：测试若绕过 `LoadGameLevel` 自行建关（`CreateDungeon(seed, entry)`），必须补齐引擎在该路径上建立的三样状态：
++
++1. **`SOLData`**（tile 固体性）——调 `LoadLevelSOLData()`。否则 `IsTileSolid` 恒 false → `na = 80×80 = 6400` → `numplacemonsters = na/30 = 213` → 被 `MaxMonsters - 10 = 190` **恒定截断**。
++2. **tile 元数据**（`pMegaTiles` / `.til`，见 `Source/diablo.cpp:1408-1427` 的路径表）——否则 `dPiece[][]` 退化；此时**只补 SOL 也没用**（放置数会变成 0）。
++3. **触发器**（`numtrigs`/`trigs`）——由 `CreateLevel` 按 `leveltype` 分派 `InitL1..L4/Hive/CryptTriggers`（`Source/diablo.cpp:1461-1490`）。否则 `InitMonsters` 里的 `position + {-2,-2}` 从 0 回绕，触发 `Source/lighting.cpp:99` 的 UBSan 越界。
++
++**忠实复刻的顺序**（引擎真实顺序，不是行号顺序）：`LoadLevelSOLData()`（`diablo.cpp:3433`）→ `InitLevelMonsters()`（`:3463`）→ `LoadGameLevelStandardLevel()`（`:3472`，内含 `CreateLevel` → `GetLevelMTypes` → `LoadGameLevelDungeon` → `InitMonsters`）。让 `CreateLevel` 接受任意种子的办法是 `DungeonSeeds[currlevel] = seed`（`Source/levels/dun_tile_data.hpp:140`）。
++
++**为什么**：`LoadGameLevelStandardLevel`（内含 `CreateLevel`）的**定义**在 `diablo.cpp:3336`，看起来早于 `:3433`，但它的**调用**在 `:3472`——**定义位置 ≠ 执行顺序**，只看行号会把顺序判反。
++
++**何时使用**：任何在测试里自行建关的夹具（`drlg_*_test`、采样/放置类测试）。**症状指纹：所有层的放置数完全相同**（例如全部 `placed = seeds × 190`）——真实关卡因可行走面积不同，逐层放置数必然不同。
+diff --git a/docs/superpowers/plans/2026-09-15-level-rosters-phase-a.md b/docs/superpowers/plans/2026-09-15-level-rosters-phase-a.md
+index 80f40413e..bbf2525e7 100644
+--- a/docs/superpowers/plans/2026-09-15-level-rosters-phase-a.md
++++ b/docs/superpowers/plans/2026-09-15-level-rosters-phase-a.md
+@@ -44,21 +44,21 @@
+ ---
+ 
+ ## Task 1: 基线实测（placed class mix 与名册规模）
+ 
+ **文件：**
+ - 新建：`test/level_roster_baseline_test.cpp`
+ - 修改：`CMake/Tests.cmake`（在 `sampling_behavior_test` 之后追加 `level_roster_baseline_test`）
+ 
+ **接口：**
+ - 对外产出：`std::array<size_t, static_cast<size_t>(BehaviorClass::Count)> MeasurePlacedClassMix(uint8_t level, uint32_t seed)` —— 生成该层真实关卡、跑采样与放置，按**已放置怪物数**统计行为类别；返回数组的元素和等于该次放置的 `ActiveMonsterCount`。
+-- 对外产出：`std::vector<_monster_id> MeasureRealisedTypes(uint8_t level, uint32_t seed)` —— 该次采样的 `LevelMonsterTypes` 类型集合（供任务 3 复用同一夹具）。
++- 对外产出：`std::size_t MeasurePlacedMonsterCount()` 由 `ActiveMonsterCount` 直接可得，无需额外封装。**注（裁决 R6）**：原计划列出的 `MeasureRealisedTypes` 已删除——测试二进制各自独立 TU，任务 3 的用例在 `sampling_behavior_test.cpp`，**无法**调用本文件的函数；任务 3 直接读 `LevelMonsterTypes` 即可。
+ 
+ - [ ] **步骤 1：编写失败的测试**
+ 
+ ```cpp
+ // test/level_roster_baseline_test.cpp
+ #include <gtest/gtest.h>
+ 
+ #include <array>
+ #include <cstddef>
+ #include <cstdint>
+@@ -246,20 +246,22 @@ TEST(LevelRosterTest, ValidationRejectsAMonsterUnavailableAtThatLevel)
+ 	ASSERT_TRUE(error.has_value());
+ 	EXPECT_NE(error->find("not available"), std::string::npos);
+ }
+ ```
+ 
+ - [ ] **步骤 2：运行测试并确认其失败**
+ 
+ 运行：`python3 tools/run_tests.py --test level_roster_test --filter 'LevelRosterTest.*'`
+ 预期：构建失败（`tables/level_roster.h` 不存在）
+ 
++> **执行裁决（2026-09-15，见 SDD 台账 R15-R19）**：本步骤的骨架代码已被修订——校验必须①含 **B1 caps** 的可满足性判定（caps 抽成 `BehaviorClassCapForLevel` 单一真相源，采样循环复用）；②加载时按 `level` **stable_sort**（访问器依赖同层连续）；③类型存在性检查**先于** `gbIsSpawn` 分支（`MT_INVALID` 可被 `enum_cast` 解析）；④core 非空检查覆盖 `entries ∪ params` 的每个 level；⑤校验 `max_image > 0`、`tail_draw >= 0`，并拒绝哨兵 `BehaviorClass::Count`。
++
+ - [ ] **步骤 3：编写最小实现**
+ 
+ `Source/tables/level_roster.h`：
+ 
+ ```cpp
+ #pragma once
+ 
+ #include <cstdint>
+ #include <optional>
+ #include <span>
+@@ -483,21 +485,24 @@ TEST_F(SamplingBaselineTest, RosterTailDrawBounded)
+ 	size_t coreAdded = 0;
+ 	for (const LevelRosterEntry &entry : GetLevelRoster(currlevel)) {
+ 		if (entry.role != LevelRosterRole::Core)
+ 			continue;
+ 		RETURN_IF_ERROR(AddMonsterType(entry.type, PLACE_SCATTER));
+ 		coreAdded++;
+ 	}
+ 
+ 	const LevelRosterParams *rosterParams = GetLevelRosterParams(currlevel);
+ 	const int maxImage = rosterParams != nullptr ? rosterParams->maxImage : 4000;
+-	const int tailDraw = rosterParams != nullptr ? rosterParams->tailDraw : 0;
++	// R28: levels with no params row (currently L17-24) keep the legacy behaviour -
++	// budget-limited with no tail cap. Using 0 here would make the loop condition
++	// tailAdded < tailDraw permanently false and silently remove every scatter type.
++	const int tailDraw = rosterParams != nullptr ? rosterParams->tailDraw : std::numeric_limits<int>::max();
+ ```
+ 
+ 并把循环条件与计数改为：
+ 
+ ```cpp
+ 	while (nt > 0 && LevelMonsterTypeCount < MaxLvlMTypes && monstimgtot < maxImage && tailAdded < tailDraw) {
+ ```
+ 
+ （`tailAdded` 在每次成功 `AddMonsterType` 且 `LevelMonsterTypeCount` 增长后自增；`monstimgtot >= maxImage` 时退出循环。）
+ 
+@@ -642,25 +647,48 @@ python3 tools/run_tests.py --json /tmp/ci.json
+ git add test/level_roster_baseline_test.cpp eval/cases/rng/level-rosters.yaml docs/knowledge/decision_save_format_policy.md
+ git commit -m "test(roster): pin placed class mix to the measured baseline and add the eval case"
+ ```
+ 
+ ---
+ 
+ ## 实施记录（执行者填写）
+ 
+ | 项 | 值 |
+ |---|---|
+-| 任务 1 基线表 | （执行步骤 1.5 后粘贴 `/tmp/a-baseline.md` 的表格） |
+-| L13-15 远程占比基线 | （由基线表算出） |
+-| `kRangedShareCeiling` | （基线 + 5 个百分点） |
++| 任务 1 基线表 | 见下方「A-baseline」表（200 seeds/level，L1-16） |
++| L13-15 远程占比基线 | L13: (3249+2076)/23405=22.8%；L14: (9674+3425)/23443=55.9%；L15: 13533/23193=58.3% |
++| `kRangedShareCeiling` | 基线 + 5 个百分点（任务 4 落地）：L13 27.8% / L14 60.9% / L15 63.3%；落在 `test/level_roster_baseline_test.cpp` 的具名 constexpr `kRangedShareBaseline`/`kRangedShareCeiling`，分子分母照抄下方 A-baseline 表 |
++| 任务 4 阈值实测（改后） | L13 23.6%（5537/23413）/ L14 49.2%（11269/22915）/ L15 50.5%（11611/22978），三层均在带内 |
++| 任务 4 名册调整（R4） | 首跑 L13 53.5%、L14 65.8% 超标。根因：L13-16 对**任意** class 都是 cap 2，候选池只有 Melee/Turret/Kite，type 多样性超过 2 个 Melee 的部分必然是远程；而放置在 `scattertypes` 上均匀，占比≈type 占比。按 R4 只改数据：L13 core 去掉 `MT_STORML`(Kite)、`MT_SUCCUBUS`(Turret)，L14 core 去掉一个 `MT_SUCCUBUS`(Turret)；L13/L14 `tail_draw` 3→1（保留 1 次抽取 + `RangedKite=1` floor，层里仍有风筝存在感，但不会出现第二个远程 type）。L15 未改动。**准确表述**：这是「在我们接受的余量标准（≥5pp）下唯一」的数据解，不是绝对唯一——L13 侧确实无解（最小放松实测 0.3792 vs ceiling 0.2775，超 10pp）；但 L14 侧 `tail_draw` 1→2 是**可行的替代解**（实测 0.5964 < ceiling 0.60876，物种 4→5，零代码改动、全测试绿），本阶段因余量仅 1.2pp（现状 11.7pp）会让守卫变脆而**有意不采纳**（裁决 R34，多样性归阶段 B；取舍已记入规格附录 E）|
+ | 小队形成率 | 阶段 B 才需要，本计划不测 |
+-| 夹具重生成记录 | （哪些夹具、哪个提交） |
++| 夹具重生成记录 | 无新增/重生成夹具；本任务复用 `test/fixtures/levels/` 既有夹具（rnd6.dun / skngdo.dun / banner2.dun / blood2.dun 等） |
++
++## A-baseline: placed class mix (200 seeds per level)
++
++| level | placed | Melee | RangedTurret | RangedKite | Rally | Charge | Sneak | Summon | Boss |
++|---|---|---|---|---|---|---|---|---|---|
++| 1 | 18235 | 9247 | 0 | 0 | 6055 | 0 | 0 | 0 | 2933 |
++| 2 | 23453 | 8668 | 2149 | 0 | 7747 | 1619 | 635 | 0 | 2635 |
++| 3 | 25642 | 9731 | 2819 | 0 | 5542 | 3084 | 1239 | 0 | 3227 |
++| 4 | 25291 | 7607 | 4145 | 0 | 4311 | 3671 | 875 | 0 | 4682 |
++| 5 | 23180 | 10732 | 3446 | 0 | 1721 | 2488 | 1904 | 0 | 2889 |
++| 6 | 17646 | 4583 | 3592 | 950 | 0 | 4198 | 1609 | 0 | 2714 |
++| 7 | 18063 | 6332 | 3640 | 1619 | 0 | 3572 | 1405 | 0 | 1495 |
++| 8 | 17321 | 3204 | 1561 | 2652 | 0 | 7478 | 1929 | 0 | 497 |
++| 9 | 16648 | 5907 | 514 | 8281 | 0 | 0 | 959 | 0 | 987 |
++| 10 | 17100 | 5584 | 0 | 8514 | 0 | 0 | 819 | 0 | 2183 |
++| 11 | 16550 | 6447 | 0 | 7717 | 0 | 0 | 0 | 0 | 2386 |
++| 12 | 17280 | 8211 | 1931 | 5910 | 0 | 0 | 0 | 0 | 1228 |
++| 13 | 23405 | 17880 | 3249 | 2076 | 0 | 0 | 0 | 0 | 200 |
++| 14 | 23443 | 10344 | 9674 | 3425 | 0 | 0 | 0 | 0 | 0 |
++| 15 | 23193 | 9660 | 13533 | 0 | 0 | 0 | 0 | 0 | 0 |
++| 16 | 38000 | 18301 | 14299 | 5200 | 0 | 0 | 0 | 0 | 200 |
+ 
+ ---
+ 
+ ## 自检
+ 
+ **1. 规格覆盖度（阶段 A 部分）**
+ 
+ | 规格条目 | 对应任务 |
+ |---|---|
+ | §4.1 数据模型（两张 TSV、逐层、`allow_unique_boost`、HF overlay） | 任务 2（基础表 L1-16；HF overlay 属阶段 A 的后续数据补充，见下） |
+diff --git a/docs/superpowers/specs/2026-09-15-level-rosters-design.md b/docs/superpowers/specs/2026-09-15-level-rosters-design.md
+index abbed86c1..e38a83bfd 100644
+--- a/docs/superpowers/specs/2026-09-15-level-rosters-design.md
++++ b/docs/superpowers/specs/2026-09-15-level-rosters-design.md
+@@ -78,21 +78,21 @@
+ | 散布候选按**类型**均匀抽取 | `const size_t typeIndex = scattertypes[GenerateRnd(numscattypes)];` | `Source/monster.cpp:3774` |
+ | 行为类别 8 类 + `default: Boss` | `Melee/RangedTurret/RangedKite/Rally/Charge/Sneak/Summon/Boss` | `Source/tables/monstdat.h:376-386`、`monstdat.cpp:483-515` |
+ | 层生成 RNG 与后续共用同一流 | `LoadGameLevelDungeon` 不重置种子 | `Source/diablo.cpp:3342-3346` |
+ | 怪物类型下标过网络 | `DSpawnedMonster.typeIndex` | `Source/msg.cpp:231`、`:2614` |
+ | 存档记录怪物类型下标 | `monster.levelType = file->NextLE<int32_t>();` | `Source/loadsave.cpp:681` |
+ | TSV 加载范式 | `DataFile::loadOrDie(filename)` | `Source/tables/monstdat.cpp:410` |
+ | `PlaceGroup` 调用点仅 2 处 | `:3410`（unique，带 leader）、`:3781`（普通散布） | `Source/monster.cpp` |
+ | `Monsters` 为定长数组 | `Monster Monsters[MaxMonsters]` | `Source/monster.h:494`、`Source/monster.cpp:113` |
+ | 采样类 eval 先例 | `sampling-anti-monopoly.yaml` | `eval/cases/rng/sampling-anti-monopoly.yaml` |
+ 
+-**口径声明**：候选数与校验以 **retail 数据**（`gbIsSpawn == false`）为准；spawn 下 `Retail` 怪被排除（`:3166`），故校验走**宽松模式**（只校验"有名册行的层 core 非空"）。
++**口径声明**：候选数与校验以 **retail 数据**（`gbIsSpawn == false`）为准；spawn 下 `Retail` 怪被排除（`:3166`），故校验走**宽松模式**（放宽可用性/白名单/floors；类型存在性与 core 非空仍强制，见 §4.4.4）。
+ 
+ ## 4. 方案
+ 
+ ### 4.1 数据模型（**逐层**）
+ 
+ `assets/txtdata/monsters/level_rosters.tsv`（基础表，L1-16）
+ 
+ ```
+ level   monster_id     role    allow_unique_boost
+ 1       MT_WSKELAX     core    -
+@@ -117,23 +117,23 @@ level   max_image   tail_draw   class_floors          squad_chance   squad_size
+ - `tail_draw`：上限语义（实际 = `min(tail_draw, 可用候选数)`，为 0 合法）。
+ - `class_floors`：行为类别下限（与 B1 caps 合成配额）。
+ - `squad_chance` / `squad_size`：**阶段 B** 才生效；初值待 T1 基线后校准。
+ - `allow_unique_boost`：白名单列（见 §4.4.3）。
+ 
+ ### 4.2 阶段 A：采样接入（`GetLevelMTypes()`，`Source/monster.cpp:3439+`）
+ 
+ 1. 既有预加不变（`MT_GOLEM`、任务 unique、SKING 层骷髅）。
+ 2. **core 预加**：按 `currlevel` 查名册，对每个 core 成员 `AddMonsterType(type, PLACE_SCATTER)`；绕过 caps（caps 只在循环内）但**计入预算**。
+ 3. **尾池**：`typelist` = `IsMonsterAvailable` 候选 **减去已加入的 core**。
+-4. **尾池抽取显式化**：最多成功抽取 `tail_draw` 次。
++4. **尾池抽取显式化**：最多成功抽取 `tail_draw` 次。**无名册参数行的层退回旧行为**（预算受限、尾池不设上限）——当前 L17-24（Nest/Crypt）属此类，阶段 A2 补 HF overlay 表后纳入；若退回 `tail_draw = 0`，这些层的采样循环将恒不执行、散布怪物消失（回归）。
+ 5. **配额**：B1 caps 保留；新增 floors，抽取时优先补足未满足的类别。
+-6. **预算**：`monstimgtot < max_image(当前层)`。
++6. **预算**：`monstimgtot < max_image(当前层)`；无参数行时退回 4000（旧值）。
+ 7. **L16 特例**：保持硬编码分支不变；名册表只登记不改行为。
+ 
+ ### 4.3 阶段 B：核心小队（`Source/monster.cpp:3773-3782`）
+ 
+ **前置条件（必须先做，且各自独立验收）**
+ 
+ 1. **修 G1（普通 leader 死亡必须释放随从）**：`M_UpdateRelations`（`:4112-4117`）当前以 `hasLeashedMinions()` 为入口，普通 leader 恒 false。改为**按随从侧扫描**判定：存在 `leaderRelation == Leashed && getLeader() == &monster` 的随从即执行释放；对**非 unique** leader 额外**清除 `leader` 索引**（`setLeader(nullptr)` 按设计保留索引以维持血条着色，普通怪槽位会被 `AddMonster` 复用，故必须清）。unique 路径行为**保持不变**。
+    验收：`LeaderDeathReleasesMinions`（普通 leader 死亡后其随从 `leaderRelation != Leashed` 且 `leader` 索引已清）、`UniqueLeaderDeathBehaviourUnchanged`（回归）。
+ 2. **决 G2（`setLeader` 覆写 AI）**：`setLeader`（`:4934-4944`）会把随从 `ai` 换成 leader 的 AI。核心小队**必须不覆写 AI**，否则"远程随从挂到近战 leader 下变近战"会使 class mix 统计与事实不符（红线 14 失效）。实现方式：`PlaceGroup` 新增 `MinionOptions` 参数（R2 建议 G7），核心小队传 `{tough=false, inheritAi=false, inheritIntelligence=false}`，默认值保持既有行为（unique 路径不变）。
+    验收：`SquadMinionsKeepOwnAi`、`UniqueMinionsInheritLeaderAi`（回归）。
+@@ -144,23 +144,23 @@ level   max_image   tail_draw   class_floors          squad_chance   squad_size
+    - **前置条件**：剩余槽位 ≥ `1 + 1`，否则降级为单类型组；
+    - 记录 `before = ActiveMonsterCount`，执行 `PlaceGroup(leaderType, 1, nullptr, false, opts)`；若 `ActiveMonsterCount == before`（被钳制成 0）则**放弃小队**并降级（否则 `&Monsters[ActiveMonsterCount-1]` 会指向上一只无关怪）；
+    - 从**同一层其他 core 成员**中抽一个 partner，`PlaceGroup(partnerType, squad_size, leader, /*leashed=*/true, opts)`；
+    - `opts = {tough=false, inheritAi=false, inheritIntelligence=false}` → 小队**只买构成，不买数值/AI**。
+ 4. **回退**（R2 修正）：若某层段实测小队形成率低于阈值，该层段改用 `leashed=false` 但**仍传 leader**（`:322-327` 会围绕 leader 选取初始位置 → 相邻放置有保证），只是不设 `setLeader`/`packSize`、无归队语义。
+ 5. 显式接受的既有语义：leashed 随从受 4 格约束（毁灭后会自然解体再重聚）；leashed 放置失败 10 次后放弃；按 `totalmonsters` 钳制。
+ 
+ ### 4.4 加载期校验（拒绝启动而非静默降级）
+ 
+ 1. 每行 `monster_id` 必须在**当前加载的数据集**中存在；区间行须满足"区间内每层都可用"。
+-2. `class_floors` 必须在该层候选池 + B1 caps 下**可满足**，否则报错并指出冲突项。
++2. `class_floors` 必须在该层候选池 + B1 caps 下**可满足**，否则报错并指出冲突项。caps 取 L9-12 `RangedKite ≤ 2`、L13-16 任意类别 `≤ 2`（**注**：L16 因硬编码分支提前 return，cap 在 L16 实际不可达，见 §4.2.7）、其余无上限，**抽成单一真相源** `BehaviorClassCapForLevel(level, class)`（`level_roster.h` 导出）；校验器与采样循环（§4.2.5）共用，避免两处漂移。
+ 3. **unique 门控检查**：若 `(level, monster_id)` 的 base 类型等于**同层**某 unique 的 `type`，则必须显式列入 `allow_unique_boost`，否则**拒绝启动**（`:509-512` 会因 core 而提高该 unique 出现率；本规格默认保持稀有性不变）。
+-4. spawn 数据下走宽松模式（只校验 core 非空）。
++4. spawn 数据（`gbIsSpawn == true`）下走宽松模式：只放宽三项（逐行可用性、unique 白名单、floors 可满足性）；**类型存在性检查在两种模式下共用**；并对 `entries ∪ params` 中出现的**每个 `level`** 一律要求至少 1 个 core 成员（比"有名册行"或"有参数行"任一驱动都严格）。
+ 
+ ### 4.5 行为类别口径（红线 14 的载体）
+ 
+ - 散布按**类型**均匀抽取（`:3774`），故"类型数 3 → 7-9"会重排近战/远程配比。
+ - **阶段 A 第一步必须实测改动前的 placed class mix**（按行为类别统计**已放置怪物数**，非类型数）作为基线；验收以**相对基线**表述（"远程类占比 ≤ 基线 +5 个百分点"）。
+ - **阶段 B 的 `inheritAi=false` 保证"类型 = 实际 AI"**，使该口径成立（这是 G2 必须解决的第二个理由）。
+ - `class_floors` 只用于**补足**，不作为提高远程占比的手段。
+ 
+ ## 5. 红线检查
+ 
+@@ -262,11 +262,19 @@ level   max_image   tail_draw   class_floors          squad_chance   squad_size
+ **约束**：每层 4-5 只；必须含该层 A1/A3 承载；不得含 unique 的 base（除非白名单）；`Σimage` 远低于逐层上限（实测 2.2k-6.3k）。
+ 
+ ## 附录 D：玩家可感预测（实现成败判据，来自 R2）
+ 
+ 1. 同一层连进三次，都能遇到同一批 core 怪。
+ 2. 地狱 13-15 单局可见种类从 3.2-3.3 升到 ≥6，且玩家能说出怪名。
+ 3. 能看到"一只 + 1-2 只贴身的同/异种怪同行"（小队）。
+ 4. 随从被击杀所需攻击次数与野外同类怪**相同**（无强化）。
+ 5. 把 leader 引开 >4 格，leashed 随从脱队；靠近后重新贴回。
+ 
+-**若实现后 1/2/4 未出现 → 规格失败；3/5 未出现 → 阶段 B 的小队卖点失败（回到阶段 A 的交付水平）。**
+\ No newline at end of file
++**若实现后 1/2/4 未出现 → 规格失败；3/5 未出现 → 阶段 B 的小队卖点失败（回到阶段 A 的交付水平）。**
++
++## 附录 E：阶段 B / A2 待决问题（本规格记录，不在阶段 A 范围）
++
++1. **地狱段名册被双重挤压（本次实测）**：L13-16 的 B1 `cap ≤ 2/类` 与 L13 偏低的远程占比基线（22.8%）共同把核心名册压到"2 core + 1 尾抽"，实现出的物种数（≈4-5）低于设计目标（7-9）。可选出路：① 放宽 `cap ≤ 2/类`（需论证"名册已保证类别多样性，故 cap 可放宽"）；② 提高远程占比上限（+5pp）；③ 扩充 Melee 候选池；④ **由阶段 B 的编组层提供多样性**（推荐在 B 中权衡）。控制器裁决 R32 选择"阶段 A 不动守卫"，本项留待 B。
++2. **O2**：加载期校验目前只看 core 是否超 cap，未把"quest 无条件预加的 base"计入合计；L13 的实际组合仍可能破 cap。属 §4.2.2 预算语义问题，留阶段 B。
++3. **阶段 B 前置**：G1（非 unique leader 死亡不释放随从 → 悬挂索引）、G2（`setLeader` 覆写随从 AI）必须先修，见 §4.3。
++4. **阶段 A2**：HF overlay 的 L17-24 名册表；L17-24 现走 R28 legacy fallback（保持旧行为，无身份）。
++5. **L14 `tail_draw` 1 → 2 的替代解（任务 4 评审实测，裁决 R34 暂不采纳）**：把 L14 的 `tail_draw` 从 1 提到 2，远程占比实测 **0.5964**，仍低于 ceiling **0.60876**，物种数 **4 → 5**，零代码改动、全部测试绿——即阶段 A 的"L14 只有一个数据解"并非绝对，只是"在 ≥5pp 余量标准下唯一"。控制器裁决 R34 **本阶段不采纳**，理由：① 该解余量仅 **1.2pp**（现状 11.7pp），会让 `PlacedClassMixWithinBaseline` 这道守卫变脆，一次无关的采样微调就可能把它推翻；② 与阶段 A 内部一致性冲突——任务 4 曾以"太贴边"为由否掉过同等余量的 `MT_BALROG` 方案，采纳这个会自相矛盾；③ R32 精神是"阶段 A 守卫优先，多样性归阶段 B"。**阶段 B 需要决的取舍**：是否值得用 1.2pp 的守卫余量换 L14 一个物种？若阶段 B 按第 1 条的出路①/②放宽了 cap 或占比上限，本项自然消解（余量重新变宽后 `tail_draw=2` 不再贴边）；若阶段 B 决定守卫余量必须 ≥5pp，则本项应正式关闭为"不采纳"。
+diff --git a/eval/cases/_nightly.yaml b/eval/cases/_nightly.yaml
+index aa961323d..52080d22e 100644
+--- a/eval/cases/_nightly.yaml
++++ b/eval/cases/_nightly.yaml
+@@ -23,39 +23,41 @@ cases:
+   - data-spell-data
+   - data-spell_tooltip
+   - data-townerdat
+   - dungeon-automap
+   - dungeon-catacombs
+   - dungeon-caves
+   - dungeon-drlg_common
+   - dungeon-drlg_l4
+   - flow-diablo
+   - flow-timedemo-warrior
++  - level-rosters
+   - mechanics-char_panel
+   - mechanics-game_menu
+   - mechanics-inventory
+   - mechanics-inventory_ui
+   - mechanics-panel_state
+   - mechanics-scroll-consumption
+   - mechanics-spell_ui
+   - mechanics-spell_ux
+   - mechanics-stacking
+   - mechanics-stash
+   - mechanics-store_transaction
+   - mechanics-stores
+   - mechanics-visual_store
+   - render-animationinfo
+   - render-palette
+   - render-sheen_bidi
+   - render-text_render_integration
+   - render-tiles-view
+   - rng-dungeon-seeded
++  - sampling-anti-monopoly-cap
+   - save-hero-write
+   - save-pack-roundtrip
+   - utility-codec
+   - utility-crawl
+   - utility-file_util
+   - utility-format_int
+   - utility-math
+   - utility-multi_logging
+   - utility-parse_int
+   - utility-path
+diff --git a/eval/cases/rng/level-rosters.yaml b/eval/cases/rng/level-rosters.yaml
+new file mode 100644
+index 000000000..893ecda95
+--- /dev/null
++++ b/eval/cases/rng/level-rosters.yaml
+@@ -0,0 +1,43 @@
++# 维护提醒（R35）：本 case 的 `expected.passed_min` 与 `output_contains` 里的
++# "[  PASSED  ] N tests." 是**硬编码的用例计数**。往 LevelRosterBaselineTest 里新增或删除用例后
++# 必须同步这两处数字，否则门禁会静默失效（N 偏小 → 少跑也算过）或误红
++# （N 偏大 → 全绿也判失败）。当前值对应 3 个用例（2026-09-16 核对）。
++id: "level-rosters"
++name: "逐层名册 Phase A：放置构成占比在基线带内（真实引擎放置路径）"
++category: "rng"
++difficulty: "medium"
++tags: ["sampling", "monster-generation", "level-roster", "baseline"]
++
++setup:
++  mpq_required: true
++  timeout: 300
++
++run:
++  backend: "gtest"
++  binary: "level_roster_baseline_test"
++  filter: "LevelRosterBaselineTest.*"
++
++expected:
++  exit_code: 0
++  failed: 0
++  passed_min: 3
++  skipped_max: 1
++  output_contains:
++    - "[ MEASURED ] level 13 ranged share"
++    - "[ MEASURED ] level 14 ranged share"
++    - "[ MEASURED ] level 15 ranged share"
++    - "[  PASSED  ] 3 tests."
++
++description: >
++  逐层名册 Phase A 的验收门禁：不看采样中间量，直接跑真实
++  CreateDungeon -> GetLevelMTypes -> InitMonsters 放置链路，统计 L13-15
++  每层 200 seed 的**已放置**怪物构成，断言远程占比（RangedTurret +
++  RangedKite / 放置怪总数）不超过「改动前基线 + 5 个百分点」。
++  基线取自计划 A-baseline 表（200 seed、同一 fixture、放置怪分母）：
++  L13 (3249+2076)/23405 = 22.8%、L14 (9674+3425)/23443 = 55.9%、
++  L15 13533/23193 = 58.3%；阈值即 27.8% / 60.9% / 63.3%，以具名
++  constexpr 数组落在 test/level_roster_baseline_test.cpp 中，出处写在注释里。
++  用例无条件打印实测值（[ MEASURED ] 行，output_contains 断言其存在），
++  所以一旦名册数据改动把某层推向远程画廊，门禁不仅会红，还能直接读到数字。
++  R4：超标只允许改名册 / class_floors，不允许放宽这里的阈值。
++  实测（本次改动后）：L13 23.6% / L14 49.2% / L15 50.5%，三层均在带内。
+diff --git a/eval/cases/rng/sampling-anti-monopoly.yaml b/eval/cases/rng/sampling-anti-monopoly.yaml
+index 375770f79..d268ccddd 100644
+--- a/eval/cases/rng/sampling-anti-monopoly.yaml
++++ b/eval/cases/rng/sampling-anti-monopoly.yaml
+@@ -1,32 +1,40 @@
++# 维护提醒（R35）：本 case 的 `expected.passed_min` 与 `output_contains` 里的
++# "[  PASSED  ] N tests." 是**硬编码的用例计数**。往 SamplingBaselineTest 里新增或删除用例后
++# 必须同步这两处数字，否则门禁会静默失效（N 偏小 → 少跑也算过）或误红
++# （N 偏大 → 全绿也判失败）。当前值对应 24 个用例（2026-09-16 核对）。
+ id: "sampling-anti-monopoly-cap"
+ name: "采样反垄断：B1 cap 后契约（真实引擎 GetLevelMTypes）"
+ category: "rng"
+ difficulty: "medium"
+ tags: ["sampling", "monster-generation", "baseline"]
+ 
+ setup:
+   mpq_required: true
+   timeout: 120
+ 
+ run:
+   backend: "gtest"
+   binary: "sampling_behavior_test"
+   filter: "SamplingBaselineTest.*"
+ 
+ expected:
+   exit_code: 0
+   failed: 0
+-  passed_min: 13
++  passed_min: 24
+   skipped_max: 1
+-  output_contains: ["[  PASSED  ] 13 tests."]
++  output_contains: ["[  PASSED  ] 24 tests."]
+ 
+ description: >
+   B1 采样反垄断 harness（纯测试 + cap 实施后）：直接驱动真实 GetLevelMTypes
+   采样循环，断言 cap 后契约——地狱 L15/L14 全同类尾 4.13%/0.70% -> 0、
+   L13 0%、洞穴风筝尾 L10 2.4% / L12 2.6% -> 0（风筝类 <=2）、洞穴任意类尾
+   记录值（L9 1.7% / L10 1.02% / L11 1.32% / L12 0%——非 cap 目标）、
+   L16 硬编码保留、采样终止（AC3）、教堂/墓穴无约束（AC4）、
+   MP 同种子同构成（AC8）、Counselor 映射 + AIID 穷尽性（含非 Boss 映射断言）、
+   quest 预加重抽双计数不放大 cap（QuestPreAddRePickDoesNotDoubleCount，Oracle 建议落地）。
+   任务状态条件：Quests 零初始化（全 NOTAVAIL），L13/L14 基线为"无任务"条件值。
+   Pre-cap 基线（v5 引擎实测）：L15 4.13%（证伪 v3 的 27.8%）/ L14 0.70% / L13 0.00%。
++  Task 4 追加（review 遗留 O1）：RosterQuotaAllowanceIsBinding 从出厂名册发现饱和的
++  (level, 受限 class) 组合并断言配额是紧的；EnginePreAddExemptionTracksQuestAvailability
++  断言引擎预加豁免只覆盖 Golem 与「该层真实可用」的任务唯一怪 base，
++  quest 挂到别的层不产生额度。
+diff --git a/test/Fixtures.cmake b/test/Fixtures.cmake
+index 203c21ef1..dd0d873d3 100644
+--- a/test/Fixtures.cmake
++++ b/test/Fixtures.cmake
+@@ -87,20 +87,22 @@ set(devilutionx_fixtures
+   timedemo/WarriorLevel1to2/demo_0_reference_spawn_0.sv
+   timedemo/WarriorLevel1to2/spawn_0.sv
+   txtdata/cr.tsv
+   txtdata/crlf.tsv
+   txtdata/empty.tsv
+   txtdata/empty_with_utf8_bom.tsv
+   txtdata/lf.tsv
+   txtdata/lf_no_trail.tsv
+   txtdata/sample.tsv
+   txtdata/utf8_bom.tsv
++  txtdata/monsters/level_rosters_interleaved.tsv
++  txtdata/monsters/level_roster_params_interleaved.tsv
+ )
+ 
+ copy_files(
+   FILES ${devilutionx_fixtures}
+   SRC_PREFIX test/fixtures/
+   OUTPUT_DIR "${DEVILUTIONX_TEST_FIXTURES_OUTPUT_DIRECTORY}"
+   OUTPUT_VARIABLE DEVILUTIONX_OUTPUT_TEST_FIXTURES_FILES
+ )
+ 
+ add_custom_target(devilutionx_copied_fixtures DEPENDS ${DEVILUTIONX_OUTPUT_TEST_FIXTURES_FILES})
+diff --git a/test/fixtures/txtdata/monsters/level_roster_params_interleaved.tsv b/test/fixtures/txtdata/monsters/level_roster_params_interleaved.tsv
+new file mode 100644
+index 000000000..59dfd8475
+--- /dev/null
++++ b/test/fixtures/txtdata/monsters/level_roster_params_interleaved.tsv
+@@ -0,0 +1,3 @@
++level	max_image	tail_draw	class_floors
++1	6000	2	
++2	6000	2	
+diff --git a/test/fixtures/txtdata/monsters/level_rosters_interleaved.tsv b/test/fixtures/txtdata/monsters/level_rosters_interleaved.tsv
+new file mode 100644
+index 000000000..ee55d14f1
+--- /dev/null
++++ b/test/fixtures/txtdata/monsters/level_rosters_interleaved.tsv
+@@ -0,0 +1,4 @@
++level	monster_id	role	allow_unique_boost
++1	MT_WSKELAX	core	-
++2	MT_SNEAK	core	-
++1	MT_NZOMBIE	core	-
+diff --git a/test/level_roster_baseline_test.cpp b/test/level_roster_baseline_test.cpp
+new file mode 100644
+index 000000000..ecd6c5694
+--- /dev/null
++++ b/test/level_roster_baseline_test.cpp
+@@ -0,0 +1,343 @@
++#include <gtest/gtest.h>
++
++#include <array>
++#include <cstddef>
++#include <cstdint>
++#include <cstdlib>
++#include <fstream>
++#include <iostream>
++#include <string>
++
++#include "drlg_test.hpp" // TestInitGame / GetTileCount（本仓既有测试夹具）
++#include "engine/load_file.hpp"
++#include "levels/gendung.h"
++#include "levels/trigs.h" // InitL1Triggers 等 + Freeupstairs（CreateLevel 逻辑复刻用）
++#include "monster.h"
++#include "tables/level_roster.h"
++#include "tables/monstdat.h"
++#include "utils/paths.h"
++#include "utils/str_cat.hpp"
++
++using namespace devilution;
++
++namespace {
++
++// SAMPLING_REPORT 约定：复制自 test/sampling_behavior_test.cpp（不共享头文件，
++// 按简报要求在本 TU 内独立实现）。未设置该环境变量时静默跳过写文件。
++std::string MeasurementReportPath()
++{
++	const char *path = std::getenv("SAMPLING_REPORT");
++	return path == nullptr ? std::string {} : std::string { path };
++}
++
++void AppendMeasurementReport(const std::string &text)
++{
++	const std::string path = MeasurementReportPath();
++	if (path.empty())
++		return;
++	std::ofstream out(path, std::ios::app);
++	out << text;
++}
++
++// 加载真实的 .til 素材到 pMegaTiles。TestCreateDungeon（drlg_test.hpp）用
++// std::make_unique<MegaTile[]>(...) 分配一块全零的假缓冲区就够用，因为它只校验
++// dungeon[][]/dTransVal[][]（DRLG_LPass3 之前的抽象层）。但本测试要测的是
++// IsTileSolid -> dPiece[][] -> pMegaTiles[dungeon[x][y]-1] 这条链路（用于
++// InitMonsters 内的可放置面积统计），全零的 pMegaTiles 会让 dPiece 恒为
++// SOLData[0]，同样制造出一个与关卡几何无关的常量放置结果（F1 同一类问题的延伸）。
++// 因此这里复刻 diablo.cpp:LoadLvlGFX 里按 leveltype 选择 .til 路径的部分
++// （该函数本身也在匿名命名空间内，无法直接调用），只加载 .til，不加载
++// .cel/special cels（纯图形数据，不影响怪物放置)。
++void LoadRealMegaTiles(dungeon_type levelType)
++{
++	const char *til = nullptr;
++	switch (levelType) {
++	case DTYPE_CATHEDRAL:
++		til = "levels\\l1data\\l1.til";
++		break;
++	case DTYPE_CATACOMBS:
++		til = "levels\\l2data\\l2.til";
++		break;
++	case DTYPE_CAVES:
++		til = "levels\\l3data\\l3.til";
++		break;
++	case DTYPE_HELL:
++		til = "levels\\l4data\\l4.til";
++		break;
++	default:
++		FAIL() << "LoadRealMegaTiles: unexpected leveltype " << static_cast<int>(levelType);
++		return;
++	}
++	auto result = LoadFileInMemWithStatus<MegaTile>(til);
++	ASSERT_TRUE(result.has_value()) << "Failed to load " << til << ": " << result.error();
++	pMegaTiles = std::move(*result);
++}
++
++// 建关 + 建怪前置：对齐 diablo.cpp:LoadGameLevel 中「SOLData 早于 InitMonsters」
++// 「触发器早于 InitMonsters（否则 trigs[] 全零, UBSan 会在 lighting.cpp 报越界）」
++// 两条真实执行顺序约束（复核轮 2 F1/F5）。
++//
++// 复核者建议的写法直接调用 CreateLevel(ENTRY_MAIN)，但 CreateLevel 定义在
++// diablo.cpp 的匿名命名空间内（`nm` 确认符号为内部链接的
++// `_ZN10devilution12_GLOBAL__N_111CreateLevelE...`，小写 `t` binding），
++// 测试 TU 无法链接到它。这里改为内联复刻 CreateLevel 的真实函数体：
++// CreateDungeon() 建关 -> 按关卡类型分派触发器初始化 -> Freeupstairs()
++// 收楼梯（L1-16 的 leveltype 恒不为 DTYPE_TOWN，故恒执行）。
++// LoadRndLvlPal() 在 HeadlessMode 下是 no-op（已读源码确认），本测试省略。
++//
++// 已知的残留 fidelity 差距（不在复核者 F1-F5 范围内，本轮未修，仅记录）：
++// 未调用 HoldThemeRooms()/InitThemes()/InitGolems()/InitObjects()，因此
++// zharlib 在多次调用间不会被重置、主题房间不参与 Populated 排除逻辑、
++// 4 个 golem 预留位不会计入 ActiveMonsterCount。复核者给出的建议流程同样未
++// 包含这些调用，此处保持一致，避免在复核明确要求之外扩大改动面。
++void CreateDungeonForMeasurement(uint8_t level, uint32_t seed)
++{
++	currlevel = level;
++	leveltype = GetLevelType(level);
++	LevelSeeds[level] = std::nullopt;
++	DungeonSeeds[currlevel] = seed;
++	LoadRealMegaTiles(leveltype);
++
++	InitLevelMonsters();
++
++	CreateDungeon(DungeonSeeds[currlevel], ENTRY_MAIN);
++	switch (leveltype) {
++	case DTYPE_CATHEDRAL:
++		InitL1Triggers();
++		break;
++	case DTYPE_CATACOMBS:
++		InitL2Triggers();
++		break;
++	case DTYPE_CAVES:
++		InitL3Triggers();
++		break;
++	case DTYPE_HELL:
++		InitL4Triggers();
++		break;
++	default:
++		FAIL() << "CreateDungeonForMeasurement: unexpected leveltype for level " << static_cast<int>(level);
++		return;
++	}
++	Freeupstairs();
++
++	ASSERT_TRUE(LoadLevelSOLData().has_value()) << "LoadLevelSOLData must succeed before InitMonsters";
++}
++
++// Placed class mix acceptance threshold (spec §4.5, plan task 4).
++//
++// The BASELINE is the pre-change measurement recorded in the plan's "A-baseline"
++// table (200 seeds per level, seed base 5000, placed-monster denominator), taken
++// with this same fixture before the roster sampling landed. The fractions are
++// written out as numerator/denominator exactly as that table reports them, so the
++// numbers stay auditable against their source instead of being rounded literals:
++//
++//   L13 (3249 RangedTurret + 2076 RangedKite) / 23405 placed = 22.8%
++//   L14 (9674 + 3425) / 23443                               = 55.9%
++//   L15 (13533 + 0)   / 23193                               = 58.3%
++//
++// The criterion is "ranged share <= baseline + 5 percentage points" (R4): the
++// roster may reshape a level's mix, but it must not turn Hell into a ranged
++// gallery. The 5-point band absorbs seed noise, not a design shift. If a level
++// exceeds it, the roster or its class_floors is what changes - never this ceiling.
++//
++// Indexing: both tables are indexed BY LEVEL NUMBER and sized 17 so level 16 is
++// a valid index rather than a buffer overrun. Only L13-15 have a baseline; every
++// other level is UNCONSTRAINED, which is spelled as the sentinel 1.0 (a share can
++// never exceed 1.0) rather than 0.0. 0.0 would read as "ceiling zero" and turn a
++// missing baseline into a silent misjudgement - a guaranteed failure, or worse, a
++// pass that means nothing - the moment someone widens the measured level range.
++// Widening that range therefore REQUIRES filling in the corresponding baseline
++// here first; the sentinel keeps the omission honest instead of hiding it.
++constexpr double kRangedShareTolerance = 0.05;
++constexpr double kRangedShareUnconstrained = 1.0;
++
++constexpr std::array<double, 17> kRangedShareBaseline {
++	kRangedShareUnconstrained,   // L0 (unused)
++	kRangedShareUnconstrained,   // L1
++	kRangedShareUnconstrained,   // L2
++	kRangedShareUnconstrained,   // L3
++	kRangedShareUnconstrained,   // L4
++	kRangedShareUnconstrained,   // L5
++	kRangedShareUnconstrained,   // L6
++	kRangedShareUnconstrained,   // L7
++	kRangedShareUnconstrained,   // L8
++	kRangedShareUnconstrained,   // L9
++	kRangedShareUnconstrained,   // L10
++	kRangedShareUnconstrained,   // L11
++	kRangedShareUnconstrained,   // L12
++	(3249.0 + 2076.0) / 23405.0, // L13
++	(9674.0 + 3425.0) / 23443.0, // L14
++	(13533.0 + 0.0) / 23193.0,   // L15
++	kRangedShareUnconstrained,   // L16
++};
++
++// A ceiling of exactly kRangedShareUnconstrained stays unconstrained: adding the
++// tolerance to the sentinel would push it above 1.0 and obscure that reading.
++constexpr std::array<double, 17> kRangedShareCeiling {
++	kRangedShareUnconstrained, // L0 (unused)
++	kRangedShareUnconstrained, // L1
++	kRangedShareUnconstrained, // L2
++	kRangedShareUnconstrained, // L3
++	kRangedShareUnconstrained, // L4
++	kRangedShareUnconstrained, // L5
++	kRangedShareUnconstrained, // L6
++	kRangedShareUnconstrained, // L7
++	kRangedShareUnconstrained, // L8
++	kRangedShareUnconstrained, // L9
++	kRangedShareUnconstrained, // L10
++	kRangedShareUnconstrained, // L11
++	kRangedShareUnconstrained, // L12
++	kRangedShareBaseline[13] + kRangedShareTolerance,
++	kRangedShareBaseline[14] + kRangedShareTolerance,
++	kRangedShareBaseline[15] + kRangedShareTolerance,
++	kRangedShareUnconstrained, // L16
++};
++
++std::array<size_t, static_cast<size_t>(BehaviorClass::Count)> MeasurePlacedClassMix()
++{
++	std::array<size_t, static_cast<size_t>(BehaviorClass::Count)> mix {};
++	for (size_t i = 0; i < ActiveMonsterCount; i++) {
++		const Monster &monster = Monsters[ActiveMonsters[i]];
++		mix[static_cast<size_t>(GetBehaviorClass(monster.ai))]++;
++	}
++	return mix;
++}
++
++} // namespace
++
++class LevelRosterBaselineTest : public ::testing::Test {
++protected:
++	static void SetUpTestSuite()
++	{
++		LoadGameArchives();
++
++		// CI 只带 spawn.mpq；本地缺素材时整套跳过而不是失败整个套件。
++		if (!HaveMainData()) {
++			missingMpqAssets_ = true;
++			return;
++		}
++		gbIsSpawn = false; // 与 sampling_behavior_test.cpp 一致：仅有 spawn.mpq 时不清空任务
++
++		// 建关过程中可能触发任务专属 set-piece（如 rnd6.dun），这些文件只作为测试夹具存在于
++		// test/fixtures/levels/ 下，需在 TestInitGame 之前设置 PrefPath 使其通过覆盖路径解析。
++		paths::SetPrefPath(paths::BasePath() + "test/fixtures/");
++		TestInitGame();
++		LoadMonsterData();
++		// GetLevelMTypes() 现在按逐层名册采样（core 预加 + 有界尾池），生产侧在
++		// diablo.cpp 里紧跟 LoadMonsterData() 调用；这里必须复刻该顺序，否则
++		// GetLevelRoster()/GetLevelRosterParams() 全空 → 无 PLACE_SCATTER 类型 →
++		// 该层放不出任何怪（本用例的 placed 基线会全零）。
++		LoadLevelRoster();
++	}
++
++	static bool missingMpqAssets_;
++};
++
++bool LevelRosterBaselineTest::missingMpqAssets_ = false;
++
++TEST_F(LevelRosterBaselineTest, PlacesMonstersForCathedralL1)
++{
++	if (missingMpqAssets_)
++		GTEST_SKIP() << "MPQ assets not found - skipping test";
++
++	CreateDungeonForMeasurement(1, 1000);
++	ASSERT_TRUE(GetLevelMTypes().has_value());
++	ASSERT_TRUE(InitMonsters().has_value());
++
++	const auto mix = MeasurePlacedClassMix();
++
++	size_t total = 0;
++	for (const size_t count : mix)
++		total += count;
++	EXPECT_GT(total, 0u) << "level 1 must place at least one monster";
++	EXPECT_LE(total, MaxMonsters - 10) << "placed count must respect engine's MaxMonsters-10 cap";
++	EXPECT_EQ(total, ActiveMonsterCount);
++}
++
++TEST_F(LevelRosterBaselineTest, PlacedClassMixReport)
++{
++	if (missingMpqAssets_)
++		GTEST_SKIP() << "MPQ assets not found - skipping test";
++
++	// 默认只跑小样本并断言真实不变量（F3）；只有显式设置 SAMPLING_REPORT 时才跑
++	// 200 seeds x 16 levels 的完整基线报告并写文件。
++	const bool fullReport = std::getenv("SAMPLING_REPORT") != nullptr;
++	const uint32_t seedsPerLevel = fullReport ? 200 : 5;
++
++	std::string report;
++	if (fullReport) {
++		report = "\n## A-baseline: placed class mix (200 seeds per level)\n\n"
++		         "| level | placed | Melee | RangedTurret | RangedKite | Rally | Charge | Sneak | Summon | Boss |\n"
++		         "|---|---|---|---|---|---|---|---|---|---|\n";
++	}
++
++	for (uint8_t level = 1; level <= 16; level++) {
++		std::array<size_t, static_cast<size_t>(BehaviorClass::Count)> sum {};
++		size_t placed = 0;
++		for (uint32_t seed = 0; seed < seedsPerLevel; seed++) {
++			CreateDungeonForMeasurement(level, 5000 + seed);
++			ASSERT_TRUE(GetLevelMTypes().has_value());
++			ASSERT_TRUE(InitMonsters().has_value());
++			const auto mix = MeasurePlacedClassMix();
++
++			// F3: 对每个样本断言真实不变量，而不仅仅是「引擎调用没报错」。
++			EXPECT_GT(ActiveMonsterCount, 0u)
++			    << "level " << static_cast<int>(level) << " seed " << seed << " must place at least one monster";
++			EXPECT_LE(ActiveMonsterCount, MaxMonsters - 10)
++			    << "level " << static_cast<int>(level) << " seed " << seed << " exceeds engine placement cap";
++			size_t mixTotal = 0;
++			for (const size_t count : mix)
++				mixTotal += count;
++			EXPECT_EQ(mixTotal, ActiveMonsterCount) << "class-mix sum must equal placed count";
++
++			for (size_t i = 0; i < mix.size(); i++)
++				sum[i] += mix[i];
++			placed += ActiveMonsterCount;
++		}
++		if (fullReport) {
++			report += StrCat("| ", level, " | ", placed, " |");
++			for (const size_t count : sum)
++				report += StrCat(" ", count, " |");
++			report += "\n";
++		}
++	}
++	if (fullReport)
++		AppendMeasurementReport(report);
++}
++
++TEST_F(LevelRosterBaselineTest, PlacedClassMixWithinBaseline)
++{
++	if (missingMpqAssets_)
++		GTEST_SKIP() << "MPQ assets not found - skipping test";
++
++	// AC (spec §4.5): the roster must not push L13-15's ranged share more than 5
++	// points above the pre-change baseline. This drives the PRODUCTION fixture
++	// (CreateDungeonForMeasurement -> GetLevelMTypes -> InitMonsters) and counts
++	// the monsters the engine actually placed, so the measurement comes from real
++	// placement rather than a re-simulation of the sampling rules.
++	constexpr int kSeeds = 200;
++	for (uint8_t level = 13; level <= 15; level++) {
++		size_t total = 0;
++		size_t ranged = 0;
++		for (uint32_t seed = 0; seed < kSeeds; seed++) {
++			CreateDungeonForMeasurement(level, 9000 + seed);
++			ASSERT_TRUE(GetLevelMTypes().has_value());
++			ASSERT_TRUE(InitMonsters().has_value());
++			const auto mix = MeasurePlacedClassMix();
++			total += ActiveMonsterCount;
++			ranged += mix[static_cast<size_t>(BehaviorClass::RangedTurret)]
++			    + mix[static_cast<size_t>(BehaviorClass::RangedKite)];
++		}
++		ASSERT_GT(total, 0u) << "level " << static_cast<int>(level) << " placed nothing - the fixture is broken";
++		const double share = static_cast<double>(ranged) / static_cast<double>(total);
++		// Always report the measurement: a passing run must still show how much
++		// headroom is left, otherwise the next roster edit has no reference point.
++		std::cout << "[ MEASURED ] level " << static_cast<int>(level) << " ranged share " << share
++		          << " (" << ranged << "/" << total << "), baseline " << kRangedShareBaseline[level]
++		          << ", ceiling " << kRangedShareCeiling[level] << std::endl;
++		EXPECT_LE(share, kRangedShareCeiling[level])
++		    << "level " << static_cast<int>(level) << " ranged share " << share
++		    << " exceeds baseline " << kRangedShareBaseline[level] << " + 5pp"
++		    << " (" << ranged << "/" << total << ")";
++	}
++}
+diff --git a/test/level_roster_test.cpp b/test/level_roster_test.cpp
+new file mode 100644
+index 000000000..8e2649c52
+--- /dev/null
++++ b/test/level_roster_test.cpp
+@@ -0,0 +1,458 @@
++#include <gtest/gtest.h>
++
++#include <algorithm>
++#include <span>
++#include <string>
++#include <utility>
++#include <vector>
++
++#include "engine/assets.hpp"
++#include "game_mode.hpp"
++#include "tables/level_roster.h"
++#include "tables/monstdat.h"
++#include "utils/paths.h"
++
++using namespace devilution;
++
++namespace {
++
++class LevelRosterTest : public ::testing::Test {
++protected:
++	static void SetUpTestSuite()
++	{
++		LoadCoreArchives();
++		gbIsSpawn = false;
++		LoadMonsterData();
++	}
++};
++
++} // namespace
++
++TEST_F(LevelRosterTest, ValidationAcceptsAWellFormedRoster)
++{
++	const std::vector<LevelRosterEntry> entries {
++		{ 1, MT_WSKELAX, LevelRosterRole::Core, false },
++		{ 1, MT_NZOMBIE, LevelRosterRole::Tail, false },
++	};
++	const std::vector<LevelRosterParams> params {
++		{ 1, 6000, 2, { { BehaviorClass::Melee, 2 } } },
++	};
++	EXPECT_FALSE(ValidateLevelRoster(entries, params).has_value());
++}
++
++TEST_F(LevelRosterTest, ValidationRejectsAMonsterUnavailableAtThatLevel)
++{
++	// MT_DIABLO has availability=Never in monstdat.tsv (not merely excluded by its
++	// level window), so it is rejected at any level under the full retail check. The
++	// level-window rejection path is covered separately by the MT_WSKELAX@L3 case below.
++	const std::vector<LevelRosterEntry> entries { { 1, MT_DIABLO, LevelRosterRole::Core, false } };
++	const std::vector<LevelRosterParams> params { { 1, 6000, 2, {} } };
++	const auto error = ValidateLevelRoster(entries, params);
++	ASSERT_TRUE(error.has_value());
++	EXPECT_NE(error->find("not available"), std::string::npos);
++}
++
++TEST_F(LevelRosterTest, ValidationRejectsAnInvalidRangeRow)
++{
++	// MT_WSKELAX is only available on levels 1-2; placing it at level 3 must be rejected.
++	const std::vector<LevelRosterEntry> entries { { 3, MT_WSKELAX, LevelRosterRole::Core, false } };
++	const std::vector<LevelRosterParams> params { { 3, 6000, 2, {} } };
++	const auto error = ValidateLevelRoster(entries, params);
++	ASSERT_TRUE(error.has_value());
++	EXPECT_NE(error->find("not available"), std::string::npos);
++}
++
++TEST_F(LevelRosterTest, ValidationRejectsAnUnsatisfiableClassFloor)
++{
++	// No level's candidate pool has 99 Boss-class monsters available.
++	const std::vector<LevelRosterEntry> entries { { 1, MT_WSKELAX, LevelRosterRole::Core, false } };
++	const std::vector<LevelRosterParams> params {
++		{ 1, 6000, 2, { { BehaviorClass::Boss, 99 } } },
++	};
++	const auto error = ValidateLevelRoster(entries, params);
++	ASSERT_TRUE(error.has_value());
++	EXPECT_NE(error->find("class floor"), std::string::npos);
++}
++
++TEST_F(LevelRosterTest, ValidationRejectsAUniqueBaseWithoutTheWhitelist)
++{
++	// MT_NGOATMC is Gharbad the Weak's base type at level 4 (unique_monstdat.tsv).
++	const std::vector<LevelRosterEntry> rejectedEntries { { 4, MT_NGOATMC, LevelRosterRole::Core, false } };
++	const std::vector<LevelRosterParams> params { { 4, 6000, 2, {} } };
++	const auto error = ValidateLevelRoster(rejectedEntries, params);
++	ASSERT_TRUE(error.has_value());
++	EXPECT_NE(error->find("allow_unique_boost"), std::string::npos);
++
++	const std::vector<LevelRosterEntry> allowedEntries { { 4, MT_NGOATMC, LevelRosterRole::Core, true } };
++	EXPECT_FALSE(ValidateLevelRoster(allowedEntries, params).has_value());
++}
++
++TEST_F(LevelRosterTest, ValidationRelaxesInSpawnMode)
++{
++	// MT_DIABLO is Never-available in the full retail check (only unlocked via a dedicated
++	// path, not the normal availability window), so this table is rejected under retail.
++	const std::vector<LevelRosterEntry> entries { { 1, MT_DIABLO, LevelRosterRole::Core, false } };
++	const std::vector<LevelRosterParams> params { { 1, 6000, 2, {} } };
++
++	gbIsSpawn = true;
++	EXPECT_FALSE(ValidateLevelRoster(entries, params).has_value());
++
++	// Prove the branch is actually taken, not that retail checks were silently disabled:
++	// the same table must still be rejected once we switch back to retail.
++	gbIsSpawn = false;
++	EXPECT_TRUE(ValidateLevelRoster(entries, params).has_value());
++}
++
++TEST_F(LevelRosterTest, ValidationRejectsLevelWithNoCoreInSpawnMode)
++{
++	// Level 1 has roster params but only a tail member, no core member.
++	const std::vector<LevelRosterEntry> entries { { 1, MT_NZOMBIE, LevelRosterRole::Tail, false } };
++	const std::vector<LevelRosterParams> params { { 1, 6000, 2, {} } };
++
++	gbIsSpawn = true;
++	const auto error = ValidateLevelRoster(entries, params);
++	gbIsSpawn = false;
++
++	ASSERT_TRUE(error.has_value());
++	EXPECT_NE(error->find("core"), std::string::npos);
++}
++
++TEST_F(LevelRosterTest, ValidationRejectsAClassFloorThatExceedsTheB1CapAtL10)
++{
++	// At level 10, RangedKite candidates (MT_BACID, MT_RSTORM, MT_YMAGMA, MT_BMAGMA,
++	// MT_WMAGMA, MT_STORM) number well above 2, but the B1 cap for L9-12 limits
++	// RangedKite to 2. A floor of 3 must be rejected even though the raw pool is bigger.
++	const std::vector<LevelRosterEntry> entries { { 10, MT_BACID, LevelRosterRole::Core, false } };
++	const std::vector<LevelRosterParams> params {
++		{ 10, 6000, 2, { { BehaviorClass::RangedKite, 3 } } },
++	};
++	const auto error = ValidateLevelRoster(entries, params);
++	ASSERT_TRUE(error.has_value());
++	EXPECT_NE(error->find("class floor"), std::string::npos);
++	EXPECT_NE(error->find("caps"), std::string::npos);
++}
++
++TEST_F(LevelRosterTest, ValidationAcceptsAClassFloorAtTheB1CapAtL10)
++{
++	// A floor of exactly 2 must pass: the raw candidate pool is bigger than 2, but the
++	// cap of 2 is still satisfied.
++	const std::vector<LevelRosterEntry> entries { { 10, MT_BACID, LevelRosterRole::Core, false } };
++	const std::vector<LevelRosterParams> params {
++		{ 10, 6000, 2, { { BehaviorClass::RangedKite, 2 } } },
++	};
++	EXPECT_FALSE(ValidateLevelRoster(entries, params).has_value());
++}
++
++TEST_F(LevelRosterTest, ValidationRejectsAClassFloorThatExceedsTheB1CapAtL14)
++{
++	// At level 14, Melee candidates (MT_VTEXLRD, MT_BALROG, MT_RSNAKE, MT_BSNAKE,
++	// MT_NBLACK, MT_RTBLACK, MT_BTBLACK, MT_RBLACK) number well above 2, but the B1 cap
++	// for L13-16 limits any single class to 2. A floor of 3 must be rejected.
++	const std::vector<LevelRosterEntry> entries { { 14, MT_VTEXLRD, LevelRosterRole::Core, false } };
++	const std::vector<LevelRosterParams> params {
++		{ 14, 6000, 2, { { BehaviorClass::Melee, 3 } } },
++	};
++	const auto error = ValidateLevelRoster(entries, params);
++	ASSERT_TRUE(error.has_value());
++	EXPECT_NE(error->find("class floor"), std::string::npos);
++	EXPECT_NE(error->find("caps"), std::string::npos);
++}
++
++TEST_F(LevelRosterTest, ValidationRejectsThreeSameClassCoreMembersUnderTheB1CapAtL10)
++{
++	// R29: core members are pre-added before the sampling loop, so they bypass the B1
++	// cap entirely. A table listing 3 RangedKite cores at level 10 would therefore ship a
++	// level that violates the <= 2 guarantee no matter what the sampler does, and the
++	// acceptance test could not catch it (the realised roster is the input). The only place
++	// this can be blocked is load time, so validation must reject it here.
++	const std::vector<LevelRosterEntry> entries {
++		{ 10, MT_BMAGMA, LevelRosterRole::Core, false },
++		{ 10, MT_WMAGMA, LevelRosterRole::Core, false },
++		{ 10, MT_RSTORM, LevelRosterRole::Core, false },
++	};
++	const std::vector<LevelRosterParams> params { { 10, 6000, 2, {} } };
++	const auto error = ValidateLevelRoster(entries, params);
++	ASSERT_TRUE(error.has_value()) << "3 RangedKite cores at L10 must be rejected";
++	EXPECT_NE(error->find("core roster has 3"), std::string::npos) << *error;
++	EXPECT_NE(error->find("RangedKite"), std::string::npos) << *error;
++	EXPECT_NE(error->find("level 10"), std::string::npos) << *error;
++	EXPECT_NE(error->find("cap for that level and class is 2"), std::string::npos) << *error;
++
++	// Prove the rejection is driven by the count against the cap, not by these three types
++	// being unacceptable on their own: dropping to exactly the cap must pass.
++	const std::vector<LevelRosterEntry> atCap { entries[0], entries[1] };
++	EXPECT_FALSE(ValidateLevelRoster(atCap, params).has_value());
++}
++
++TEST_F(LevelRosterTest, ValidationRejectsThreeSameClassCoreMembersInSpawnModeToo)
++{
++	// The core-vs-cap check sits before the spawn-mode relaxation, because the B1 guarantee
++	// is about the shipped table, not about which availability rules are in force.
++	const std::vector<LevelRosterEntry> entries {
++		{ 14, MT_RSNAKE, LevelRosterRole::Core, false },
++		{ 14, MT_BSNAKE, LevelRosterRole::Core, false },
++		{ 14, MT_NBLACK, LevelRosterRole::Core, false },
++	};
++	const std::vector<LevelRosterParams> params { { 14, 6000, 2, {} } };
++
++	gbIsSpawn = true;
++	const auto error = ValidateLevelRoster(entries, params);
++	gbIsSpawn = false;
++
++	ASSERT_TRUE(error.has_value());
++	EXPECT_NE(error->find("core roster has 3"), std::string::npos) << *error;
++	EXPECT_NE(error->find("Melee"), std::string::npos) << *error;
++}
++
++TEST_F(LevelRosterTest, SortRosterByLevelThenFindLevelRosterKeepsAllMembersOfAnInterleavedLevel)
++{
++	// FindLevelRoster() assumes same-level entries are contiguous. SortRosterByLevel()
++	// must sort by level first so interleaved TSV rows (level 1, 2, 1) don't silently drop
++	// the second level-1 batch, and must be stable so within-level file order survives.
++	std::vector<LevelRosterEntry> entries {
++		{ 1, MT_WSKELAX, LevelRosterRole::Core, false },
++		{ 2, MT_SNEAK, LevelRosterRole::Core, false },
++		{ 1, MT_NZOMBIE, LevelRosterRole::Core, false },
++	};
++
++	SortRosterByLevel(entries);
++	const std::span<const LevelRosterEntry> level1 = FindLevelRoster(entries, 1);
++
++	ASSERT_EQ(level1.size(), 2u);
++	EXPECT_EQ(level1[0].type, MT_WSKELAX);
++	EXPECT_EQ(level1[1].type, MT_NZOMBIE);
++}
++
++TEST_F(LevelRosterTest, ValidationRejectsAnOutOfRangeMonsterIdInSpawnMode)
++{
++	// Spawn mode relaxes availability/unique-whitelist/floors checks, but must still share
++	// the type-existence bounds check. MT_INVALID (-1) is legally parsed by enum_cast
++	// (magic_enum's customized range for _monster_id includes it), so it could otherwise
++	// smuggle an out-of-bounds MonstersData index through the relaxed branch.
++	const std::vector<LevelRosterEntry> entries { { 1, MT_INVALID, LevelRosterRole::Core, false } };
++	const std::vector<LevelRosterParams> params { { 1, 6000, 2, {} } };
++
++	gbIsSpawn = true;
++	const auto error = ValidateLevelRoster(entries, params);
++	gbIsSpawn = false;
++
++	ASSERT_TRUE(error.has_value());
++	EXPECT_NE(error->find("unknown monster id"), std::string::npos);
++}
++
++TEST_F(LevelRosterTest, ValidationRejectsAParamsLevelWithNoCoreInRetailMode)
++{
++	// A level with a params row but no roster entries at all (so no core member) must be
++	// rejected even outside spawn mode: the core-non-empty check now runs in both modes.
++	const std::vector<LevelRosterEntry> entries {};
++	const std::vector<LevelRosterParams> params { { 1, 6000, 2, {} } };
++	const auto error = ValidateLevelRoster(entries, params);
++	ASSERT_TRUE(error.has_value());
++	EXPECT_NE(error->find("no core"), std::string::npos);
++}
++
++TEST_F(LevelRosterTest, ValidationRejectsAnEntryLevelWithNoCoreAndNoParamsRow)
++{
++	// A level with a roster entry (tail only, no params row at all) but no core member
++	// must be rejected: the check is driven by (entries union params), not just params rows.
++	const std::vector<LevelRosterEntry> entries { { 1, MT_NZOMBIE, LevelRosterRole::Tail, false } };
++	const std::vector<LevelRosterParams> params {};
++	const auto error = ValidateLevelRoster(entries, params);
++	ASSERT_TRUE(error.has_value());
++	EXPECT_NE(error->find("no core"), std::string::npos);
++}
++
++TEST_F(LevelRosterTest, ValidationRejectsANonPositiveMaxImage)
++{
++	const std::vector<LevelRosterEntry> entries { { 1, MT_WSKELAX, LevelRosterRole::Core, false } };
++	const std::vector<LevelRosterParams> params { { 1, 0, 2, {} } };
++	const auto error = ValidateLevelRoster(entries, params);
++	ASSERT_TRUE(error.has_value());
++	EXPECT_NE(error->find("max_image"), std::string::npos);
++}
++
++TEST_F(LevelRosterTest, ValidationRejectsANegativeTailDraw)
++{
++	const std::vector<LevelRosterEntry> entries { { 1, MT_WSKELAX, LevelRosterRole::Core, false } };
++	const std::vector<LevelRosterParams> params { { 1, 6000, -1, {} } };
++	const auto error = ValidateLevelRoster(entries, params);
++	ASSERT_TRUE(error.has_value());
++	EXPECT_NE(error->find("tail_draw"), std::string::npos);
++}
++
++TEST_F(LevelRosterTest, ValidationRejectsTheClassFloorCountSentinel)
++{
++	// BehaviorClass::Count is a sentinel value, not a real category, but magic_enum's
++	// enum_cast would otherwise resolve the string "Count" as if it were a valid class.
++	const std::vector<LevelRosterEntry> entries { { 1, MT_WSKELAX, LevelRosterRole::Core, false } };
++	const std::vector<LevelRosterParams> params {
++		{ 1, 6000, 2, { { BehaviorClass::Count, 1 } } },
++	};
++	const auto error = ValidateLevelRoster(entries, params);
++	ASSERT_TRUE(error.has_value());
++	EXPECT_NE(error->find("Count"), std::string::npos);
++}
++
++TEST_F(LevelRosterTest, ValidationRejectsADuplicateParamsLevel)
++{
++	const std::vector<LevelRosterEntry> entries { { 1, MT_WSKELAX, LevelRosterRole::Core, false } };
++	const std::vector<LevelRosterParams> params {
++		{ 1, 6000, 2, {} },
++		{ 1, 9000, 3, {} },
++	};
++	const auto error = ValidateLevelRoster(entries, params);
++	ASSERT_TRUE(error.has_value());
++	EXPECT_NE(error->find("more than one"), std::string::npos);
++}
++
++TEST_F(LevelRosterTest, ValidationRejectsADuplicateEntryLevelAndMonsterId)
++{
++	// Same (level, monster_id) pair appearing twice must be rejected even though each row
++	// individually is a valid, available roster entry.
++	const std::vector<LevelRosterEntry> entries {
++		{ 1, MT_WSKELAX, LevelRosterRole::Core, false },
++		{ 1, MT_WSKELAX, LevelRosterRole::Tail, false },
++	};
++	const std::vector<LevelRosterParams> params { { 1, 6000, 2, {} } };
++	const auto error = ValidateLevelRoster(entries, params);
++	ASSERT_TRUE(error.has_value());
++	EXPECT_NE(error->find("more than one"), std::string::npos);
++}
++
++TEST(ParseClassFloorsTest, ParsesTwoValidEntries)
++{
++	// BehaviorClass has no enumerator literally named "Ranged"; the two real ranged
++	// categories are RangedTurret/RangedKite, so both positive entries here use real names.
++	const auto result = ParseClassFloors("Melee=2,RangedTurret=1");
++	const std::vector<std::pair<BehaviorClass, uint8_t>> expected {
++		{ BehaviorClass::Melee, 2 },
++		{ BehaviorClass::RangedTurret, 1 },
++	};
++	EXPECT_EQ(result, expected);
++}
++
++TEST(ParseClassFloorsTest, EmptyValueYieldsAnEmptyResult)
++{
++	EXPECT_TRUE(ParseClassFloors("").empty());
++}
++
++TEST(ParseClassFloorsTest, FatalsOnAnEntryMissingTheEqualsSign)
++{
++	EXPECT_EXIT(ParseClassFloors("Melee2"), ::testing::ExitedWithCode(1), "missing");
++}
++
++TEST(ParseClassFloorsTest, FatalsOnAnUnknownClassName)
++{
++	EXPECT_EXIT(ParseClassFloors("Ranged=1"), ::testing::ExitedWithCode(1), "unknown BehaviorClass");
++}
++
++TEST(ParseClassFloorsTest, FatalsOnANonNumericFloor)
++{
++	EXPECT_EXIT(ParseClassFloors("Melee=abc"), ::testing::ExitedWithCode(1), "bad integer");
++}
++
++TEST(ParseClassFloorsTest, FatalsOnAnEmptyFloorValue)
++{
++	// "Melee=" has an '=' but nothing after it: from_chars must fail to parse the floor.
++	EXPECT_EXIT(ParseClassFloors("Melee="), ::testing::ExitedWithCode(1), "bad integer");
++}
++
++namespace {
++
++// Base fixture: LoadCoreArchives()/LoadMonsterData() only need to run once per binary (they are
++// expensive and idempotent-enough for repeated calls to just log a benign "already registered"
++// warning), so they stay in SetUpTestSuite(). AssetsPath is process-global mutable state that a
++// single test's body previously mutated directly; that made the two tests below only pass in a
++// specific run order (e.g. under --gtest_filter='LevelRosterFixtureLoadTest.LoadsTheShipped*'
++// alone, or under --gtest_shuffle) since nothing ever restored the original path. Each concrete
++// fixture below now saves/restores AssetsPath per-test in SetUp()/TearDown(), mirroring
++// HasLooseLogicAssetsTest in test/assets_test.cpp, so the two tests are independent of each
++// other and of execution order.
++class LevelRosterFixtureLoadTestBase : public ::testing::Test {
++protected:
++	static void SetUpTestSuite()
++	{
++		LoadCoreArchives();
++		gbIsSpawn = false;
++		LoadMonsterData();
++	}
++
++	void SetUp() override
++	{
++		savedAssetsPath_ = paths::AssetsPath();
++	}
++
++	void TearDown() override
++	{
++		paths::SetAssetsPath(savedAssetsPath_);
++	}
++
++private:
++	std::string savedAssetsPath_;
++};
++
++class LevelRosterFixtureLoadTest : public LevelRosterFixtureLoadTestBase {
++protected:
++	void SetUp() override
++	{
++		LevelRosterFixtureLoadTestBase::SetUp();
++		paths::SetAssetsPath(paths::BasePath() + "test/fixtures/");
++	}
++};
++
++class LevelRosterShippedLoadTest : public LevelRosterFixtureLoadTestBase {
++protected:
++	void SetUp() override
++	{
++		LevelRosterFixtureLoadTestBase::SetUp();
++		paths::SetAssetsPath(paths::BasePath() + "assets/");
++	}
++};
++
++} // namespace
++
++TEST_F(LevelRosterFixtureLoadTest, LoadingAnInterleavedFixtureGathersAllMembersOfALevel)
++{
++	// The fixture's rows are deliberately out of level order (L1, L2, L1) to prove the
++	// production loader (not just SortRosterByLevel() in isolation) still collects every
++	// level-1 row via LoadLevelRosterFromFiles() -> GetLevelRoster().
++	LoadLevelRosterFromFiles(
++	    "txtdata\\monsters\\level_rosters_interleaved.tsv",
++	    "txtdata\\monsters\\level_roster_params_interleaved.tsv");
++
++	const std::span<const LevelRosterEntry> level1 = GetLevelRoster(1);
++	ASSERT_EQ(level1.size(), 2u);
++	const auto wskelax = std::find_if(level1.begin(), level1.end(), [](const LevelRosterEntry &e) { return e.type == MT_WSKELAX; });
++	const auto nzombie = std::find_if(level1.begin(), level1.end(), [](const LevelRosterEntry &e) { return e.type == MT_NZOMBIE; });
++	ASSERT_NE(wskelax, level1.end());
++	ASSERT_NE(nzombie, level1.end());
++	// Both rows are `core	-` in the fixture TSV (see test/fixtures/txtdata/monsters/
++	// level_rosters_interleaved.tsv): role Core, allow_unique_boost false.
++	EXPECT_EQ(wskelax->role, LevelRosterRole::Core);
++	EXPECT_FALSE(wskelax->allowUniqueBoost);
++	EXPECT_EQ(nzombie->role, LevelRosterRole::Core);
++	EXPECT_FALSE(nzombie->allowUniqueBoost);
++}
++
++TEST_F(LevelRosterShippedLoadTest, LoadsTheShippedRosterAndValidatesIt)
++{
++	LoadLevelRoster();
++
++	// Real values from the shipped tables (assets/txtdata/monsters/level_roster_params.tsv row
++	// "9	16000	3	RangedKite=1"): assert the parsed numbers rather than just non-null/non-empty,
++	// so swapping the maxImage/tailDraw columns (both valid positive ints) would be caught.
++	const LevelRosterParams *params9 = GetLevelRosterParams(9);
++	ASSERT_NE(params9, nullptr);
++	EXPECT_EQ(params9->maxImage, 16000);
++	EXPECT_EQ(params9->tailDraw, 3);
++
++	const std::span<const LevelRosterEntry> level9 = GetLevelRoster(9);
++	EXPECT_FALSE(level9.empty());
++	// assets/txtdata/monsters/level_rosters.tsv has "9	MT_BMAGMA	core	-": role Core,
++	// allow_unique_boost false. Pin this specific row's parsed fields, not just the roster's
++	// non-emptiness.
++	const auto bmagma = std::find_if(level9.begin(), level9.end(), [](const LevelRosterEntry &e) { return e.type == MT_BMAGMA; });
++	ASSERT_NE(bmagma, level9.end());
++	EXPECT_EQ(bmagma->role, LevelRosterRole::Core);
++	EXPECT_FALSE(bmagma->allowUniqueBoost);
++}
+diff --git a/test/sampling_behavior_test.cpp b/test/sampling_behavior_test.cpp
+index df8a5e960..985604b06 100644
+--- a/test/sampling_behavior_test.cpp
++++ b/test/sampling_behavior_test.cpp
+@@ -12,32 +12,39 @@
+  */
+ #include <gtest/gtest.h>
+ 
+ #include <algorithm>
+ #include <array>
+ #include <cstddef>
+ #include <cstdint>
+ #include <cstdlib>
+ #include <fstream>
+ #include <set>
++#include <span>
+ #include <sstream>
+ #include <string>
++#include <utility>
+ #include <vector>
+ 
++#include "drlg_test.hpp" // TestInitGame (mounts the hf overlay for the R28 fixture)
+ #include "engine/assets.hpp"
+ #include "engine/load_cl2.hpp"
+ #include "engine/random.hpp"
++#include "game_mode.hpp"
+ #include "levels/gendung.h"
+ #include "monster.h"
+ #include "multi.h"
++#include "player.h"
+ #include "quests.h"
++#include "tables/level_roster.h"
+ #include "tables/monstdat.h"
++#include "tables/questdat.hpp"
+ #include "utils/str_cat.hpp"
+ 
+ using namespace devilution;
+ 
+ namespace {
+ 
+ // Behavior classes come from the engine (monstdat.h GetBehaviorClass)
+ // so the harness tests the exact taxonomy the cap enforces.
+ // Run one real engine sampling pass for `level` with a fresh RNG seed.
+ // Returns the behavior classes of the sampled monster types.
+@@ -87,20 +94,24 @@ protected:
+ 		// CI only ships spawn.mpq; the B1 baseline numbers were computed from
+ 		// the full monstdat.tsv with availability != Never (no spawn/retail
+ 		// split). Match that by disabling the spawn filter.
+ 		if (!HaveMainData()) {
+ 			missingMpqAssets_ = true;
+ 			return;
+ 		}
+ 		gbIsSpawn = false;
+ 		sgGameInitInfo.fullQuests = 1; // full quests -> UseMultiplayerQuests() == false
+ 		LoadMonsterData();
++		// GetLevelMTypes() now samples from the level rosters, which diablo.cpp loads
++		// right after LoadMonsterData(); mirror that order here (validation reads
++		// MonstersData, so it must come second).
++		LoadLevelRoster();
+ 	}
+ 
+ 	static bool missingMpqAssets_;
+ 
+ 	// Fraction (percent) of sampled levels where any behavior class
+ 	// reaches >= 3 types on the level (the "all-same tail").
+ 	[[nodiscard]] double SameClassTailPercent(uint8_t level, int iterations, uint32_t seedBase) const
+ 	{
+ 		int tail = 0;
+ 		for (int i = 0; i < iterations; i++) {
+@@ -187,30 +198,43 @@ TEST_F(SamplingBaselineTest, CavesAnyClassTailBaseline)
+ 	// These are the same-class metric (any behavior class), distinct from the
+ 	// kite-class metric in CavesKiteTailBaseline.
+ 	if (missingMpqAssets_)
+ 		GTEST_SKIP() << "MPQ assets not found - skipping test";
+ 
+ 	constexpr int kIterations = 10000;
+ 	const double l9 = SameClassTailPercent(9, kIterations, 8000);
+ 	const double l10 = SameClassTailPercent(10, kIterations, 9000);
+ 	const double l11 = SameClassTailPercent(11, kIterations, 10000);
+ 	const double l12 = SameClassTailPercent(12, kIterations, 11000);
+-	// Caves cap constrains kite class only; the "any-class >=3" tail is NOT a
+-	// cap target (a Melee-heavy Caves level is still possible). Baseline was
+-	// L9 1.59% / L10 3.33% / L11 1.18% / L12 2.61%; post-cap measured
+-	// L9 1.7% / L10 1.02% / L11 1.32% / L12 0% (kite cap removed the dominant
+-	// kite driver, leaving residual Melee-driven tails). Pin post-cap values
+-	// so a regression in the sampling loop is still caught.
+-	EXPECT_NEAR(l9, 1.7, 0.6) << "Caves L9 any-class tail post-cap (~1.7%)";
+-	EXPECT_NEAR(l10, 1.02, 0.6) << "Caves L10 any-class tail post-cap (~1.0%)";
+-	EXPECT_NEAR(l11, 1.32, 0.6) << "Caves L11 any-class tail post-cap (~1.3%)";
+-	EXPECT_NEAR(l12, 0.0, 0.5) << "Caves L12 any-class tail post-cap";
++	// Caves cap constrains the kite class only; the "any-class >=3" tail is NOT a
++	// cap target (a Melee-heavy Caves level is still possible). History:
++	// pre-cap L9 1.59% / L10 3.33% / L11 1.18% / L12 2.61%; post-cap (random
++	// 3-7 types) L9 1.7% / L10 1.02% / L11 1.32% / L12 0%.
++	//
++	// With the phase-A rosters this tail is no longer a distribution artefact but
++	// arithmetic: a Caves level now realises 1 (Golem) + 4 core + up to
++	// tail_draw(3) = 8 types, while the classes its candidate pool can offer,
++	// with every class held at <= 2, only have room for 8/7/6/6 types at
++	// L9/L10/L11/L12 (measured from the candidate pools). L10-L12 therefore
++	// CANNOT keep every class at 2 - some class must reach 3 - so the tail is
++	// 100% there by construction, and L9 sits at the boundary (59.93%, the only
++	// level with enough distinct classes to sometimes fit).
++	//
++	// This is not a relaxed threshold: the B1 guarantees are asserted by
++	// CavesKiteTailBaseline (kite <= 2, the actual monopoly symptom) and by
++	// RosterQuotasSatisfied (caps hold for everything the loop adds). What
++	// changed is the total type count per level, which is the roster feature's
++	// whole point. Pinned exactly so any further drift is caught.
++	EXPECT_NEAR(l9, 59.93, 0.6) << "Caves L9 any-class tail with rosters (~59.9%)";
++	EXPECT_EQ(l10, 100.0) << "Caves L10 cannot spread 8 types over its classes at <=2 each";
++	EXPECT_EQ(l11, 100.0) << "Caves L11 cannot spread 8 types over its classes at <=2 each";
++	EXPECT_EQ(l12, 100.0) << "Caves L12 cannot spread 8 types over its classes at <=2 each";
+ }
+ 
+ TEST_F(SamplingBaselineTest, Level16HardcodedTypes)
+ {
+ 	if (missingMpqAssets_)
+ 		GTEST_SKIP() << "MPQ assets not found - skipping test";
+ 
+ 	// Level 16 is hard-coded: Golem + Advocate + RBlack + Diablo only.
+ 	// (GetLevelMTypes early-returns; the cap must never apply here.)
+ 	currlevel = 16;
+@@ -666,11 +690,647 @@ TEST_F(SamplingBaselineTest, MeasurementRosterIdentity)
+ 	// pre-adds types that the level band does not cover: MT_GOLEM is added
+ 	// unconditionally as PLACE_SPECIAL, and quest uniques (Garbud/Zhar/
+ 	// SnotSpill/Lachdan/WarlordOfBlood/SKING) are added by quest availability.
+ 	// So the roster is "candidates + pre-adds", not "candidates".
+ 	for (uint8_t level = 1; level <= 16; level++) {
+ 		EXPECT_GT(rosters[level].size(), 0u) << "level " << static_cast<int>(level) << " sampled nothing";
+ 		EXPECT_LE(rosters[level].size(), MonstersData.size()) << "level " << static_cast<int>(level);
+ 	}
+ }
+ 
++// ---------------------------------------------------------------------------
++// Phase A level rosters (task 3): the sampling loop now pre-adds each level's
++// core roster, bounds the tail draw by `tail_draw`, tops up unmet class floors
++// and budgets sprites per level via `max_image`.
++// ---------------------------------------------------------------------------
++
++// Availability filter for a roster row, mirroring the production core pre-add.
++// GetLevelRoster() deliberately does not filter by availability (see
++// level_roster.h), and IsMonsterAvailable() is file-local to monster.cpp, so the
++// same predicate is mirrored here against the currently loaded MonstersData
++// (identical to IsMeasuredCandidate() below, but level-parameterised).
++bool IsRosterEntryAvailableAt(uint8_t level, _monster_id type)
++{
++	const MonsterData &data = MonstersData[type];
++	if (data.availability == MonsterAvailability::Never)
++		return false;
++	if (gbIsSpawn && data.availability == MonsterAvailability::Retail)
++		return false;
++	return level >= data.minDunLvl && level <= data.maxDunLvl;
++}
++
++size_t AvailableCoreCount(uint8_t level)
++{
++	size_t count = 0;
++	for (const LevelRosterEntry &entry : GetLevelRoster(level)) {
++		if (entry.role == LevelRosterRole::Core && IsRosterEntryAvailableAt(level, entry.type))
++			count++;
++	}
++	return count;
++}
++
++// Cap exemptions that come from the ENGINE, not from the roster (R29).
++//
++// The roster must NOT be used to compute this. Deriving the allowance from the
++// very table under test makes the assertion self-fulfilling: a core roster that
++// lists three same-class monsters would raise its own budget by three and the
++// check could never fail - exactly the class of data defect (L11's three kite
++// cores, L14's Melee cores) that this suite exists to catch. Core is therefore
++// held to the cap here, and the load-time validator (ValidateLevelRoster's
++// core-vs-cap check) rejects a roster that would break it.
++//
++// What genuinely cannot be capped is what GetLevelMTypes() pre-adds regardless
++// of any table: MT_GOLEM (unconditional PLACE_SPECIAL) plus the SIX quest-gated
++// type pre-adds at monster.cpp:3464-3475. Those six are not six uniques: Q_BUTCHER
++// adds the plain monster type MT_CLEAVER, while the other five (Q_GARBUD, Q_ZHAR,
++// Q_LTBANNER, Q_VEIL, Q_WARLORD) add a UNIQUE's base type, chosen by
++// UniqueMonstersData rather than by the roster. That is why the table below has
++// five entries and MT_CLEAVER is counted separately in EnginePreAddClassCount.
++//
++// O1 (task 3 review): the exemption used to include EVERY unique whose mlevel
++// matched, which made this allowance so wide that the grid cell could not fail
++// (L13 alone lists nine uniques spread over most classes). That is wrong about
++// the engine: only these six pre-adds take a monster TYPE slot. All
++// other uniques are placed by PlaceUniqueMonsters(), which picks from the types
++// the level ALREADY has (see monster.cpp's PlaceUniqueMonsters: it searches
++// LevelMonsterTypes for a matching base type and skips the unique when absent),
++// so they occupy no additional type slot and must not widen the cap.
++constexpr std::array<std::pair<quest_id, UniqueMonsterType>, 5> kQuestUniquePreAdds {
++	std::pair { Q_GARBUD, UniqueMonsterType::Garbud },
++	std::pair { Q_ZHAR, UniqueMonsterType::Zhar },
++	std::pair { Q_LTBANNER, UniqueMonsterType::SnotSpill },
++	std::pair { Q_VEIL, UniqueMonsterType::Lachdan },
++	std::pair { Q_WARLORD, UniqueMonsterType::WarlordOfBlood },
++};
++
++// Availability uses the engine's own predicate (Quest::IsAvailable, which checks
++// setlevel / currlevel / _qactive / single-player-only) instead of a re-derived
++// copy, so validator and harness cannot drift. Precondition: call with
++// currlevel == level, which every caller below satisfies because the sampling
++// pass it measures sets currlevel first.
++bool QuestPreAddAvailableAt(uint8_t level, quest_id quest)
++{
++	// Quest::IsAvailable() reads QuestsData[_qidx]; SetUpTestSuite deliberately
++	// does not LoadQuestData(), so a suite that never activates a quest must not
++	// index that empty vector. A quest cannot be available without its data.
++	if (QuestsData.empty())
++		return false;
++	return Quests[quest]._qlevel == level && Quests[quest].IsAvailable();
++}
++
++size_t EnginePreAddClassCount(uint8_t level, BehaviorClass cls)
++{
++	size_t count = 0;
++	if (GetBehaviorClass(MonstersData[MT_GOLEM].ai) == cls)
++		count++;
++	// Q_BUTCHER pre-adds a plain monster type, not a unique's base type.
++	if (QuestPreAddAvailableAt(level, Q_BUTCHER) && GetBehaviorClass(MonstersData[MT_CLEAVER].ai) == cls)
++		count++;
++	for (const auto &[quest, unique] : kQuestUniquePreAdds) {
++		if (!QuestPreAddAvailableAt(level, quest))
++			continue;
++		const _monster_id base = UniqueMonstersData[static_cast<size_t>(unique)].mtype;
++		if (GetBehaviorClass(MonstersData[base].ai) == cls)
++			count++;
++	}
++	return count;
++}
++
++bool LevelHasType(_monster_id type)
++{
++	return std::any_of(LevelMonsterTypes, LevelMonsterTypes + LevelMonsterTypeCount,
++	    [type](const CMonster &levelType) { return levelType.type == type; });
++}
++
++TEST_F(SamplingBaselineTest, RosterCoreAlwaysPresent)
++{
++	if (missingMpqAssets_)
++		GTEST_SKIP() << "MPQ assets not found - skipping test";
++
++	// AC1: every available core member of a level is realised on 100% of seeds,
++	// and every core member is a candidate of that level (i.e. the roster row
++	// itself is available there, so pre-adding it is not a smuggled monster).
++	//
++	// Range note (R31): this case runs 1-16 while RosterTailDrawBounded and
++	// RosterQuotasSatisfied run 1-15. L16 has roster ROWS but no params row on
++	// purpose (spec 4.2.7): GetLevelMTypes() takes the hardcoded L16 branch and
++	// returns before any roster pre-add, so on L16 only the static half of AC1 is
++	// checkable - the rows are well-formed, available candidates and are
++	// registered - and the realised-core assertion below is skipped for it.
++	for (uint8_t level = 1; level <= 16; level++) {
++		const std::span<const LevelRosterEntry> roster = GetLevelRoster(level);
++		ASSERT_FALSE(roster.empty()) << "level " << static_cast<int>(level) << " must have roster rows";
++		size_t assertedCores = 0;
++		for (const LevelRosterEntry &entry : roster) {
++			if (entry.role != LevelRosterRole::Core)
++				continue;
++			// Availability is the level-band check too, so this doubles as the
++			// "core must be a candidate of its level" half of AC1.
++			EXPECT_TRUE(IsRosterEntryAvailableAt(level, entry.type))
++			    << "core type " << static_cast<int>(entry.type) << " is not a candidate at level " << static_cast<int>(level);
++			assertedCores++;
++		}
++		EXPECT_GT(assertedCores, 0u) << "level " << static_cast<int>(level) << " must declare at least one core";
++
++		for (int seed = 0; seed < 200; seed++) {
++			currlevel = level;
++			InitLevelMonsters();
++			SetRndSeed(7000 + static_cast<uint32_t>(seed));
++			ASSERT_TRUE(GetLevelMTypes().has_value());
++			// L16 hardcodes its types and returns before the roster pre-add, so
++			// its roster rows are registration only (spec 4.2.7).
++			if (level == 16)
++				continue;
++			for (const LevelRosterEntry &entry : roster) {
++				if (entry.role != LevelRosterRole::Core)
++					continue;
++				EXPECT_TRUE(LevelHasType(entry.type))
++				    << "level " << static_cast<int>(level) << " seed " << seed
++				    << " is missing core type " << static_cast<int>(entry.type);
++			}
++		}
++	}
++}
++
++TEST_F(SamplingBaselineTest, RosterTailDrawBounded)
++{
++	if (missingMpqAssets_)
++		GTEST_SKIP() << "MPQ assets not found - skipping test";
++
++	// AC2: the tail draw is min(tail_draw, available candidates). Counting the
++	// tail as "types beyond the pre-adds" needs the pre-add count measured, not
++	// assumed: Golem is always pre-added and the roster's core count varies.
++	//
++	// Range note (R31): 1-15, not 1-16. A tail bound is only meaningful where a
++	// tail is drawn, and L16 deliberately has no params row (spec 4.2.7) because
++	// its hardcoded branch returns before the roster path runs. Extending this
++	// loop to 16 would only assert that a missing params row is missing.
++	for (uint8_t level = 1; level <= 15; level++) {
++		const LevelRosterParams *params = GetLevelRosterParams(level);
++		ASSERT_NE(params, nullptr) << "level " << static_cast<int>(level) << " must have a params row";
++		for (int seed = 0; seed < 50; seed++) {
++			currlevel = level;
++			InitLevelMonsters();
++			SetRndSeed(8000 + static_cast<uint32_t>(seed));
++			// Measure the pre-add count by replaying only the pre-add phase:
++			// run the real sampling, then subtract the types that the roster and
++			// the unconditional pre-adds account for.
++			ASSERT_TRUE(GetLevelMTypes().has_value());
++			size_t preAdded = 1; // MT_GOLEM (PLACE_SPECIAL, always pre-added)
++			preAdded += AvailableCoreCount(level);
++			const size_t tail = LevelMonsterTypeCount > preAdded ? LevelMonsterTypeCount - preAdded : 0;
++			EXPECT_LE(tail, static_cast<size_t>(params->tailDraw))
++			    << "level " << static_cast<int>(level) << " seed " << seed << " drew more tail types than tail_draw";
++		}
++	}
++}
++
++TEST_F(SamplingBaselineTest, RosterQuotasSatisfied)
++{
++	if (missingMpqAssets_)
++		GTEST_SKIP() << "MPQ assets not found - skipping test";
++
++	// AC3: each level's class floors are met and the B1 caps are never broken.
++	// Caps come from BehaviorClassCapForLevel (the single source of truth the
++	// validator uses), so a drift between validator and sampling loop fails here.
++	//
++	// Range note (R31): 1-15 for the same reason as RosterTailDrawBounded - floors
++	// and caps are properties of the roster sampling loop, which L16 never enters
++	// (hardcoded branch + early return, spec 4.2.7). L16's cap guarantee is
++	// therefore a property of that hardcoded list, covered by Level16HardcodedTypes.
++	for (uint8_t level = 1; level <= 15; level++) {
++		const LevelRosterParams *params = GetLevelRosterParams(level);
++		ASSERT_NE(params, nullptr) << "level " << static_cast<int>(level);
++		for (int seed = 0; seed < 200; seed++) {
++			currlevel = level;
++			InitLevelMonsters();
++			SetRndSeed(9000 + static_cast<uint32_t>(seed));
++			ASSERT_TRUE(GetLevelMTypes().has_value());
++
++			std::array<size_t, static_cast<size_t>(BehaviorClass::Count)> counts {};
++			for (size_t i = 0; i < LevelMonsterTypeCount; i++)
++				counts[static_cast<size_t>(GetBehaviorClass(MonstersData[LevelMonsterTypes[i].type].ai))]++;
++
++			for (const auto &[cls, floor] : params->classFloors) {
++				EXPECT_GE(counts[static_cast<size_t>(cls)], static_cast<size_t>(floor))
++				    << "level " << static_cast<int>(level) << " seed " << seed
++				    << " misses class floor " << static_cast<int>(cls);
++			}
++			for (size_t i = 0; i < counts.size(); i++) {
++				const uint8_t cap = BehaviorClassCapForLevel(level, static_cast<BehaviorClass>(i));
++				if (cap == 0)
++					continue;
++				// R29: the allowance is cap + the ENGINE's unconditional pre-adds
++				// (Golem and this level's quest uniques). It deliberately does not
++				// include the core roster: core is subject to the same cap, enforced
++				// at load time by ValidateLevelRoster, so a core row that broke a B1
++				// guarantee fails here instead of quietly raising its own budget.
++				const size_t enginePreAdds = EnginePreAddClassCount(level, static_cast<BehaviorClass>(i));
++				EXPECT_LE(counts[i], static_cast<size_t>(cap) + enginePreAdds)
++				    << "level " << static_cast<int>(level) << " seed " << seed
++				    << " breaks the B1 cap for class " << i;
++			}
++		}
++	}
++}
++
++size_t AvailableCoreClassCount(uint8_t level, BehaviorClass cls)
++{
++	size_t count = 0;
++	for (const LevelRosterEntry &entry : GetLevelRoster(level)) {
++		if (entry.role != LevelRosterRole::Core)
++			continue;
++		if (!IsRosterEntryAvailableAt(level, entry.type))
++			continue;
++		if (GetBehaviorClass(MonstersData[entry.type].ai) == cls)
++			count++;
++	}
++	return count;
++}
++
++// O1 discriminating-power proof for RosterQuotasSatisfied's cap half.
++//
++// That case asserts `counts[cls] <= cap + EnginePreAddClassCount(level, cls)`.
++// An allowance can pass for the wrong reason: if it is wider than what the engine
++// actually pre-adds, no composition can ever reach it and the assertion is true
++// regardless of the sampling loop. This case proves the allowance is BINDING -
++// i.e. the sampling loop is already at the limit, so admitting one extra type of
++// that class would fail RosterQuotasSatisfied rather than slip through.
++//
++// The level is not hardcoded: it is discovered from the shipped roster (the level
++// whose available core rows exactly fill a capped class). L15 is that level today
++// (Balrog+Gsnake = 2 Melee, Snowwitch+Magistrate = 2 RangedTurret, cap 2), and if
++// the data moves the search follows it instead of silently testing nothing.
++TEST_F(SamplingBaselineTest, RosterQuotaAllowanceIsBinding)
++{
++	if (missingMpqAssets_)
++		GTEST_SKIP() << "MPQ assets not found - skipping test";
++
++	std::vector<std::pair<uint8_t, BehaviorClass>> saturated;
++	for (uint8_t level = 1; level <= 15; level++) {
++		for (size_t i = 0; i < static_cast<size_t>(BehaviorClass::Count); i++) {
++			const auto cls = static_cast<BehaviorClass>(i);
++			const uint8_t cap = BehaviorClassCapForLevel(level, cls);
++			if (cap == 0)
++				continue;
++			if (AvailableCoreClassCount(level, cls) == static_cast<size_t>(cap))
++				saturated.emplace_back(level, cls);
++		}
++	}
++	ASSERT_FALSE(saturated.empty())
++	    << "no level's core saturates a capped class, so RosterQuotasSatisfied's cap bound is never exercised at the limit";
++
++	for (const auto &[level, cls] : saturated) {
++		const uint8_t cap = BehaviorClassCapForLevel(level, cls);
++		// No quest is active in this suite, so the engine's only pre-add is
++		// MT_GOLEM (Boss). A capped non-Boss class therefore gets NO slack: the
++		// allowance equals the cap exactly. Before O1 the exemption counted every
++		// unique whose mlevel matched (nine of them on L13), which added slack the
++		// engine never grants and made the bound unreachable.
++		const size_t allowance = static_cast<size_t>(cap) + EnginePreAddClassCount(level, cls);
++		if (cls != BehaviorClass::Boss) {
++			EXPECT_EQ(allowance, static_cast<size_t>(cap))
++			    << "level " << static_cast<int>(level) << " class " << static_cast<int>(cls)
++			    << " must get no cap slack while no quest is active";
++		}
++
++		// And the real sampling loop reaches that allowance, so it is binding.
++		size_t maxRealised = 0;
++		for (int seed = 0; seed < 200; seed++) {
++			currlevel = level;
++			InitLevelMonsters();
++			SetRndSeed(21000 + static_cast<uint32_t>(seed));
++			ASSERT_TRUE(GetLevelMTypes().has_value());
++			size_t realised = 0;
++			for (size_t i = 0; i < LevelMonsterTypeCount; i++) {
++				if (GetBehaviorClass(MonstersData[LevelMonsterTypes[i].type].ai) == cls)
++					realised++;
++			}
++			maxRealised = std::max(maxRealised, realised);
++			// The bound RosterQuotasSatisfied asserts must still hold here.
++			EXPECT_LE(realised, allowance)
++			    << "level " << static_cast<int>(level) << " seed " << seed
++			    << " breaks the cap for class " << static_cast<int>(cls);
++		}
++		EXPECT_EQ(maxRealised, allowance)
++		    << "level " << static_cast<int>(level) << " class " << static_cast<int>(cls)
++		    << " never reaches its allowance, so the cap assertion cannot detect a one-type regression";
++	}
++}
++
++// The tightened exemption must TRACK quest availability, not be blanket: a quest
++// that is not available grants no slack, and activating exactly one quest widens
++// exactly its own class by exactly one.
++TEST_F(SamplingBaselineTest, EnginePreAddExemptionTracksQuestAvailability)
++{
++	if (missingMpqAssets_)
++		GTEST_SKIP() << "MPQ assets not found - skipping test";
++
++	LoadQuestData(); // Quest::IsAvailable() reads QuestsData; SetUpTestSuite omits it.
++	currlevel = 14;
++
++	// Lachdanan (Q_VEIL) is the L14 quest unique whose base type MT_RBLACK the
++	// engine pre-adds; MT_RBLACK is SkeletonMelee -> Melee.
++	const BehaviorClass questClass = GetBehaviorClass(MonstersData[MT_RBLACK].ai);
++	ASSERT_EQ(questClass, BehaviorClass::Melee);
++
++	std::array<size_t, static_cast<size_t>(BehaviorClass::Count)> inactive {};
++	for (size_t i = 0; i < inactive.size(); i++)
++		inactive[i] = EnginePreAddClassCount(14, static_cast<BehaviorClass>(i));
++
++	// With every quest NOTAVAIL only Golem (Boss) is exempt.
++	for (size_t i = 0; i < inactive.size(); i++) {
++		const size_t expected = static_cast<BehaviorClass>(i) == BehaviorClass::Boss ? 1u : 0u;
++		EXPECT_EQ(inactive[i], expected)
++		    << "no quest is active, so class " << i << " must not be exempt";
++	}
++
++	Quests[Q_VEIL]._qidx = Q_VEIL;
++	Quests[Q_VEIL]._qactive = QUEST_ACTIVE;
++	Quests[Q_VEIL]._qlevel = 14;
++
++	for (size_t i = 0; i < inactive.size(); i++) {
++		const size_t after = EnginePreAddClassCount(14, static_cast<BehaviorClass>(i));
++		const size_t expected = static_cast<BehaviorClass>(i) == questClass ? inactive[i] + 1 : inactive[i];
++		EXPECT_EQ(after, expected) << "activating Q_VEIL must widen only Melee, by one (class " << i << ")";
++	}
++
++	// The same quest on a different level grants this level nothing.
++	Quests[Q_VEIL]._qlevel = 13;
++	EXPECT_EQ(EnginePreAddClassCount(14, questClass), inactive[static_cast<size_t>(questClass)])
++	    << "a quest hosted on another level must not widen this level's cap";
++
++	Quests[Q_VEIL] = {};
++	QuestsData.clear(); // leave the suite's "no quest data" precondition intact.
++}
++
++TEST_F(SamplingBaselineTest, IdentityGuard)
++{
++	if (missingMpqAssets_)
++		GTEST_SKIP() << "MPQ assets not found - skipping test";
++
++	// AC9: adjacent levels must not be interchangeable. Reuses the P0-D metric
++	// (union of realised types over 200 seeds -> set -> Jaccard).
++	constexpr int kSeeds = 200;
++	std::vector<std::set<size_t>> rosters(17);
++	for (uint8_t level = 1; level <= 16; level++) {
++		for (int seed = 0; seed < kSeeds; seed++) {
++			currlevel = level;
++			InitLevelMonsters();
++			SetRndSeed(11000 + static_cast<uint32_t>(seed));
++			ASSERT_TRUE(GetLevelMTypes().has_value());
++			for (size_t i = 0; i < LevelMonsterTypeCount; i++)
++				rosters[level].insert(LevelMonsterTypes[i].type);
++		}
++	}
++	for (uint8_t level = 2; level <= 16; level++) {
++		const std::set<size_t> &a = rosters[level - 1];
++		const std::set<size_t> &b = rosters[level];
++		size_t intersection = 0;
++		for (const size_t type : a) {
++			if (b.count(type) != 0)
++				intersection++;
++		}
++		const size_t unionSize = a.size() + b.size() - intersection;
++		const double jaccard = unionSize == 0 ? 0.0 : static_cast<double>(intersection) / static_cast<double>(unionSize);
++		EXPECT_LT(jaccard, 0.9) << "levels " << static_cast<int>(level - 1) << " and " << static_cast<int>(level)
++		                        << " are interchangeable (Jaccard " << jaccard << ")";
++	}
++}
++
++TEST_F(SamplingBaselineTest, A1A3VariantsAreCore)
++{
++	if (missingMpqAssets_)
++		GTEST_SKIP() << "MPQ assets not found - skipping test";
++
++	// AC10: the A1/A3 behaviour carriers must be core on their level, otherwise
++	// those features can silently never appear.
++	const std::vector<std::pair<uint8_t, _monster_id>> carriers {
++		{ 3, MT_RSKELAX },
++		{ 3, MT_XSKELAX },
++		{ 9, MT_BMAGMA },
++		{ 11, MT_STORML },
++	};
++	for (const auto &[level, type] : carriers) {
++		const std::span<const LevelRosterEntry> roster = GetLevelRoster(level);
++		const bool isCore = std::any_of(roster.begin(), roster.end(), [type](const LevelRosterEntry &entry) {
++			return entry.type == type && entry.role == LevelRosterRole::Core;
++		});
++		EXPECT_TRUE(isCore) << "carrier " << static_cast<int>(type) << " must be core at level " << static_cast<int>(level);
++
++		// And it must actually be realised by the engine, not merely listed.
++		currlevel = level;
++		InitLevelMonsters();
++		SetRndSeed(12345);
++		ASSERT_TRUE(GetLevelMTypes().has_value());
++		EXPECT_TRUE(LevelHasType(type))
++		    << "carrier " << static_cast<int>(type) << " must be realised at level " << static_cast<int>(level);
++	}
++}
++
++// ---------------------------------------------------------------------------
++// R28: levels with no roster params row must keep the LEGACY sampling
++// behaviour (budget-limited, tail draw unbounded), not "tail_draw = 0".
++//
++// Under the phase-A tables that is L17-24 (Hellfire Nest/Crypt), whose own
++// tables land in phase A2. A `tailDraw = 0` fallback makes the sampling loop
++// condition `tailAdded < tailDraw` permanently false, so the loop never runs,
++// no PLACE_SCATTER type is registered, and InitMonsters()'s scatter block
++// (entered only when numscattypes > 0) is skipped entirely - i.e. those levels
++// would ship with no scattered monsters at all, a regression against the
++// pre-roster engine.
++//
++// The check needs Hellfire monster data: under the base monstdat.tsv every
++// L17-24 monster is availability=Never, so the candidate pool there is empty
++// and the level would legitimately sample nothing. The fixture therefore loads
++// the `hf` mod overlay (like items_test/pack_test do) in its own suite, so it
++// cannot disturb the Diablo-data state the baselines above measure.
++// ---------------------------------------------------------------------------
++
++class HellfireNoParamsSamplingTest : public ::testing::Test {
++protected:
++	static void SetUpTestSuite()
++	{
++		LoadCoreArchives();
++		LoadGameArchives();
++		if (!HaveMainData()) {
++			missingMpqAssets_ = true;
++			return;
++		}
++
++		// R30: this suite mounts the hf overlay and runs TestInitGame(), which
++		// mutates process-global state that the SamplingBaselineTest measurements
++		// above depend on. Most importantly InitQuests() lifts every
++		// Quests[*]._qactive out of its zero-initialised QUEST_NOTAVAIL, and an
++		// active quest pre-adds its unique's base type: leaving Q_WARLORD active
++		// would add Melee MT_BTBLACK to L13, pushing that level to 3 Melee types
++		// and breaking HellL13SameClassTailBaseline's EXPECT_EQ(tail, 0.0) - a
++		// failure that only appears once the suite order changes (--gtest_shuffle).
++		// So snapshot every global TestInitGame() touches and restore the snapshot
++		// in TearDownTestSuite(), rather than guessing at "initial" values.
++		savedQuests_.assign(std::begin(Quests), std::end(Quests));
++		// Player is not copyable, so snapshot the two things TestInitGame() changes
++		// about it (the vector's size and pOriginalCathedral) rather than the object.
++		savedPlayerCount_ = Players.size();
++		savedMyPlayerIsFirst_ = !Players.empty() && MyPlayer == &Players[0];
++		savedOriginalCathedral_ = Players.empty() ? true : Players[0].pOriginalCathedral;
++		savedGameInitInfo_ = sgGameInitInfo;
++		savedIsMultiplayer_ = gbIsMultiplayer;
++		savedIsHellfire_ = gbIsHellfire;
++		savedIsSpawn_ = gbIsSpawn;
++		snapshotTaken_ = true;
++
++		gbIsSpawn = false;
++		gbIsHellfire = true;
++		sgGameInitInfo.fullQuests = 1;
++		// TestInitGame(..., hellfire = true) mounts the hf overlay, which is what
++		// gives L17-24 a non-empty candidate pool.
++		TestInitGame(/*fullQuests=*/true, /*originalCathedral=*/true, /*hellfire=*/true);
++		LoadMonsterData();
++		LoadLevelRoster();
++	}
++
++	static void TearDownTestSuite()
++	{
++		if (!snapshotTaken_)
++			return;
++
++		std::copy(savedQuests_.begin(), savedQuests_.end(), std::begin(Quests));
++		Players.resize(savedPlayerCount_);
++		if (!Players.empty())
++			Players[0].pOriginalCathedral = savedOriginalCathedral_;
++		MyPlayer = savedMyPlayerIsFirst_ && !Players.empty() ? &Players[0] : nullptr;
++		sgGameInitInfo = savedGameInitInfo_;
++		gbIsMultiplayer = savedIsMultiplayer_;
++		gbIsHellfire = savedIsHellfire_;
++		gbIsSpawn = savedIsSpawn_;
++
++		// And put the Diablo monster/roster data back, since the overlay changed it.
++		UnloadModArchives();
++		LoadModArchives({});
++		LoadMonsterData();
++		LoadLevelRoster();
++		snapshotTaken_ = false;
++	}
++
++	static bool missingMpqAssets_;
++
++private:
++	static std::vector<Quest> savedQuests_;
++	static size_t savedPlayerCount_;
++	static bool savedMyPlayerIsFirst_;
++	static bool savedOriginalCathedral_;
++	static GameData savedGameInitInfo_;
++	static bool savedIsMultiplayer_;
++	static bool savedIsHellfire_;
++	static bool savedIsSpawn_;
++	static bool snapshotTaken_;
++};
++
++bool HellfireNoParamsSamplingTest::missingMpqAssets_ = false;
++std::vector<Quest> HellfireNoParamsSamplingTest::savedQuests_;
++size_t HellfireNoParamsSamplingTest::savedPlayerCount_ = 0;
++bool HellfireNoParamsSamplingTest::savedMyPlayerIsFirst_ = false;
++bool HellfireNoParamsSamplingTest::savedOriginalCathedral_ = true;
++GameData HellfireNoParamsSamplingTest::savedGameInitInfo_ {};
++bool HellfireNoParamsSamplingTest::savedIsMultiplayer_ = false;
++bool HellfireNoParamsSamplingTest::savedIsHellfire_ = false;
++bool HellfireNoParamsSamplingTest::savedIsSpawn_ = false;
++bool HellfireNoParamsSamplingTest::snapshotTaken_ = false;
++
++TEST_F(HellfireNoParamsSamplingTest, LevelsWithoutParamsStillSampleTypes)
++{
++	if (missingMpqAssets_)
++		GTEST_SKIP() << "MPQ assets not found - skipping test";
++
++	// Guard the premise first: if the overlay did not mount, the "still samples"
++	// assertion below would be vacuous, so fail loudly instead of passing.
++	ASSERT_TRUE(HaveHellfire()) << "hf overlay required: L17-24 have no candidates under base monstdat";
++
++	int levelsChecked = 0;
++	for (uint8_t level = 17; level <= 24; level++) {
++		// Premise 1: this level really is on the no-params path (R28's subject).
++		ASSERT_EQ(GetLevelRosterParams(level), nullptr)
++		    << "level " << static_cast<int>(level) << " now has a params row; move it out of this test";
++		// Premise 2: and it has no core roster rows either, so every scatter type
++		// it gets must come from the tail draw.
++		ASSERT_TRUE(GetLevelRoster(level).empty())
++		    << "level " << static_cast<int>(level) << " now has roster rows; move it out of this test";
++
++		currlevel = level;
++		size_t candidates = 0;
++		for (size_t i = 0; i < MonstersData.size(); i++) {
++			if (IsRosterEntryAvailableAt(level, static_cast<_monster_id>(i)))
++				candidates++;
++		}
++		// Premise 3: the pool is non-empty, otherwise "samples nothing" would be
++		// correct rather than a regression.
++		ASSERT_GT(candidates, 0u) << "level " << static_cast<int>(level) << " has no candidates at all";
++
++		for (uint32_t seed = 0; seed < 20; seed++) {
++			currlevel = level;
++			InitLevelMonsters();
++			SetRndSeed(31000 + seed);
++			ASSERT_TRUE(GetLevelMTypes().has_value());
++
++			// The actual R28 assertion: at least one PLACE_SCATTER type. This is
++			// what InitMonsters() counts as numscattypes; with tailDraw = 0 it
++			// would be zero on L17/21/22/23 (the levels with no scatter pre-add).
++			size_t scatterTypes = 0;
++			for (size_t i = 0; i < LevelMonsterTypeCount; i++) {
++				if ((LevelMonsterTypes[i].placeFlags & PLACE_SCATTER) != 0)
++					scatterTypes++;
++			}
++			EXPECT_GT(scatterTypes, 0u)
++			    << "level " << static_cast<int>(level) << " seed " << seed
++			    << " has no PLACE_SCATTER type: InitMonsters() would place no scattered monsters";
++
++			// And the draw is genuinely unbounded rather than capped at some small
++			// number: the legacy loop fills up to the sprite budget, so it must be
++			// able to exceed the largest tail_draw the L1-16 tables use.
++			EXPECT_GT(LevelMonsterTypeCount, 1u)
++			    << "level " << static_cast<int>(level) << " seed " << seed << " sampled nothing beyond MT_GOLEM";
++		}
++		levelsChecked++;
++	}
++	EXPECT_EQ(levelsChecked, 8) << "all of L17-24 must be exercised";
++}
++
++TEST_F(HellfireNoParamsSamplingTest, NoParamsTailExceedsTheParameterisedCap)
++{
++	if (missingMpqAssets_)
++		GTEST_SKIP() << "MPQ assets not found - skipping test";
++	ASSERT_TRUE(HaveHellfire()) << "hf overlay required";
++
++	// Sharper form of "unbounded": some no-params level must realise more scatter
++	// types than the largest tail_draw configured for L1-16. That is only true if
++	// the fallback is std::numeric_limits<int>::max() (legacy) rather than any of
++	// the table's small tail_draw values, and it cannot be satisfied by a
++	// tautology - it is a measured count from the real engine.
++	int maxTableTailDraw = 0;
++	for (uint8_t level = 1; level <= 16; level++) {
++		const LevelRosterParams *params = GetLevelRosterParams(level);
++		if (params != nullptr)
++			maxTableTailDraw = std::max(maxTableTailDraw, params->tailDraw);
++	}
++	ASSERT_GT(maxTableTailDraw, 0) << "L1-16 tail_draw values must be readable for this comparison";
++
++	size_t bestScatter = 0;
++	for (uint8_t level = 17; level <= 24; level++) {
++		for (uint32_t seed = 0; seed < 20; seed++) {
++			currlevel = level;
++			InitLevelMonsters();
++			SetRndSeed(32000 + seed);
++			ASSERT_TRUE(GetLevelMTypes().has_value());
++			size_t scatterTypes = 0;
++			for (size_t i = 0; i < LevelMonsterTypeCount; i++) {
++				if ((LevelMonsterTypes[i].placeFlags & PLACE_SCATTER) != 0)
++					scatterTypes++;
++			}
++			bestScatter = std::max(bestScatter, scatterTypes);
++		}
++	}
++	EXPECT_GT(bestScatter, static_cast<size_t>(maxTableTailDraw))
++	    << "no-params levels must draw a legacy (budget-limited) tail, not a tail_draw-sized one";
++}
++
+ } // namespace

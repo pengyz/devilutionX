@@ -1,0 +1,469 @@
+# Review package: 13a974a93..HEAD
+
+## Commits
+d62cc26ab fix(roster): enforce B1 caps, sort by level, and share the existence check
+94e3b3201 docs(spec+plan): fold the task-2a review rulings into the spec and plan
+
+## Files changed
+ Source/tables/level_roster.cpp                     |  81 +++++++++---
+ Source/tables/level_roster.h                       |  10 ++
+ .../plans/2026-09-15-level-rosters-phase-a.md      |   2 +
+ .../specs/2026-09-15-level-rosters-design.md       |   6 +-
+ test/level_roster_test.cpp                         | 141 ++++++++++++++++++++-
+ 5 files changed, 221 insertions(+), 19 deletions(-)
+
+## Diff
+diff --git a/Source/tables/level_roster.cpp b/Source/tables/level_roster.cpp
+index 8cdbf6194..b62483261 100644
+--- a/Source/tables/level_roster.cpp
++++ b/Source/tables/level_roster.cpp
+@@ -123,75 +123,126 @@ void LoadLevelRosterParamsFromFile(DataFile &dataFile, std::string_view filename
+ 		reader.readInt("tail_draw", params.tailDraw);
+ 		std::string classFloorsStr;
+ 		reader.readString("class_floors", classFloorsStr);
+ 		params.classFloors = ParseClassFloors(classFloorsStr);
+ 		Params.push_back(params);
+ 	}
+ }
+ 
+ } // namespace
+ 
++uint8_t BehaviorClassCapForLevel(uint8_t level, BehaviorClass cls)
++{
++	// Mirrors monster.cpp's B1 scatter-sampling cap (see :3513-3531): L9-12 caps the
++	// RangedKite class at 2, L13-16 caps any single class at 2, everything else is uncapped.
++	// The validator and the sampling loop share this single source of truth so they cannot drift.
++	if (level >= 13 && level <= 16)
++		return 2;
++	if (level >= 9 && level <= 12 && cls == BehaviorClass::RangedKite)
++		return 2;
++	return 0;
++}
++
+ std::optional<std::string> ValidateLevelRoster(std::span<const LevelRosterEntry> entries, std::span<const LevelRosterParams> params)
+ {
++	// Type existence/bounds is shared by both modes: a row naming an id outside
++	// MonstersData's range (e.g. a smuggled MT_INVALID) must be rejected before either
++	// mode's relaxed or full checks run, otherwise downstream code could index out of bounds.
++	for (const LevelRosterEntry &entry : entries) {
++		if (static_cast<size_t>(entry.type) >= MonstersData.size())
++			return StrCat("roster row names unknown monster id ", static_cast<int>(entry.type));
++	}
++
++	// Range/shape sanity checks apply in both modes; they are basic structural
++	// requirements, not retail-specific availability/unique semantics.
++	for (const LevelRosterParams &param : params) {
++		if (param.maxImage <= 0)
++			return StrCat("level ", param.level, " has a non-positive max_image (", param.maxImage, ")");
++		if (param.tailDraw < 0)
++			return StrCat("level ", param.level, " has a negative tail_draw (", param.tailDraw, ")");
++		for (const auto &[cls, floor] : param.classFloors) {
++			if (cls == BehaviorClass::Count)
++				return StrCat("level ", param.level, " class floor names the sentinel BehaviorClass::Count, which is not a real category");
++		}
++	}
++
++	// Core-non-empty check: every distinct level appearing in entries or params must have
++	// at least one core member. This is enforced in both modes.
++	std::vector<uint8_t> levels;
++	for (const LevelRosterEntry &entry : entries)
++		levels.push_back(entry.level);
++	for (const LevelRosterParams &param : params)
++		levels.push_back(param.level);
++	std::sort(levels.begin(), levels.end());
++	levels.erase(std::unique(levels.begin(), levels.end()), levels.end());
++	for (const uint8_t level : levels) {
++		const bool hasCore = std::any_of(entries.begin(), entries.end(), [level](const LevelRosterEntry &e) {
++			return e.level == level && e.role == LevelRosterRole::Core;
++		});
++		if (!hasCore)
++			return StrCat("level ", level, " has no core roster members");
++	}
++
+ 	if (gbIsSpawn) {
+ 		// Shareware (spawn) data ships a much smaller monster/unique set, so the full
+ 		// retail-style checks (per-row availability, unique-base whitelist, class floor
+-		// satisfiability) are not meaningful here. Relaxed mode only requires that every
+-		// level with roster params has at least one core member.
+-		for (const LevelRosterParams &param : params) {
+-			const bool hasCore = std::any_of(entries.begin(), entries.end(), [&param](const LevelRosterEntry &e) {
+-				return e.level == param.level && e.role == LevelRosterRole::Core;
+-			});
+-			if (!hasCore)
+-				return StrCat("level ", param.level, " has no core roster members (spawn mode)");
+-		}
++		// satisfiability) are not meaningful here and are relaxed. Type existence and the
++		// core-non-empty check above are still shared with retail mode.
+ 		return std::nullopt;
+ 	}
+ 
+ 	for (const LevelRosterEntry &entry : entries) {
+-		if (static_cast<size_t>(entry.type) >= MonstersData.size())
+-			return StrCat("roster row names unknown monster id ", static_cast<int>(entry.type));
+ 		if (!IsAvailableAt(entry.level, entry.type))
+ 			return StrCat("monster ", static_cast<int>(entry.type), " is not available at level ", entry.level);
+ 		if (!entry.allowUniqueBoost && IsUniqueBaseForLevel(entry.level, entry.type))
+ 			return StrCat("monster ", static_cast<int>(entry.type), " is a unique's base at level ", entry.level, " and needs allow_unique_boost");
+ 	}
+ 	for (const LevelRosterParams &param : params) {
+-		// Class floor satisfiability: the level's available candidate pool must contain at
+-		// least `floor` monsters of that behavior class.
++		// Class floor satisfiability: the level's available candidate pool, after being
++		// truncated by the B1 sampling cap, must still contain at least `floor` monsters
++		// of that behavior class.
+ 		for (const auto &[cls, floor] : param.classFloors) {
+ 			size_t available = 0;
+ 			for (size_t i = 0; i < MonstersData.size(); i++) {
+ 				const auto type = static_cast<_monster_id>(i);
+ 				if (IsAvailableAt(param.level, type) && GetBehaviorClass(MonstersData[i].ai) == cls)
+ 					available++;
+ 			}
+-			if (available < floor)
+-				return StrCat("level ", param.level, " class floor ", static_cast<int>(cls), " needs ", floor, " but only ", available, " candidates exist");
++			const uint8_t cap = BehaviorClassCapForLevel(param.level, cls);
++			const size_t effective = cap == 0 ? available : std::min(available, static_cast<size_t>(cap));
++			if (effective < floor)
++				return StrCat("level ", param.level, " class floor ", static_cast<int>(cls), " needs ", floor, " but only ", effective, " candidates exist (", available, " raw, 被 caps 截断 to ", static_cast<int>(cap), ")");
+ 		}
+ 	}
+ 	return std::nullopt;
+ }
+ 
+ void LoadLevelRoster()
+ {
+ 	Entries.clear();
+ 	Params.clear();
+ 
+ 	const std::string_view rosterFilename = "txtdata\\monsters\\level_rosters.tsv";
+ 	DataFile rosterFile = DataFile::loadOrDie(rosterFilename);
+ 	LoadLevelRosterEntriesFromFile(rosterFile, rosterFilename);
+ 
+ 	const std::string_view paramsFilename = "txtdata\\monsters\\level_roster_params.tsv";
+ 	DataFile paramsFile = DataFile::loadOrDie(paramsFilename);
+ 	LoadLevelRosterParamsFromFile(paramsFile, paramsFilename);
+ 
++	// GetLevelRoster() relies on same-level rows being physically contiguous. Nothing
++	// guarantees the TSV rows are grouped by level, so sort them here (stably, so rows
++	// sharing a level keep their file order, which matters for tail draw ordering).
++	std::stable_sort(Entries.begin(), Entries.end(), [](const LevelRosterEntry &a, const LevelRosterEntry &b) {
++		return a.level < b.level;
++	});
++
+ 	Entries.shrink_to_fit();
+ 	Params.shrink_to_fit();
+ 
+ 	const std::optional<std::string> error = ValidateLevelRoster(Entries, Params);
+ 	if (error.has_value())
+ 		app_fatal(StrCat("Level roster validation failed: ", *error));
+ }
+ 
+ std::span<const LevelRosterEntry> GetLevelRoster(uint8_t level)
+ {
+diff --git a/Source/tables/level_roster.h b/Source/tables/level_roster.h
+index 83bb5cca3..c36cc48f9 100644
+--- a/Source/tables/level_roster.h
++++ b/Source/tables/level_roster.h
+@@ -32,23 +32,33 @@ struct LevelRosterParams {
+ 	uint8_t level;
+ 	int maxImage;
+ 	int tailDraw;
+ 	std::vector<std::pair<BehaviorClass, uint8_t>> classFloors;
+ };
+ 
+ /**
+  * @brief Loads and validates the shipped level roster tables. Fatal on any validation failure.
+  *
+  * Not wired to any production call site yet (see Task 2b).
++ *
++ * Each call clears and rebuilds the internal Entries/Params storage, so any std::span or
++ * pointer previously returned by GetLevelRoster()/GetLevelRosterParams() is invalidated the
++ * moment this runs again; callers must not retain those views across a reload.
+  */
+ void LoadLevelRoster();
+ 
+ std::span<const LevelRosterEntry> GetLevelRoster(uint8_t level);
+ const LevelRosterParams *GetLevelRosterParams(uint8_t level);
+ 
+ /**
+  * @brief Validates a candidate roster against the currently loaded MonstersData/UniqueMonstersData.
+  * @return An error description, or an empty optional when the roster is valid.
+  */
+ std::optional<std::string> ValidateLevelRoster(std::span<const LevelRosterEntry> entries, std::span<const LevelRosterParams> params);
+ 
++/**
++ * B1 sampling cap for this level's behaviour mix (monster.cpp:3513-3531).
++ * Task 3's sampling loop must use this too, so the two cannot drift.
++ */
++uint8_t BehaviorClassCapForLevel(uint8_t level, BehaviorClass cls);
++
+ } // namespace devilution
+diff --git a/docs/superpowers/plans/2026-09-15-level-rosters-phase-a.md b/docs/superpowers/plans/2026-09-15-level-rosters-phase-a.md
+index 8c3587e98..50b08ff70 100644
+--- a/docs/superpowers/plans/2026-09-15-level-rosters-phase-a.md
++++ b/docs/superpowers/plans/2026-09-15-level-rosters-phase-a.md
+@@ -246,20 +246,22 @@ TEST(LevelRosterTest, ValidationRejectsAMonsterUnavailableAtThatLevel)
+ 	ASSERT_TRUE(error.has_value());
+ 	EXPECT_NE(error->find("not available"), std::string::npos);
+ }
+ ```
+ 
+ - [ ] **步骤 2：运行测试并确认其失败**
+ 
+ 运行：`python3 tools/run_tests.py --test level_roster_test --filter 'LevelRosterTest.*'`
+ 预期：构建失败（`tables/level_roster.h` 不存在）
+ 
++> **执行裁决（2026-09-15，见 SDD 台账 R15-R19）**：本步骤的骨架代码已被修订——校验必须①含 **B1 caps** 的可满足性判定（caps 抽成 `BehaviorClassCapForLevel` 单一真相源，采样循环复用）；②加载时按 `level` **stable_sort**（访问器依赖同层连续）；③类型存在性检查**先于** `gbIsSpawn` 分支（`MT_INVALID` 可被 `enum_cast` 解析）；④core 非空检查覆盖 `entries ∪ params` 的每个 level；⑤校验 `max_image > 0`、`tail_draw >= 0`，并拒绝哨兵 `BehaviorClass::Count`。
++
+ - [ ] **步骤 3：编写最小实现**
+ 
+ `Source/tables/level_roster.h`：
+ 
+ ```cpp
+ #pragma once
+ 
+ #include <cstdint>
+ #include <optional>
+ #include <span>
+diff --git a/docs/superpowers/specs/2026-09-15-level-rosters-design.md b/docs/superpowers/specs/2026-09-15-level-rosters-design.md
+index abbed86c1..3f00396a2 100644
+--- a/docs/superpowers/specs/2026-09-15-level-rosters-design.md
++++ b/docs/superpowers/specs/2026-09-15-level-rosters-design.md
+@@ -78,21 +78,21 @@
+ | 散布候选按**类型**均匀抽取 | `const size_t typeIndex = scattertypes[GenerateRnd(numscattypes)];` | `Source/monster.cpp:3774` |
+ | 行为类别 8 类 + `default: Boss` | `Melee/RangedTurret/RangedKite/Rally/Charge/Sneak/Summon/Boss` | `Source/tables/monstdat.h:376-386`、`monstdat.cpp:483-515` |
+ | 层生成 RNG 与后续共用同一流 | `LoadGameLevelDungeon` 不重置种子 | `Source/diablo.cpp:3342-3346` |
+ | 怪物类型下标过网络 | `DSpawnedMonster.typeIndex` | `Source/msg.cpp:231`、`:2614` |
+ | 存档记录怪物类型下标 | `monster.levelType = file->NextLE<int32_t>();` | `Source/loadsave.cpp:681` |
+ | TSV 加载范式 | `DataFile::loadOrDie(filename)` | `Source/tables/monstdat.cpp:410` |
+ | `PlaceGroup` 调用点仅 2 处 | `:3410`（unique，带 leader）、`:3781`（普通散布） | `Source/monster.cpp` |
+ | `Monsters` 为定长数组 | `Monster Monsters[MaxMonsters]` | `Source/monster.h:494`、`Source/monster.cpp:113` |
+ | 采样类 eval 先例 | `sampling-anti-monopoly.yaml` | `eval/cases/rng/sampling-anti-monopoly.yaml` |
+ 
+-**口径声明**：候选数与校验以 **retail 数据**（`gbIsSpawn == false`）为准；spawn 下 `Retail` 怪被排除（`:3166`），故校验走**宽松模式**（只校验"有名册行的层 core 非空"）。
++**口径声明**：候选数与校验以 **retail 数据**（`gbIsSpawn == false`）为准；spawn 下 `Retail` 怪被排除（`:3166`），故校验走**宽松模式**（放宽可用性/白名单/floors；类型存在性与 core 非空仍强制，见 §4.4.4）。
+ 
+ ## 4. 方案
+ 
+ ### 4.1 数据模型（**逐层**）
+ 
+ `assets/txtdata/monsters/level_rosters.tsv`（基础表，L1-16）
+ 
+ ```
+ level   monster_id     role    allow_unique_boost
+ 1       MT_WSKELAX     core    -
+@@ -144,23 +144,23 @@ level   max_image   tail_draw   class_floors          squad_chance   squad_size
+    - **前置条件**：剩余槽位 ≥ `1 + 1`，否则降级为单类型组；
+    - 记录 `before = ActiveMonsterCount`，执行 `PlaceGroup(leaderType, 1, nullptr, false, opts)`；若 `ActiveMonsterCount == before`（被钳制成 0）则**放弃小队**并降级（否则 `&Monsters[ActiveMonsterCount-1]` 会指向上一只无关怪）；
+    - 从**同一层其他 core 成员**中抽一个 partner，`PlaceGroup(partnerType, squad_size, leader, /*leashed=*/true, opts)`；
+    - `opts = {tough=false, inheritAi=false, inheritIntelligence=false}` → 小队**只买构成，不买数值/AI**。
+ 4. **回退**（R2 修正）：若某层段实测小队形成率低于阈值，该层段改用 `leashed=false` 但**仍传 leader**（`:322-327` 会围绕 leader 选取初始位置 → 相邻放置有保证），只是不设 `setLeader`/`packSize`、无归队语义。
+ 5. 显式接受的既有语义：leashed 随从受 4 格约束（毁灭后会自然解体再重聚）；leashed 放置失败 10 次后放弃；按 `totalmonsters` 钳制。
+ 
+ ### 4.4 加载期校验（拒绝启动而非静默降级）
+ 
+ 1. 每行 `monster_id` 必须在**当前加载的数据集**中存在；区间行须满足"区间内每层都可用"。
+-2. `class_floors` 必须在该层候选池 + B1 caps 下**可满足**，否则报错并指出冲突项。
++2. `class_floors` 必须在该层候选池 + B1 caps 下**可满足**，否则报错并指出冲突项。caps 取 L9-12 `RangedKite ≤ 2`、L13-16 任意类别 `≤ 2`、其余无上限，**抽成单一真相源** `BehaviorClassCapForLevel(level, class)`（`level_roster.h` 导出）；校验器与采样循环（§4.2.5）共用，避免两处漂移。
+ 3. **unique 门控检查**：若 `(level, monster_id)` 的 base 类型等于**同层**某 unique 的 `type`，则必须显式列入 `allow_unique_boost`，否则**拒绝启动**（`:509-512` 会因 core 而提高该 unique 出现率；本规格默认保持稀有性不变）。
+-4. spawn 数据下走宽松模式（只校验 core 非空）。
++4. spawn 数据（`gbIsSpawn == true`）下走宽松模式：只放宽三项（逐行可用性、unique 白名单、floors 可满足性）；**类型存在性检查在两种模式下共用**；并对 `entries ∪ params` 中出现的**每个 `level`** 一律要求至少 1 个 core 成员（比"有名册行"或"有参数行"任一驱动都严格）。
+ 
+ ### 4.5 行为类别口径（红线 14 的载体）
+ 
+ - 散布按**类型**均匀抽取（`:3774`），故"类型数 3 → 7-9"会重排近战/远程配比。
+ - **阶段 A 第一步必须实测改动前的 placed class mix**（按行为类别统计**已放置怪物数**，非类型数）作为基线；验收以**相对基线**表述（"远程类占比 ≤ 基线 +5 个百分点"）。
+ - **阶段 B 的 `inheritAi=false` 保证"类型 = 实际 AI"**，使该口径成立（这是 G2 必须解决的第二个理由）。
+ - `class_floors` 只用于**补足**，不作为提高远程占比的手段。
+ 
+ ## 5. 红线检查
+ 
+diff --git a/test/level_roster_test.cpp b/test/level_roster_test.cpp
+index 51a3df784..820effed7 100644
+--- a/test/level_roster_test.cpp
++++ b/test/level_roster_test.cpp
+@@ -1,12 +1,14 @@
+ #include <gtest/gtest.h>
+ 
++#include <algorithm>
++#include <span>
+ #include <string>
+ #include <vector>
+ 
+ #include "engine/assets.hpp"
+ #include "game_mode.hpp"
+ #include "tables/level_roster.h"
+ #include "tables/monstdat.h"
+ 
+ using namespace devilution;
+ 
+@@ -31,21 +33,23 @@ TEST_F(LevelRosterTest, ValidationAcceptsAWellFormedRoster)
+ 		{ 1, MT_NZOMBIE, LevelRosterRole::Tail, false },
+ 	};
+ 	const std::vector<LevelRosterParams> params {
+ 		{ 1, 6000, 2, { { BehaviorClass::Melee, 2 } } },
+ 	};
+ 	EXPECT_FALSE(ValidateLevelRoster(entries, params).has_value());
+ }
+ 
+ TEST_F(LevelRosterTest, ValidationRejectsAMonsterUnavailableAtThatLevel)
+ {
+-	// MT_DIABLO is only available at L26 (see assets/txtdata/monsters/monstdat.tsv).
++	// MT_DIABLO has availability=Never in monstdat.tsv (not merely excluded by its
++	// level window), so it is rejected at any level under the full retail check. The
++	// level-window rejection path is covered separately by the MT_WSKELAX@L3 case below.
+ 	const std::vector<LevelRosterEntry> entries { { 1, MT_DIABLO, LevelRosterRole::Core, false } };
+ 	const std::vector<LevelRosterParams> params { { 1, 6000, 2, {} } };
+ 	const auto error = ValidateLevelRoster(entries, params);
+ 	ASSERT_TRUE(error.has_value());
+ 	EXPECT_NE(error->find("not available"), std::string::npos);
+ }
+ 
+ TEST_F(LevelRosterTest, ValidationRejectsAnInvalidRangeRow)
+ {
+ 	// MT_WSKELAX is only available on levels 1-2; placing it at level 3 must be rejected.
+@@ -103,10 +107,145 @@ TEST_F(LevelRosterTest, ValidationRejectsLevelWithNoCoreInSpawnMode)
+ 	const std::vector<LevelRosterEntry> entries { { 1, MT_NZOMBIE, LevelRosterRole::Tail, false } };
+ 	const std::vector<LevelRosterParams> params { { 1, 6000, 2, {} } };
+ 
+ 	gbIsSpawn = true;
+ 	const auto error = ValidateLevelRoster(entries, params);
+ 	gbIsSpawn = false;
+ 
+ 	ASSERT_TRUE(error.has_value());
+ 	EXPECT_NE(error->find("core"), std::string::npos);
+ }
++
++TEST_F(LevelRosterTest, ValidationRejectsAClassFloorThatExceedsTheB1CapAtL10)
++{
++	// At level 10, RangedKite candidates (MT_BACID, MT_RSTORM, MT_YMAGMA, MT_BMAGMA,
++	// MT_WMAGMA, MT_STORM) number well above 2, but the B1 cap for L9-12 limits
++	// RangedKite to 2. A floor of 3 must be rejected even though the raw pool is bigger.
++	const std::vector<LevelRosterEntry> entries { { 10, MT_BACID, LevelRosterRole::Core, false } };
++	const std::vector<LevelRosterParams> params {
++		{ 10, 6000, 2, { { BehaviorClass::RangedKite, 3 } } },
++	};
++	const auto error = ValidateLevelRoster(entries, params);
++	ASSERT_TRUE(error.has_value());
++	EXPECT_NE(error->find("class floor"), std::string::npos);
++	EXPECT_NE(error->find("caps"), std::string::npos);
++}
++
++TEST_F(LevelRosterTest, ValidationAcceptsAClassFloorAtTheB1CapAtL10)
++{
++	// A floor of exactly 2 must pass: the raw candidate pool is bigger than 2, but the
++	// cap of 2 is still satisfied.
++	const std::vector<LevelRosterEntry> entries { { 10, MT_BACID, LevelRosterRole::Core, false } };
++	const std::vector<LevelRosterParams> params {
++		{ 10, 6000, 2, { { BehaviorClass::RangedKite, 2 } } },
++	};
++	EXPECT_FALSE(ValidateLevelRoster(entries, params).has_value());
++}
++
++TEST_F(LevelRosterTest, ValidationRejectsAClassFloorThatExceedsTheB1CapAtL14)
++{
++	// At level 14, Melee candidates (MT_VTEXLRD, MT_BALROG, MT_RSNAKE, MT_BSNAKE,
++	// MT_NBLACK, MT_RTBLACK, MT_BTBLACK, MT_RBLACK) number well above 2, but the B1 cap
++	// for L13-16 limits any single class to 2. A floor of 3 must be rejected.
++	const std::vector<LevelRosterEntry> entries { { 14, MT_VTEXLRD, LevelRosterRole::Core, false } };
++	const std::vector<LevelRosterParams> params {
++		{ 14, 6000, 2, { { BehaviorClass::Melee, 3 } } },
++	};
++	const auto error = ValidateLevelRoster(entries, params);
++	ASSERT_TRUE(error.has_value());
++	EXPECT_NE(error->find("class floor"), std::string::npos);
++	EXPECT_NE(error->find("caps"), std::string::npos);
++}
++
++TEST_F(LevelRosterTest, LoadedRosterKeepsAllMembersOfAnInterleavedLevel)
++{
++	// The per-level roster accessor assumes same-level entries are contiguous. Loading
++	// must sort by level first so interleaved TSV rows (level 1, 2, 1) don't silently drop
++	// the second level-1 batch.
++	std::vector<LevelRosterEntry> entries {
++		{ 1, MT_WSKELAX, LevelRosterRole::Core, false },
++		{ 2, MT_SNEAK, LevelRosterRole::Core, false },
++		{ 1, MT_NZOMBIE, LevelRosterRole::Core, false },
++	};
++	std::stable_sort(entries.begin(), entries.end(), [](const LevelRosterEntry &a, const LevelRosterEntry &b) {
++		return a.level < b.level;
++	});
++
++	const auto begin = std::find_if(entries.begin(), entries.end(), [](const LevelRosterEntry &e) { return e.level == 1; });
++	ASSERT_NE(begin, entries.end());
++	const auto end = std::find_if(begin, entries.end(), [](const LevelRosterEntry &e) { return e.level != 1; });
++	const std::span<const LevelRosterEntry> level1 { &*begin, static_cast<size_t>(std::distance(begin, end)) };
++
++	ASSERT_EQ(level1.size(), 2u);
++	EXPECT_EQ(level1[0].type, MT_WSKELAX);
++	EXPECT_EQ(level1[1].type, MT_NZOMBIE);
++}
++
++TEST_F(LevelRosterTest, ValidationRejectsAnOutOfRangeMonsterIdInSpawnMode)
++{
++	// Spawn mode relaxes availability/unique-whitelist/floors checks, but must still share
++	// the type-existence bounds check. MT_INVALID (-1) is legally parsed by enum_cast
++	// (magic_enum's customized range for _monster_id includes it), so it could otherwise
++	// smuggle an out-of-bounds MonstersData index through the relaxed branch.
++	const std::vector<LevelRosterEntry> entries { { 1, MT_INVALID, LevelRosterRole::Core, false } };
++	const std::vector<LevelRosterParams> params { { 1, 6000, 2, {} } };
++
++	gbIsSpawn = true;
++	const auto error = ValidateLevelRoster(entries, params);
++	gbIsSpawn = false;
++
++	ASSERT_TRUE(error.has_value());
++	EXPECT_NE(error->find("unknown monster id"), std::string::npos);
++}
++
++TEST_F(LevelRosterTest, ValidationRejectsAParamsLevelWithNoCoreInRetailMode)
++{
++	// A level with a params row but no roster entries at all (so no core member) must be
++	// rejected even outside spawn mode: the core-non-empty check now runs in both modes.
++	const std::vector<LevelRosterEntry> entries {};
++	const std::vector<LevelRosterParams> params { { 1, 6000, 2, {} } };
++	const auto error = ValidateLevelRoster(entries, params);
++	ASSERT_TRUE(error.has_value());
++	EXPECT_NE(error->find("no core"), std::string::npos);
++}
++
++TEST_F(LevelRosterTest, ValidationRejectsAnEntryLevelWithNoCoreAndNoParamsRow)
++{
++	// A level with a roster entry (tail only, no params row at all) but no core member
++	// must be rejected: the check is driven by entries ∪ params, not just params rows.
++	const std::vector<LevelRosterEntry> entries { { 1, MT_NZOMBIE, LevelRosterRole::Tail, false } };
++	const std::vector<LevelRosterParams> params {};
++	const auto error = ValidateLevelRoster(entries, params);
++	ASSERT_TRUE(error.has_value());
++	EXPECT_NE(error->find("no core"), std::string::npos);
++}
++
++TEST_F(LevelRosterTest, ValidationRejectsANonPositiveMaxImage)
++{
++	const std::vector<LevelRosterEntry> entries { { 1, MT_WSKELAX, LevelRosterRole::Core, false } };
++	const std::vector<LevelRosterParams> params { { 1, 0, 2, {} } };
++	const auto error = ValidateLevelRoster(entries, params);
++	ASSERT_TRUE(error.has_value());
++	EXPECT_NE(error->find("max_image"), std::string::npos);
++}
++
++TEST_F(LevelRosterTest, ValidationRejectsANegativeTailDraw)
++{
++	const std::vector<LevelRosterEntry> entries { { 1, MT_WSKELAX, LevelRosterRole::Core, false } };
++	const std::vector<LevelRosterParams> params { { 1, 6000, -1, {} } };
++	const auto error = ValidateLevelRoster(entries, params);
++	ASSERT_TRUE(error.has_value());
++	EXPECT_NE(error->find("tail_draw"), std::string::npos);
++}
++
++TEST_F(LevelRosterTest, ValidationRejectsTheClassFloorCountSentinel)
++{
++	// BehaviorClass::Count is a sentinel value, not a real category, but magic_enum's
++	// enum_cast would otherwise resolve the string "Count" as if it were a valid class.
++	const std::vector<LevelRosterEntry> entries { { 1, MT_WSKELAX, LevelRosterRole::Core, false } };
++	const std::vector<LevelRosterParams> params {
++		{ 1, 6000, 2, { { BehaviorClass::Count, 1 } } },
++	};
++	const auto error = ValidateLevelRoster(entries, params);
++	ASSERT_TRUE(error.has_value());
++	EXPECT_NE(error->find("Count"), std::string::npos);
++}

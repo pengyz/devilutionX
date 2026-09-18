@@ -5,7 +5,7 @@ type: gotcha
 created: 2026-09-16
 sources:
   - Source/monster.cpp（PlaceGroup 的 leader 分支：先 position = leader->position.tile + Direction(offset)，再 x1=xp/y1=yp 作为钳制中心）
-  - .superpowers/sdd/2026-09-15-level-rosters-phase-b/task-3-report.md（实现者实测发现）
+  - docs/superpowers/ledgers/2026-09-15-level-rosters-phase-b/task-3-report.md（实现者实测发现）
 ---
 
 **事实**：`PlaceGroup` 的拴系约束写作 `leashed && (std::abs(xp - x1) >= 4 || std::abs(yp - y1) >= 4) → 放弃该候选`，但 **`x1/y1` 不是 leader 的位置**——leader 分支先算 `position = leader->position.tile + Direction(GenerateRnd(8))` 作为初始点，再用它当钳制中心。也就是说钳制是**相对 leader 的一个邻格**。

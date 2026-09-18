@@ -1,0 +1,1102 @@
+# Merge 任务（T2-T6）聚焦评审包
+
+## 提交列表 (fd2956ea8..HEAD)
+e7be9dc8c merge: sync upstream master (28 commits, tip e00b7260f)
+e00b7260f Prevent inlining of blitter operations
+c90181d54 Fix directy rect blitting
+3f71a5b8c Yield for audio thread on systems with cooperative threading
+d198263f3 Fix performance on real DOS hardware
+26caf7614 Adjust workaround for fseeko detection on Amiga
+ae73bd0d4 paths: fix asset path resolution for USE_SDL3 on macOS
+58825f553 CMake: Re-sign macOS app bundle after fixup_bundle
+aeea1321f Remove workarounds for broken optimizations on Amiga
+d09406e7c Disable LTO for Amiga CI build
+0ff318623 CMake: Fix macOS build failure when following docs/building.md
+1bb39d680 Use a consistent threading model throughout
+b7eb65b11 CMake: Handle DOS threads via threads-stub
+9f2ea6b99 Depend on libdevilutionx_sdl2_to_1_2_backports explicitly
+53b91fd7a Untangle more dependencies
+d6dafeb45 CI: Update Linux_* builds to gcc-14
+cefa2c511 Fix SDLC_PushEvent() return value for SDL1
+a7014af1c [Amiga] Switch from the archived repo to the AmigaOS3 branch of the active repo
+d0d5e9d45 Fix dependency installation in PS Vita CI job
+073858428 [Amiga] Disable broken optimizations
+f841ac78a Update mpqfs for endian fixes
+882b836fc Unpin Amiga compiler
+7519b3847 [3DS] Update text input state using data from the on-screen keyboard
+aff9a4a9c Restore AmigaOS build and runtime support (#8660)
+3f9110d1e Fix Greek translation and check for similar issues in the future
+e10932e64 Update changelog
+4b2e6c749 Update VCPKG baseline commit
+2c1a364da Add New Quest State for Mushroom Quest (#8475)
+b4dfc8d26 Fix OOB read from unterminated player names in save/network data
+
+## 整体统计
+ vcpkg.json                                     | 103 +++++------
+ 103 files changed, 2111 insertions(+), 1012 deletions(-)
+
+## 交集概览：自动合并文件数
+103
+
+## A) 我们相对【上游 tip】保留了哪些 fork 内容（只看 5 个相关文件）
+diff --git a/Source/controls/plrctrls.cpp b/Source/controls/plrctrls.cpp
+index 26c22b4d4..129cd4d6a 100644
+--- a/Source/controls/plrctrls.cpp
++++ b/Source/controls/plrctrls.cpp
+@@ -28,6 +28,7 @@
+ #include "controls/touch/gamepad.h"
+ #include "cursor.h"
+ #include "cursor_defs.hpp"
++#include "levels/gendung.h"
+ #include "doom.h"
+ #include "engine/point.hpp"
+ #include "engine/points_in_rectangle_range.hpp"
+@@ -42,7 +43,6 @@
+ #include "levels/trigs.h"
+ #include "minitext.h"
+ #include "missiles.h"
+-#include "panels/quest_log.hpp"
+ #include "panels/spell_icons.hpp"
+ #include "panels/spell_list.hpp"
+ #include "panels/ui_panels.hpp"
+@@ -262,7 +262,7 @@ bool CanTargetMonster(const Monster &monster)
+ 	if (monster.hasNoLife()) // dead
+ 		return false;
+ 
+-	if (!IsTileLit(monster.position.tile)) // not visible
++	if (!CanTarget(monster.position.tile)) // not visible
+ 		return false;
+ 
+ 	const int mx = monster.position.tile.x;
+@@ -402,7 +402,7 @@ void CheckPlayerNearby()
+ 		const int mx = player.position.future.x;
+ 		const int my = player.position.future.y;
+ 		if (dPlayer[mx][my] == 0
+-		    || !IsTileLit(player.position.future)
++		    || !CanTarget(player.position.future)
+ 		    || (player.hasNoLife() && spl != SpellID::Resurrect))
+ 			continue;
+ 
+@@ -2274,7 +2274,7 @@ void plrctrls_after_check_curs_move()
+ 		return;
+ 	}
+ 	if (!invflag) {
+-		InfoString = StringOrView {};
++		FloatingInfoString = StringOrView {};
+ 		FindActor();
+ 		FindItemOrObject();
+ 		FindTrigger();
+diff --git a/Source/engine/render/scrollrt.cpp b/Source/engine/render/scrollrt.cpp
+index 31e551c37..d67bcc485 100644
+--- a/Source/engine/render/scrollrt.cpp
++++ b/Source/engine/render/scrollrt.cpp
+@@ -55,6 +55,7 @@
+ #include "options.h"
+ #include "panels/charpanel.hpp"
+ #include "panels/console.hpp"
++#include "panels/level_info.h"
+ #include "panels/partypanel.hpp"
+ #include "panels/quest_log.hpp"
+ #include "panels/spell_list.hpp"
+@@ -1428,6 +1429,8 @@ void DrawView(const Surface &out, Point startPosition)
+ 		DrawGoldSplit(out);
+ 	}
+ 	DrawGoldWithdraw(out);
++	if (IsDepositGoldOpen)
++		DrawGoldDeposit(out);
+ 	if (HelpFlag) {
+ 		DrawHelp(out);
+ 	}
+@@ -1448,7 +1451,6 @@ void DrawView(const Surface &out, Point startPosition)
+ 	DrawPlrMsg(out);
+ 	gmenu_draw(out);
+ 	doom_draw(out);
+-	DrawInfoBox(out);
+ 	UpdateLifeManaPercent(); // Update life/mana totals before rendering any portion of the flask.
+ 	DrawLifeFlaskUpper(out);
+ 	DrawManaFlaskUpper(out);
+@@ -1533,7 +1535,7 @@ void DrawMain(int dwHgt, bool drawDesc, bool drawHp, bool drawMana, bool drawSba
+ 				// When chat input is displayed, the belt is hidden and the chat moves up.
+ 				DoBlitScreen({ mainPanelPosition + Displacement { 171, 6 }, { 298, 116 } });
+ 			} else {
+-				DoBlitScreen({ mainPanelPosition + Displacement { InfoBoxRect.position.x, InfoBoxRect.position.y }, { InfoBoxRect.size } });
++				DoBlitScreen({ mainPanelPosition + Displacement { 177, 46 }, { 288, 64 } });
+ 			}
+ 		}
+ 		if (drawMana) {
+@@ -1843,7 +1845,7 @@ void DrawAndBlit()
+ 	bool drawControlButtons = IsRedrawComponent(PanelDrawComponent::ControlButtons);
+ 	bool drawBelt = IsRedrawComponent(PanelDrawComponent::Belt);
+ 	const bool drawChatInput = ChatFlag;
+-	bool drawInfoBox = false;
++
+ 	bool drawCtrlPan = false;
+ 
+ 	const Rectangle &mainPanel = GetMainPanel();
+@@ -1853,11 +1855,9 @@ void DrawAndBlit()
+ 		drawMana = true;
+ 		drawControlButtons = true;
+ 		drawBelt = true;
+-		drawInfoBox = false;
+ 		drawCtrlPan = true;
+ 		hgt = gnScreenHeight;
+ 	} else if (IsRedrawViewport()) {
+-		drawInfoBox = true;
+ 		drawCtrlPan = false;
+ 		hgt = gnViewportHeight;
+ 	}
+@@ -1896,8 +1896,13 @@ void DrawAndBlit()
+ 		DrawFlaskValues(out, { mainPanel.position.x + mainPanel.size.width - 138, mainPanel.position.y + 28 },
+ 		    (HasAnyOf(InspectPlayer->_pIFlags, ItemSpecialEffect::NoMana) || MyPlayer->hasNoMana()) ? 0 : MyPlayer->_pMana >> 6,
+ 		    HasAnyOf(InspectPlayer->_pIFlags, ItemSpecialEffect::NoMana) ? 0 : MyPlayer->_pMaxMana >> 6);
+-	if (*GetOptions().Gameplay.floatingInfoBox)
+-		DrawFloatingInfoBox(out);
++	UpdateTooltipContent();
++	DrawFloatingInfoBox(out);
++
++	{
++		static LevelInfoBar levelInfo;
++		levelInfo.Draw(out, mainPanel.position);
++	}
+ 
+ 	if (*GetOptions().Gameplay.showMultiplayerPartyInfo && PartySidePanelOpen)
+ 		DrawPartyMemberInfoPanel(out);
+@@ -1909,7 +1914,7 @@ void DrawAndBlit()
+ 	lua::GameDrawComplete();
+ 
+ 	this_sdl_thread::yield();
+-	DrawMain(hgt, drawInfoBox, drawHealth, drawMana, drawBelt, drawControlButtons);
++	DrawMain(hgt, false, drawHealth, drawMana, drawBelt, drawControlButtons);
+ 
+ #ifdef _DEBUG
+ 	DrawConsole(out);
+diff --git a/Source/quests.cpp b/Source/quests.cpp
+index 0c8e32b07..92b8d9d7d 100644
+--- a/Source/quests.cpp
++++ b/Source/quests.cpp
+@@ -7,25 +7,34 @@
+ 
+ #include <cstdint>
+ 
++#include "DiabloUI/ui_flags.hpp"
+ #include "control/control.hpp"
+ #include "cursor.h"
+-#include "cursor_defs.hpp"
++#include "data/file.hpp"
++#include "data/record_reader.hpp"
+ #include "engine/load_file.hpp"
+ #include "engine/random.hpp"
++#include "engine/render/clx_render.hpp"
++#include "engine/render/text_render.hpp"
+ #include "engine/world_tile.hpp"
+ #include "game_mode.hpp"
+-#include "levels/dun_tile_data.hpp"
+ #include "levels/gendung.h"
+ #include "levels/town.h"
+ #include "levels/trigs.h"
++#include "lua/lua_event.hpp"
++#include "minitext.h"
+ #include "missiles.h"
+ #include "monster.h"
+ #include "options.h"
++#include "panels/ui_panels.hpp"
++#include "stores.h"
+ #include "tables/townerdat.hpp"
+ #include "towners.h"
++#include "utils/endian_swap.hpp"
+ #include "utils/format.hpp"
+ #include "utils/is_of.hpp"
+ #include "utils/language.h"
++#include "utils/utf8.hpp"
+ 
+ #ifdef _DEBUG
+ #include "debug.h"
+@@ -33,10 +42,38 @@
+ 
+ namespace devilution {
+ 
++bool QuestLogIsOpen;
++OptionalOwnedClxSpriteList pQLogCel;
++/** Contains the quests of the current game. */
++Quest Quests[MAXQUESTS];
++Point ReturnLvlPosition;
++dungeon_type ReturnLevelType;
++int ReturnLevel;
++
++/** Contains the data related to each quest_id. */
++std::vector<QuestData> QuestsData;
++
+ namespace {
+ 
+ int WaterDone;
+ 
++/** Indices of quests to display in quest log window. `FirstFinishedQuest` are active quests the rest are completed */
++quest_id EncounteredQuests[MAXQUESTS];
++/** Overall number of EncounteredQuests entries */
++int EncounteredQuestCount;
++/** First (nonselectable) finished quest in list */
++int FirstFinishedQuest;
++/** Currently selected quest list item */
++int SelectedQuest;
++
++constexpr Rectangle InnerPanel { { 32, 26 }, { 280, 300 } };
++constexpr int LineHeight = 12;
++constexpr int MaxSpacing = LineHeight * 2;
++int ListYOffset;
++int LineSpacing;
++/** The number of pixels to move finished quest, to separate them from the active ones */
++int FinishedQuestOffset;
++
+ const char *const QuestTriggerNames[5] = {
+ 	N_(/* TRANSLATORS: Quest Map*/ "King Leoric's Tomb"),
+ 	N_(/* TRANSLATORS: Quest Map*/ "The Chamber of Bone"),
+@@ -45,6 +82,108 @@ const char *const QuestTriggerNames[5] = {
+ 	N_(/* TRANSLATORS: Quest Map*/ "Unholy Altar")
+ };
+ 
++/**
++ * @brief There is no reason to run this, the room has already had a proper sector assigned
++ */
++void DrawButcher()
++{
++	const Point position = SetPiece.position.megaToWorld() + Displacement { 3, 3 };
++	DRLG_RectTrans({ position, { 7, 7 } });
++}
++
++void DrawSkelKing(quest_id q, Point position)
++{
++	Quests[q].position = position.megaToWorld() + Displacement { 12, 7 };
++}
++
++void DrawWarLord(Point position)
++{
++	auto dunData = LoadFileInMem<uint16_t>("levels\\l4data\\warlord2.dun");
++
++	SetPiece = { position, GetDunSize(dunData.get()) };
++
++	PlaceDunTiles(dunData.get(), position, 6);
++}
++
++void DrawSChamber(quest_id q, Point position)
++{
++	auto dunData = LoadFileInMem<uint16_t>("levels\\l2data\\bonestr1.dun");
++
++	SetPiece = { position, GetDunSize(dunData.get()) };
++
++	PlaceDunTiles(dunData.get(), position, 3);
++
++	Quests[q].position = position.megaToWorld() + Displacement { 6, 7 };
++}
++
++void DrawLTBanner(Point position)
++{
++	auto dunData = LoadFileInMem<uint16_t>("levels\\l1data\\banner1.dun");
++
++	const WorldTileSize size = GetDunSize(dunData.get());
++
++	SetPiece = { position, size };
++
++	const uint16_t *tileLayer = &dunData[2];
++
++	for (WorldTileCoord j = 0; j < size.height; j++) {
++		for (WorldTileCoord i = 0; i < size.width; i++) {
++			auto tileId = static_cast<uint8_t>(Swap16LE(tileLayer[(j * size.width) + i]));
++			if (tileId != 0) {
++				pdungeon[position.x + i][position.y + j] = tileId;
++			}
++		}
++	}
++}
++
++/**
++ * Close outer wall
++ */
++void DrawBlind(Point position)
++{
++	dungeon[position.x][position.y + 1] = 154;
++	dungeon[position.x + 10][position.y + 8] = 154;
++}
++
++void DrawBlood(Point position)
++{
++	auto dunData = LoadFileInMem<uint16_t>("levels\\l2data\\blood2.dun");
++
++	SetPiece = { position, GetDunSize(dunData.get()) };
++
++	PlaceDunTiles(dunData.get(), position, 0);
++}
++
++int QuestLogMouseToEntry()
++{
++	Rectangle innerArea = InnerPanel;
++	innerArea.position += Displacement(GetLeftPanel().position.x, GetLeftPanel().position.y);
++	if (!innerArea.contains(MousePosition) || (EncounteredQuestCount == 0))
++		return -1;
++	const int y = MousePosition.y - innerArea.position.y;
++	for (int i = 0; i < FirstFinishedQuest; i++) {
++		if ((y >= ListYOffset + i * LineSpacing)
++		    && (y < ListYOffset + i * LineSpacing + LineHeight)) {
++			return i;
++		}
++	}
++	return -1;
++}
++
++void PrintQLString(const Surface &out, int x, int y, std::string_view str, bool marked, bool disabled = false)
++{
++	const int width = GetLineWidth(str);
++	x += std::max((257 - width) / 2, 0);
++	if (marked) {
++		ClxDraw(out, GetPanelPosition(UiPanels::Quest, { x - 20, y + 13 }), (*pSPentSpn2Cels)[PentSpn2Spin()]);
++	}
++	DrawString(out, str, { GetPanelPosition(UiPanels::Quest, { x, y }), { 257, 0 } },
++	    { .flags = disabled ? UiFlags::ColorWhitegold : UiFlags::ColorWhite });
++	if (marked) {
++		ClxDraw(out, GetPanelPosition(UiPanels::Quest, { x + width + 7, y + 13 }), (*pSPentSpn2Cels)[PentSpn2Spin()]);
++	}
++}
++
+ std::array<Color, 32> PureWaterPalette;
+ 
+ void StartPWaterPurify()
+@@ -62,6 +201,7 @@ void InitQuests()
+ 	SetTownerQuestDialog(TOWN_HEALER, Q_MUSHROOM, TEXT_NONE);
+ 	SetTownerQuestDialog(TOWN_WITCH, Q_MUSHROOM, TEXT_MUSH9);
+ 
++	QuestLogIsOpen = false;
+ 	WaterDone = 0;
+ 
+ 	int q = 0;
+@@ -139,6 +279,20 @@ void CheckQuests()
+ 	if (gbIsSpawn)
+ 		return;
+ 
++	for (auto &quest : Quests) {
++		if (!quest.IsAvailable())
++			continue;
++		auto &questData = QuestsData[static_cast<size_t>(quest._qidx)];
++		if (!questData.scriptName.empty()) {
++			std::string result = lua::OnQuestCheck(questData.scriptName, &quest);
++			if (result == "done") {
++				quest._qactive = QUEST_DONE;
++				quest._qlog = true;
++			} else if (result == "active") {
++			}
++		}
++	}
++
+ 	auto &quest = Quests[Q_BETRAYER];
+ 	if (quest.IsAvailable() && UseMultiplayerQuests() && quest._qvar1 == 2) {
+ 		AddObject(OBJ_ALTBOY, SetPiece.position.megaToWorld() + Displacement { 4, 6 });
+@@ -214,7 +368,7 @@ bool ForceQuests()
+ 			const int ql = quest._qslvl - 1;
+ 
+ 			if (EntranceBoundaryContains(quest.position, cursPosition)) {
+-				InfoString = FormatRuntime(_(/* TRANSLATORS: Used for Quest Portals. {:s} is a Map Name */ "To {:s}"), _(QuestTriggerNames[ql]));
++				FloatingInfoString = FormatRuntime(_(/* TRANSLATORS: Used for Quest Portals. {:s} is a Map Name */ "To {:s}"), _(QuestTriggerNames[ql]));
+ 				cursPosition = quest.position;
+ 				return true;
+ 			}
+@@ -286,6 +440,39 @@ void CheckQuestKill(const Monster &monster, bool sendmsg)
+ 	}
+ }
+ 
++void DRLG_CheckQuests(Point position)
++{
++	for (auto &quest : Quests) {
++		if (quest.IsAvailable()) {
++			switch (quest._qidx) {
++			case Q_BUTCHER:
++				DrawButcher();
++				break;
++			case Q_LTBANNER:
++				DrawLTBanner(position);
++				break;
++			case Q_BLIND:
++				DrawBlind(position);
++				break;
++			case Q_BLOOD:
++				DrawBlood(position);
++				break;
++			case Q_WARLORD:
++				DrawWarLord(position);
++				break;
++			case Q_SKELKING:
++				DrawSkelKing(quest._qidx, position);
++				break;
++			case Q_SCHAMB:
++				DrawSChamber(quest._qidx, position);
++				break;
++			default:
++				break;
++			}
++		}
++	}
++}
++
+ int GetMapReturnLevel()
+ {
+ 	switch (setlvlnum) {
+@@ -588,6 +775,118 @@ void ResyncQuests()
+ 	LoadingMapObjects = false;
+ }
+ 
++void DrawQuestLog(const Surface &out)
++{
++	const int l = QuestLogMouseToEntry();
++	if (l >= 0) {
++		SelectedQuest = l;
++	}
++	const auto x = InnerPanel.position.x;
++	ClxDraw(out, GetPanelPosition(UiPanels::Quest, { 0, 351 }), (*pQLogCel)[0]);
++	int y = InnerPanel.position.y + ListYOffset;
++	for (int i = 0; i < EncounteredQuestCount; i++) {
++		if (i == FirstFinishedQuest) {
++			y += FinishedQuestOffset;
++		}
++		PrintQLString(out, x, y, _(QuestsData[EncounteredQuests[i]]._qlstr), i == SelectedQuest, i >= FirstFinishedQuest);
++		y += LineSpacing;
++	}
++}
++
++void StartQuestlog()
++{
++
++	auto sortQuestIdx = [](int a, int b) {
++		return QuestsData[a].questBookOrder < QuestsData[b].questBookOrder;
++	};
++
++	EncounteredQuestCount = 0;
++	for (auto &quest : Quests) {
++		if (quest._qactive == QUEST_ACTIVE && quest._qlog) {
++			EncounteredQuests[EncounteredQuestCount] = quest._qidx;
++			EncounteredQuestCount++;
++		}
++	}
++	FirstFinishedQuest = EncounteredQuestCount;
++	for (auto &quest : Quests) {
++		if (quest._qactive == QUEST_DONE || quest._qactive == QUEST_HIVE_DONE) {
++			EncounteredQuests[EncounteredQuestCount] = quest._qidx;
++			EncounteredQuestCount++;
++		}
++	}
++
++	std::sort(&EncounteredQuests[0], &EncounteredQuests[FirstFinishedQuest], sortQuestIdx);
++	std::sort(&EncounteredQuests[FirstFinishedQuest], &EncounteredQuests[EncounteredQuestCount], sortQuestIdx);
++
++	const bool twoBlocks = FirstFinishedQuest != 0 && FirstFinishedQuest < EncounteredQuestCount;
++
++	ListYOffset = 0;
++	FinishedQuestOffset = !twoBlocks ? 0 : LineHeight / 2;
++
++	const int overallMinHeight = (EncounteredQuestCount * LineHeight) + FinishedQuestOffset;
++	const int space = InnerPanel.size.height;
++
++	if (EncounteredQuestCount > 0) {
++		const int additionalSpace = space - overallMinHeight;
++		int addLineSpacing = additionalSpace / EncounteredQuestCount;
++		addLineSpacing = std::min(MaxSpacing - LineHeight, addLineSpacing);
++		LineSpacing = LineHeight + addLineSpacing;
++		if (twoBlocks) {
++			int additionalSepSpace = additionalSpace - (addLineSpacing * EncounteredQuestCount);
++			additionalSepSpace = std::min(LineHeight, additionalSepSpace);
++			FinishedQuestOffset = std::max(4, additionalSepSpace);
++		}
++
++		const int overallHeight = (EncounteredQuestCount * LineSpacing) + FinishedQuestOffset;
++		ListYOffset += (space - overallHeight) / 2;
++	}
++
++	SelectedQuest = FirstFinishedQuest == 0 ? -1 : 0;
++	QuestLogIsOpen = true;
++}
++
++void QuestlogUp()
++{
++	if (FirstFinishedQuest == 0) {
++		SelectedQuest = -1;
++	} else {
++		SelectedQuest--;
++		if (SelectedQuest < 0) {
++			SelectedQuest = FirstFinishedQuest - 1;
++		}
++		PlaySFX(SfxID::MenuMove);
++	}
++}
++
++void QuestlogDown()
++{
++	if (FirstFinishedQuest == 0) {
++		SelectedQuest = -1;
++	} else {
++		SelectedQuest++;
++		if (SelectedQuest == FirstFinishedQuest) {
++			SelectedQuest = 0;
++		}
++		PlaySFX(SfxID::MenuMove);
++	}
++}
++
++void QuestlogEnter()
++{
++	PlaySFX(SfxID::MenuSelect);
++	if (EncounteredQuestCount != 0 && SelectedQuest >= 0 && SelectedQuest < FirstFinishedQuest)
++		InitQTextMsg(Quests[EncounteredQuests[SelectedQuest]]._qmsg);
++	QuestLogIsOpen = false;
++}
++
++void QuestlogESC()
++{
++	const int l = QuestLogMouseToEntry();
++	if (l != -1) {
++		QuestlogEnter();
++	}
++}
++
+ void SetMultiQuest(int q, quest_state s, bool log, int v1, int v2, int16_t qmsg)
+ {
+ 	if (gbIsSpawn)
+@@ -620,4 +919,59 @@ void SetMultiQuest(int q, quest_state s, bool log, int v1, int v2, int16_t qmsg)
+ 	}
+ }
+ 
++bool UseMultiplayerQuests()
++{
++	return sgGameInitInfo.fullQuests == 0;
++}
++
++bool Quest::IsAvailable() const
++{
++	if (setlevel)
++		return false;
++	if (currlevel != _qlevel)
++		return false;
++	if (_qactive == QUEST_NOTAVAIL)
++		return false;
++	if (QuestsData[_qidx].isSinglePlayerOnly && UseMultiplayerQuests())
++		return false;
++
++	return true;
++}
++
++namespace {
++
++void LoadQuestDatFromFile(DataFile &dataFile, std::string_view filename)
++{
++	dataFile.skipHeaderOrDie(filename);
++
++	QuestsData.reserve(QuestsData.size() + dataFile.numRecords());
++
++	for (DataFileRecord record : dataFile) {
++		RecordReader reader { record, filename };
++		QuestData &quest = QuestsData.emplace_back();
++		reader.readInt("qdlvl", quest._qdlvl);
++		reader.readInt("qdmultlvl", quest._qdmultlvl);
++		reader.read("qlvlt", quest._qlvlt, ParseDungeonType);
++		reader.readInt("bookOrder", quest.questBookOrder);
++		reader.readInt("qdrnd", quest._qdrnd);
++		reader.read("qslvl", quest._qslvl, ParseSetLevel);
++		reader.readBool("isSinglePlayerOnly", quest.isSinglePlayerOnly);
++		reader.read("qdmsg", quest._qdmsg, ParseSpeechId);
++		reader.readString("qlstr", quest._qlstr);
++	}
++}
++
++} // namespace
++
++void LoadQuestData()
++{
++	const std::string_view filename = "txtdata\\quests\\questdat.tsv";
++	DataFile dataFile = DataFile::loadOrDie(filename);
++
++	QuestsData.clear();
++	LoadQuestDatFromFile(dataFile, filename);
++
++	QuestsData.shrink_to_fit();
++}
++
+ } // namespace devilution
+diff --git a/Source/tables/questdat.hpp b/Source/tables/questdat.hpp
+index 0b6fa54bd..a1a33b2db 100644
+--- a/Source/tables/questdat.hpp
++++ b/Source/tables/questdat.hpp
+@@ -124,6 +124,7 @@ struct QuestData {
+ 	bool isSinglePlayerOnly;
+ 	_speech_id _qdmsg;
+ 	std::string _qlstr;
++	std::string scriptName;
+ };
+ 
+ extern DVL_API_FOR_TEST Quest Quests[MAXQUESTS];
+
+## B) 我们相对【merge 前的 fork】做了什么（只看 5 个相关文件）
+diff --git a/Source/controls/plrctrls.cpp b/Source/controls/plrctrls.cpp
+index 6ff77eb05..129cd4d6a 100644
+--- a/Source/controls/plrctrls.cpp
++++ b/Source/controls/plrctrls.cpp
+@@ -20,20 +20,21 @@
+ #include "automap.h"
+ #include "control/control.hpp"
+ #include "controls/controller_motion.h"
+ #ifndef USE_SDL1
+ #include "controls/devices/game_controller.h"
+ #endif
+ #include "controls/control_mode.hpp"
+ #include "controls/game_controls.h"
+ #include "controls/touch/gamepad.h"
+ #include "cursor.h"
++#include "cursor_defs.hpp"
+ #include "levels/gendung.h"
+ #include "doom.h"
+ #include "engine/point.hpp"
+ #include "engine/points_in_rectangle_range.hpp"
+ #include "game_mode.hpp"
+ #include "gmenu.h"
+ #include "help.h"
+ #include "hwcursor.hpp"
+ #include "inv.h"
+ #include "items.h"
+diff --git a/Source/engine/render/scrollrt.cpp b/Source/engine/render/scrollrt.cpp
+index 416921399..d67bcc485 100644
+--- a/Source/engine/render/scrollrt.cpp
++++ b/Source/engine/render/scrollrt.cpp
+@@ -50,36 +50,38 @@
+ #include "lighting.h"
+ #include "lua/lua_event.hpp"
+ #include "minitext.h"
+ #include "missiles.h"
+ #include "nthread.h"
+ #include "options.h"
+ #include "panels/charpanel.hpp"
+ #include "panels/console.hpp"
+ #include "panels/level_info.h"
+ #include "panels/partypanel.hpp"
++#include "panels/quest_log.hpp"
+ #include "panels/spell_list.hpp"
+ #include "plrmsg.h"
+ #include "qol/chatlog.h"
+ #include "qol/floatingnumbers.h"
+ #include "qol/itemlabels.h"
+ #include "qol/monhealthbar.h"
+ #include "qol/stash.h"
+ #include "qol/visual_store.h"
+ #include "qol/xpbar.h"
+ #include "stores.h"
+ #include "towners.h"
+ #include "utils/attributes.h"
+ #include "utils/display.h"
+ #include "utils/is_of.hpp"
+ #include "utils/log.hpp"
+ #include "utils/sdl_compat.h"
++#include "utils/sdl_thread.h"
+ #include "utils/str_cat.hpp"
+ 
+ #ifndef USE_SDL1
+ #include "controls/touch/renderers.h"
+ #endif
+ 
+ #ifdef _DEBUG
+ #include "debug.h"
+ #endif
+ 
+@@ -1507,21 +1509,21 @@ void DoBlitScreen(Rectangle area)
+  * @param out Output surface.
+  * @param dwHgt Section of screen to update from top to bottom
+  * @param drawDesc Render info box
+  * @param drawHp Render health bar
+  * @param drawMana Render mana bar
+  * @param drawSbar Render belt
+  * @param drawBtn Render panel buttons
+  */
+ void DrawMain(int dwHgt, bool drawDesc, bool drawHp, bool drawMana, bool drawSbar, bool drawBtn)
+ {
+-	if (!gbActive || RenderDirectlyToOutputSurface) {
++	if (!gbActive) {
+ 		return;
+ 	}
+ 
+ 	assert(dwHgt >= 0 && dwHgt <= gnScreenHeight);
+ 
+ 	if (dwHgt > 0) {
+ 		DoBlitScreen({ { 0, 0 }, { gnScreenWidth, dwHgt } });
+ 	}
+ 	if (dwHgt < gnScreenHeight) {
+ 		const Point mainPanelPosition = GetMainPanel().position;
+@@ -1858,20 +1860,21 @@ void DrawAndBlit()
+ 	} else if (IsRedrawViewport()) {
+ 		drawCtrlPan = false;
+ 		hgt = gnViewportHeight;
+ 	}
+ 
+ 	const Surface &out = GlobalBackBuffer();
+ 	UndrawCursor(out);
+ 
+ 	nthread_UpdateProgressToNextGameTick();
+ 
++	this_sdl_thread::yield();
+ 	DrawView(out, ViewPosition);
+ 	if (drawCtrlPan) {
+ 		DrawMainPanel(out);
+ 	}
+ 	if (drawHealth) {
+ 		DrawLifeFlaskLower(out, !drawCtrlPan);
+ 	}
+ 	if (drawMana) {
+ 		DrawManaFlaskLower(out, !drawCtrlPan);
+ 
+@@ -1903,20 +1906,21 @@ void DrawAndBlit()
+ 
+ 	if (*GetOptions().Gameplay.showMultiplayerPartyInfo && PartySidePanelOpen)
+ 		DrawPartyMemberInfoPanel(out);
+ 
+ 	DrawCursor(out);
+ 
+ 	DrawFPS(out);
+ 
+ 	lua::GameDrawComplete();
+ 
++	this_sdl_thread::yield();
+ 	DrawMain(hgt, false, drawHealth, drawMana, drawBelt, drawControlButtons);
+ 
+ #ifdef _DEBUG
+ 	DrawConsole(out);
+ #endif
+ 
+ 	RedrawComplete();
+ 	for (const PanelDrawComponent component : enum_values<PanelDrawComponent>()) {
+ 		if (IsRedrawComponent(component)) {
+ 			RedrawComponentComplete(component);
+diff --git a/Source/quests.h b/Source/quests.h
+index 4416749e8..3d81caa25 100644
+--- a/Source/quests.h
++++ b/Source/quests.h
+@@ -1,149 +1,32 @@
+-/**
+- * @file quests.cpp
+- *
+- * Interface of functionality for handling quests.
+- */
+-#pragma once
+-
+-#include <cstdint>
+-
+-#include "engine/clx_sprite.hpp"
+-#include "engine/point.hpp"
+-#include "engine/surface.hpp"
+-#include "levels/gendung.h"
+-#include "monster.h"
+-#include "panels/info_box.hpp"
+-#include "tables/objdat.h"
+-#include "tables/textdat.h"
+-#include "utils/attributes.h"
+-
+-namespace devilution {
+-
+-#define MAXQUESTS 24
+-
+-/** States of the mushroom quest */
+-enum {
+-	QS_INIT,
+-	QS_TOMESPAWNED,
+-	QS_TOMEGIVEN,
+-	QS_MUSHSPAWNED,
+-	QS_MUSHPICKED,
+-	QS_MUSHGIVEN,
+-	QS_BRAINSPAWNED,
+-	QS_BRAINGIVEN,
+-};
+-
+-/** @brief States of the gharbad the week quest for multiplayer sync */
+-enum {
+-	QS_GHARBAD_INIT,
+-	QS_GHARBAD_FIRST_ITEM_READY,
+-	QS_GHARBAD_FIRST_ITEM_SPAWNED,
+-	QS_GHARBAD_SECOND_ITEM_NEARLY_DONE,
+-	QS_GHARBAD_SECOND_ITEM_READY,
+-	QS_GHARBAD_ATTACKING,
+-};
+-
+-/** @brief States of Zhar the Mad quest for multiplayer sync */
+-enum {
+-	QS_ZHAR_INIT,
+-	QS_ZHAR_ITEM_SPAWNED,
+-	QS_ZHAR_ANGRY,
+-	QS_ZHAR_ATTACKING,
+-};
+-
+-/** @brief States of the Warlord of Blood quest */
+-enum {
+-	QS_WARLORD_INIT,
+-	QS_WARLORD_STEELTOME_READ,
+-	QS_WARLORD_TALKING,
+-	/** @brief State only added for multiplayer quests. Doesn't affect vanilla compatibility. */
+-	QS_WARLORD_ATTACKING,
+-};
+-
+-/** @brief States of Lachdanan quest for multiplayer sync */
+-enum {
+-	QS_VEIL_INIT,
+-	QS_VEIL_EARLY_RETURN,
+-	QS_VEIL_ITEM_SPAWNED,
+-};
+-
+-enum quest_state : uint8_t {
+-	QUEST_NOTAVAIL, // quest did not spawn this game
+-	QUEST_INIT,     // quest has spawned, waiting to trigger
+-	QUEST_ACTIVE,   // quest is currently in progress
+-	QUEST_DONE,     // quest log closed and finished
+-	QUEST_HIVE_TEASE1 = 7,
+-	QUEST_HIVE_TEASE2,
+-	QUEST_HIVE_ACTIVE,
+-	QUEST_HIVE_DONE,
+-	QUEST_INVALID = 0xFF,
+-};
+-
+-struct Quest {
+-	quest_id _qidx;
+-	quest_state _qactive;
+-	uint8_t _qlevel;
+-	Point position;
+-	dungeon_type _qlvltype;
+-	_setlevels _qslvl;
+-	bool _qlog;
+-	_speech_id _qmsg;
+-	uint8_t _qvar1;
+-	uint8_t _qvar2;
+-
+-	bool IsAvailable() const;
+-};
+-
+-struct QuestData {
+-	uint8_t _qdlvl;
+-	int8_t _qdmultlvl;
+-	dungeon_type _qlvlt;
+-	int8_t questBookOrder;
+-	uint8_t _qdrnd;
+-	_setlevels _qslvl;
+-	bool isSinglePlayerOnly;
+-	_speech_id _qdmsg;
+-	std::string _qlstr;
+-	std::string scriptName;
+-};
+-
+-extern DVL_API_FOR_TEST bool QuestLogIsOpen;
+-extern OptionalOwnedClxSpriteList pQLogCel;
+-extern DVL_API_FOR_TEST Quest Quests[MAXQUESTS];
+-extern Point ReturnLvlPosition;
+-extern dungeon_type ReturnLevelType;
+-extern int ReturnLevel;
+-
+-void InitQuests();
+-
+-/**
+- * @brief Deactivates quests from each quest pool at random to provide variety for single player games
+- * @param seed The seed used to control which quests are deactivated
+- * @param quests The available quest list, this function will make some of them inactive by the time it returns
+- */
+-void InitialiseQuestPools(uint32_t seed, Quest quests[]);
+-void CheckQuests();
+-bool ForceQuests();
+-void CheckQuestKill(const Monster &monster, bool sendmsg);
+-void DRLG_CheckQuests(Point position);
+-int GetMapReturnLevel();
+-Point GetMapReturnPosition();
+-void LoadPWaterPalette();
+-void UpdatePWaterPalette();
+-void ResyncMPQuests();
+-void ResyncQuests();
+-void DrawQuestLog(const Surface &out);
+-void StartQuestlog();
+-void QuestlogUp();
+-void QuestlogDown();
+-void QuestlogEnter();
+-void QuestlogESC();
+-void SetMultiQuest(int q, quest_state s, bool log, int v1, int v2, int16_t qmsg);
+-bool UseMultiplayerQuests();
+-
+-/* rdata */
+-extern std::vector<QuestData> QuestsData;
+-
+-void LoadQuestData();
+-
+-} // namespace devilution
++/**
++ * @file quests.h
++ *
++ * Interface of functionality for handling quests.
++ */
++#pragma once
++
++#include "monster.h"
++#include "tables/questdat.hpp"
++
++namespace devilution {
++
++void InitQuests();
++
++/**
++ * @brief Deactivates quests from each quest pool at random to provide variety for single player games
++ * @param seed The seed used to control which quests are deactivated
++ * @param quests The available quest list, this function will make some of them inactive by the time it returns
++ */
++void InitialiseQuestPools(uint32_t seed, Quest quests[]);
++void CheckQuests();
++bool ForceQuests();
++void CheckQuestKill(const Monster &monster, bool sendmsg);
++int GetMapReturnLevel();
++Point GetMapReturnPosition();
++void LoadPWaterPalette();
++void UpdatePWaterPalette();
++void ResyncMPQuests();
++void ResyncQuests();
++void SetMultiQuest(int q, quest_state s, bool log, int v1, int v2, int16_t qmsg);
++
++} // namespace devilution
+diff --git a/Source/tables/questdat.hpp b/Source/tables/questdat.hpp
+new file mode 100644
+index 000000000..a1a33b2db
+--- /dev/null
++++ b/Source/tables/questdat.hpp
+@@ -0,0 +1,142 @@
++#pragma once
++
++#include <cstdint>
++#include <string>
++#include <vector>
++
++#include "engine/point.hpp"
++#include "levels/gendung_defs.hpp"
++#include "tables/textdat.h"
++#include "utils/attributes.h"
++
++namespace devilution {
++
++#define MAXQUESTS 24
++
++/** States of the mushroom quest */
++enum {
++	QS_INIT,
++	QS_TOMESPAWNED,
++	QS_TOMEGIVEN,
++	QS_MUSHSPAWNED,
++	QS_MUSHPICKED,
++	QS_MUSHGIVEN,
++	QS_BRAINSPAWNED,
++	QS_BRAINGIVEN,
++};
++
++/** @brief States of the gharbad the week quest for multiplayer sync */
++enum {
++	QS_GHARBAD_INIT,
++	QS_GHARBAD_FIRST_ITEM_READY,
++	QS_GHARBAD_FIRST_ITEM_SPAWNED,
++	QS_GHARBAD_SECOND_ITEM_NEARLY_DONE,
++	QS_GHARBAD_SECOND_ITEM_READY,
++	QS_GHARBAD_ATTACKING,
++};
++
++/** @brief States of Zhar the Mad quest for multiplayer sync */
++enum {
++	QS_ZHAR_INIT,
++	QS_ZHAR_ITEM_SPAWNED,
++	QS_ZHAR_ANGRY,
++	QS_ZHAR_ATTACKING,
++};
++
++/** @brief States of the Warlord of Blood quest */
++enum {
++	QS_WARLORD_INIT,
++	QS_WARLORD_STEELTOME_READ,
++	QS_WARLORD_TALKING,
++	/** @brief State only added for multiplayer quests. Doesn't affect vanilla compatibility. */
++	QS_WARLORD_ATTACKING,
++};
++
++/** @brief States of Lachdanan quest for multiplayer sync */
++enum {
++	QS_VEIL_INIT,
++	QS_VEIL_EARLY_RETURN,
++	QS_VEIL_ITEM_SPAWNED,
++};
++
++enum quest_state : uint8_t {
++	QUEST_NOTAVAIL, // quest did not spawn this game
++	QUEST_INIT,     // quest has spawned, waiting to trigger
++	QUEST_ACTIVE,   // quest is currently in progress
++	QUEST_DONE,     // quest log closed and finished
++	QUEST_HIVE_TEASE1 = 7,
++	QUEST_HIVE_TEASE2,
++	QUEST_HIVE_ACTIVE,
++	QUEST_HIVE_DONE,
++	QUEST_INVALID = 0xFF,
++};
++
++enum quest_id : int8_t {
++	Q_ROCK,
++	Q_MUSHROOM,
++	Q_GARBUD,
++	Q_ZHAR,
++	Q_VEIL,
++	Q_DIABLO,
++	Q_BUTCHER,
++	Q_LTBANNER,
++	Q_BLIND,
++	Q_BLOOD,
++	Q_ANVIL,
++	Q_WARLORD,
++	Q_SKELKING,
++	Q_PWATER,
++	Q_SCHAMB,
++	Q_BETRAYER,
++	Q_GRAVE,
++	Q_FARMER,
++	Q_GIRL,
++	Q_TRADER,
++	Q_DEFILER,
++	Q_NAKRUL,
++	Q_CORNSTN,
++	Q_JERSEY,
++	Q_INVALID = -1,
++};
++
++struct Quest {
++	quest_id _qidx;
++	quest_state _qactive;
++	uint8_t _qlevel;
++	Point position;
++	dungeon_type _qlvltype;
++	_setlevels _qslvl;
++	bool _qlog;
++	_speech_id _qmsg;
++	uint8_t _qvar1;
++	uint8_t _qvar2;
++
++	bool IsAvailable() const;
++};
++
++struct QuestData {
++	uint8_t _qdlvl;
++	int8_t _qdmultlvl;
++	dungeon_type _qlvlt;
++	int8_t questBookOrder;
++	uint8_t _qdrnd;
++	_setlevels _qslvl;
++	bool isSinglePlayerOnly;
++	_speech_id _qdmsg;
++	std::string _qlstr;
++	std::string scriptName;
++};
++
++extern DVL_API_FOR_TEST Quest Quests[MAXQUESTS];
++extern Point ReturnLvlPosition;
++extern dungeon_type ReturnLevelType;
++extern int ReturnLevel;
++
++bool UseMultiplayerQuests();
++
++/* rdata */
++extern std::vector<QuestData> QuestsData;
++
++void LoadQuestData();
++
++} // namespace devilution
