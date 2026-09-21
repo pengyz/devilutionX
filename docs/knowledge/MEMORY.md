@@ -62,3 +62,5 @@
 <!-- 外部资源指针、关键文件位置 -->
 
 - [怪物配置图谱：各层段怪物池与密度诊断](analysis_monster_config_landscape.md) — 系统扫描 monstdat：教堂12类/墓穴13类/洞穴10类(远程垄断38%)/地狱6类(多样性骤降)；密度修复框架（A1/A2/A3/B1/C2/E1）各规格落地依据
+
+- [`gotcha_pseudo_guards_and_assumed_state.md`](gotcha_pseudo_guards_and_assumed_state.md) — 三类"假验证"：假守卫 / 先测量后断言 / 没读准就断言（含修法与硬规则）

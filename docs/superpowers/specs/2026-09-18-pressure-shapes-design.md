@@ -308,7 +308,7 @@
 
 ### E.1 导出的 AI→导弹→伤害类型（静态扫描 `Source/monster.cpp`，**可重复执行** ✓）
 
-**通用表** `GetMissileType(MonsterAIID)`（`Source/monster.cpp:1903`，被 `:1958/1987` 调用）：共导出 **15** 条：
+**通用表** `GetMissileType(MonsterAIID)`（`Source/monster.cpp:1903`，被 `:1958/1987` 调用）：共导出 **15** 条（**这是"通用表"，不是"全部伤害来源"** ✗ —— v1 的"共15条完整"表述为假 ✗）：
 
 - `Acid` → `Acid` → `Acid`
 - `AcidUnique` → `Acid` → `Acid`
@@ -331,11 +331,24 @@
 - `SkeletonRanged` → `Arrow` → `Physical,Arrow`（**硬编码覆盖**，`Source/monster.cpp:2136`）
 - `Counselor` → `{Firebolt, ChargedBolt, LightningControl, Fireball}`（**硬编码覆盖**，`:2719-2721`）
 
-### E.2 各层段「需求类型 → 可准备反制」（名册 core × 上表；近战经 `ACP` 计入 ✓）
+### E.1b 直接 `AddMissile` 路径（v2 补漏，**经独立复核发现** ✗✓）
+
+`grep AddMissile(` 于 `Source/monster.cpp` 找到 **7 处**，其中 **4 类绕过** `GetMissileType`：
+
+| 导弹 | 站点 | 类型（`misdat.tsv` ✓） | 影响 |
+|---|---|---|---|
+| `Rhino`（冲撞） | `:2250` / `:2420` / `:2642`（`RhinoAi` / `FallenAi` 的 GLOOM 分支 / `SnakeAi`） | `Physical`（`:22` ✓） | 已有类型，**不改变**集合 ✓ |
+| **`Lightning`** | `:2436`（**`BatAi`** 内，`MT_FAMILIAR` 分支 ✓） | **`Lightning`**（`:10` ✓） | **改变 L1-8 集合** ✗（见 E.2 修正） |
+| `AcidPuddle` | `:4350`（酸系怪死亡水洼） | `Acid`（`:61` ✓） | 已有类型 ✓ |
+| `FlashBottom`/`FlashTop` | `:2737-2738`（`Counselor` 撤退分支） | `Magic`（`:13/14` ✓） | 已有类型 ✓ |
+
+⇒ **口径规则**：C1 守卫若要"穷举伤害来源"，必须**同时扫描** `GetMissileType` 的 `case`、各 `XxxAi` 里的 `StartRangedAttack`、以及**直接 `AddMissile(` 调用** ✓。
+
+### E.2 各层段「需求类型 → 可准备反制」（名册 core × 上表 **+ E.1b**；近战经 `ACP` 计入 ✓）
 
 | 层段 | 威胁族 | 需求类型 | **可准备反制数** | 反制族 |
 |---|---|---|---|---|
-| **L1-8** | 10 | Physical | **1** | ACP(Fine/Strong…) |
+| **L1-8** | 10 | Physical / **Lightning**（`MT_FAMILIAR` 是 **L8 的 core** ✓，`BatAi` 直接发 `MissileID::Lightning` `:2436` ✓） | **2** | ACP(Fine/Strong…) ; **LIGHTRES**(Blue/Azure/Lapis/Cobalt/Sapphire) |
 | **L9-12** | 9 | Acid / Fire / Lightning / Physical | **4** | ACP(Fine/Strong…) ; FIRERES(Red/Crimson/Garnet/Ruby) ; LIGHTRES(Blue/Azure/Lapis/Cobalt/Sapphire) ; —(D1 无酸抗 ⚠) |
 | **L13-16** | 4 | Fire / Lightning / Physical | **3** | ACP(Fine/Strong…) ; FIRERES(Red/Crimson/Garnet/Ruby) ; LIGHTRES(Blue/Azure/Lapis/Cobalt/Sapphire) |
 | **L17-24** | 6 | Fire / Magic / Physical | **3** | ACP(Fine/Strong…) ; FIRERES(Red/Crimson/Garnet/Ruby) ; MAGICRES(White/Pearl/Ivory/Crystal/Diamond) |
@@ -349,11 +362,13 @@
 
 ### E.3 C1 守卫的定义（**由实测数据校准** ✓）
 
-1. **L1-8 显式豁免** ✗：现状**只有 1 种**可准备反制（`ACP` 护甲），它是**教学段** ⇒ 守卫对 L1-8 **不计入**；
-2. **L9-24 每段 ≥2 种可准备反制** ✓：现状 **L9-12＝4、L13-16＝3、L17-24＝3** ⇒ **现状即达标** ✓ ⇒ **A 腿的任务不是"增加需求类型"** ✗，而是**让已有需求变得咬合**（构成 / 放置 / 压力 ✓）；
+1. **L1-8 不再豁免** ✗（v2 修正）：补上 E.1b 后，L1-8 实际有 **2** 种可准备反制（`ACP` + `LIGHTRES`，来自 `MT_FAMILIAR` 的 Lightning 攻击 ✓）⇒ **L1-24 每段 ≥2 —— 现状全部达标** ✓（2 / 4 / 3 / 3）；
+2. **守卫必须是"编队构成"断言，而不是"类型集合"断言** ✗（**v2 关键修正，经复核指出**）：若按"每段类型数 ≥2"写静态断言，则**现状即达标** ⇒ 未来改动只可能"不变(PASS)"或"变多(仍 PASS)" ⇒ **它在设计意图下永远不会红 ＝ 伪门禁** ✗（本会话第三类"假守卫"，前两类：HF 确定性断言 ✗、结论已定型断言 ✗）。
+   ⇒ **改为**：断言**实际遭遇的编队构成**，例如「**L9-12 的遭遇中，同时出现 ≥2 种需求类型怪物的比例 ≥ 阈值**」，阈值由 §6.4 的**编队基线**实测后写死 ✓；"改坏编队（把两支队伍改成同类型）⇒ 红" ✓。**测试落点**：新建 `test/pressure_shapes_test.cpp`（现有测试目录无同名文件 ✓）+ 注册 `CMake/Tests.cmake` ✓。
+   ⇒ 由此 **A 腿的任务仍是"让已有需求咬合"**（构成 / 放置 / 压力 ✓），而不是增加类型 ✓。
 3. **只统计"可应答"的需求**：**酸伤无对应抗性**（`Acid` 伤害，D1 无酸抗族 ⚠）⇒ 酸**不计入**，并作为**已知缺口**记录；
 4. **显式排除 `*_CURSE` 族** ✗（`LIGHT_CURSE`＝`the dark`/`the night`、`MANA_CURSE`、`ACP_CURSE` ✓）；
-5. **近战经 `ACP`（`Fine`/`Strong`…）计入** ✓ —— 近战族不是"没有需求"，而是"经护甲/闪避应答" ✓。
+5. **近战经 `ACP`（`Fine`/`Strong`…）计入** ✓ —— 已核验机制真实：`GetArmor()` 降低怪物对玩家的近战命中（`Source/player.cpp:719` ✓），近战族不是"没有需求"，而是"经护甲/闪避应答" ✓。
 
 ### E.4 unique 的类型（关闭最后一个 ⚠ ✓）
 
@@ -367,3 +382,5 @@
 （L13-16 的 unique 明细：Lachdanan(Lachdanan)->Physical；Warlord of Blood(Warlord)->Physical；Fangskin(SkeletonMelee)->Physical；Blackskull(SkeletonMelee)->Physical；Lord of the Pit(SkeletonMelee)->Physical；Rustweaver(SkeletonMelee)->Physical）
 
 ⇒ 结论：**unique 未给任何层段补出新的"可应答"需求类型** ✓（类型仍是 Fire/Lightning/Magic/Physical ✓），G1 的强度不变 ✓。
+
+**E.5 未决（下一项）**：编队基线（遭遇同时类型数 / 小队数 / 放置位置 / 精英构成 ⚠）—— 守卫阈值的校准依据 ✓。
