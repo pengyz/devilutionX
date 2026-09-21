@@ -40,6 +40,7 @@ def _binary_path(build_dir: Path, name: str) -> Path:
 # Test binaries registered in CMake/Tests.cmake (tests + standalone_tests,
 # benchmarks excluded from the default run).
 TEST_TARGETS = [
+    "pressure_shapes_test",
     "ai_registry_test", "animationinfo_test", "appfat_test", "assets_test",
     "automap_test", "can_target_test", "cursor_test", "dead_test",
     "diablo_test", "dark_expedition_light_test", "dark_expedition_scroll_test",

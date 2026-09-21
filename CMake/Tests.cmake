@@ -72,6 +72,7 @@ set(tests
   spell_ux_test
   consume_scroll_test
   consumable_stack_test
+  pressure_shapes_test
 )
 set(standalone_tests
   ai_registry_test
@@ -161,6 +162,7 @@ add_library(language_for_testing OBJECT test/language_for_testing.cpp)
 target_sources(language_for_testing INTERFACE $<TARGET_OBJECTS:language_for_testing>)
 
 target_link_dependencies(ai_registry_test PRIVATE libdevilutionx)
+target_link_dependencies(pressure_shapes_test PRIVATE libdevilutionx)
 target_link_dependencies(can_target_test PRIVATE libdevilutionx)
 target_link_dependencies(codec_test PRIVATE libdevilutionx_codec app_fatal_for_testing)
 
