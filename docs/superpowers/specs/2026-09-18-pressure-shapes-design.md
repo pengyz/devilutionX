@@ -384,3 +384,45 @@
 ⇒ 结论：**unique 未给任何层段补出新的"可应答"需求类型** ✓（类型仍是 Fire/Lightning/Magic/Physical ✓），G1 的强度不变 ✓。
 
 **E.5 未决（下一项）**：编队基线（遭遇同时类型数 / 小队数 / 放置位置 / 精英构成 ⚠）—— 守卫阈值的校准依据 ✓。
+
+## 14. 附录 F：Item 2 复核修正（v3）与**意外发现的引擎缺陷**
+
+### F.1 直接施法清单（完整；`GetMissileType` **不足以**导出，✗ v1/v2 结论）
+
+| 导弹 | 站点 | 类型 | 影响 |
+|---|---|---|---|
+| `Rhino`（冲撞） | `RhinoAi:2250` / `SnakeAi:2642` | Physical | 已有 ✓ |
+| **`Lightning`** | **`BatAi:2436`**（`MT_FAMILIAR`，**L8 的 core** ✓ `level_rosters.tsv`） | **Lightning** | **L1-8 有电** ✗ |
+| **`FlashBottom/FlashTop`** | **`CounselorAi:2737-2738`**；`ProcessFlashBottom/Top`（`missiles.cpp:3427/3456`）**含 `CheckMissileCol` ⇒ 实伤** ✓ | **Magic** | **L13-16 有魔抗需求** ✗ |
+| **`InfernoControl`→`Inferno`** | **`MegaAi:2817`**（`StartRangedSpecialAttack`） | **Fire**（复核者称 ⚠） | **Mega＝Fire+Physical** ✗ |
+| `AcidPuddle` | `MonsterDeath:4350` | Acid | 已有 ✓ |
+| `HorkSpawn` | `HorkDemonAi:3006` | （仅生成，无伤） | 无 |
+| `MissileID::Null:2736` | — | **不发射**（`MonsterRangedAttack:1229` 判空 ✓） | 是"漏检指示器"，非伤害源 ✓ |
+
+**判定法修正**：`flags` 取值域＝**7 个标记**（5 个 `DamageType`＋`Arrow`/`Invisible` 两个**非伤害**标记）⇒ E.1 把 `Arrow`/`Invisible` 当"伤害类型"列出是**幻影类型** ✗，已删除。
+
+### F.2 修正后的层段覆盖（v3，**取代 E.2**）
+
+| 层段 | 可准备反制数（core） | 含 unique | 说明 |
+|---|---|---|---|
+| **L1-8** | **2**（`ACP` + `LIGHTRES`） | 4 | 电来自 `BatAi` 直发 ✓ |
+| **L9-12** | **3**（`ACP`+`FIRERES`+`LIGHTRES`） | 4 | **E.2 的 4 把"无酸抗"空位也算进去了，与 E.3#3 自相矛盾** ✗ 已修 |
+| **L13-16** | **4**（+`MAGICRES`） | 4 | 魔来自 `Counselor` 的 Flash ✓ |
+| **L17-24** | **3** ✓ | 3 | 不变 |
+
+### F.3 C1 守卫（v3：**可失败**的形式，取代 E.3#2）
+
+(a) **等式断言**：`types(seg) == 黄金集`（增/删任一类型即红 ✓）；
+(b) **闭包断言**：`AIs(名册该段 core) ⊆ AIs(导出映射)`（新 AI 进名册即红 ✓）；
+(c) **发射点白名单**：正则扫描 `AddMissile(|StartRangedAttack(|StartRangedSpecialAttack(` 的**字面 `MissileID` 实参**，与白名单相等（**新增硬编码施法即红** ✓）；
+(d) **前提断言**：`词缀族 ∩ {*_CURSE} = ∅` 且"**不存在 `ACIDRES` 族**"（一旦有人加酸抗 ⇒ 前提失效须红 ✓）；
+(e) **文档表由脚本生成**（禁手抄 ✗）—— 本附录 F.1/F.2 必须由同一脚本产出 ✓。
+
+### F.4 **意外发现：两个引擎缺陷**（与 Depth 设计无关，属缺陷修复 ⚠）
+
+| # | 缺陷 | 证据（已亲自核验 ✓） | 严重度 |
+|---|---|---|---|
+| **D-1** | **空指针 AI 派发（＝崩溃）**：`AiProc` 中 `/*MonsterAIID::FireMan */ nullptr`（`Source/monster.cpp:3156` ✓），调用点 `:4647` **无判空** ✗；unique **"Warpfire Hellspawn"（`MT_HELLBURN`，ai=FireMan，level 11）存在** ✓ ⇒ **L9-12 可触发** | 实地核验 ✓ | **高（崩溃）** |
+| **D-2** | **HF 专属导弹在 base 数据下越界读**：base `misdat.tsv` 仅 **68 行**（末行 `DiabloApocalypse` ✓），`OrangeFlare` **只在 HF 表** ✓；枚举含它（`misdat.h:84` ✓）、断言把它绑在 `LastDiablo+1`（`misdat.cpp:393` ✓） | 前提已核验 ✓；`GetMissileData` 体内越界未逐步复现 ⚠ | 中-高 |
+
+⇒ **建议作为独立 Item（缺陷修复，Base 类）**，本规格只记录，不在此实现 ✓。
