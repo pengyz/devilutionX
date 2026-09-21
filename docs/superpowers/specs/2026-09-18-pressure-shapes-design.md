@@ -303,3 +303,67 @@
 1. `FIRERES`/`MAGIC` 族的**具体名称**（用于"反制可识别性"的断言）⚠；
 2. **AI→伤害类型对照表**（决定 G2 的守卫能否机械化）⚠；
 3. 小队数 / 放置位置 / 精英构成（放置代码统计）⚠。
+
+## 13. 附录 E：AI→伤害类型 与 各层段需求覆盖（Item 2，2026-09-18 实测导出）
+
+### E.1 导出的 AI→导弹→伤害类型（静态扫描 `Source/monster.cpp`，**可重复执行** ✓）
+
+**通用表** `GetMissileType(MonsterAIID)`（`Source/monster.cpp:1903`，被 `:1958/1987` 调用）：共导出 **15** 条：
+
+- `Acid` → `Acid` → `Acid`
+- `AcidUnique` → `Acid` → `Acid`
+- `ArchLich` → `YellowFlare` → `Magic`
+- `BoneDemon` → `BlueFlare2` → `Magic`
+- `Diablo` → `DiabloApocalypse` → `Physical,Invisible`
+- `FireBat` → `Firebolt` → `Fire`
+- `GoatRanged` → `Arrow` → `Physical,Arrow`
+- `LazarusSuccubus` → `BloodStar` → `Magic`
+- `Lich` → `OrangeFlare` → `Magic`
+- `Magma` → `MagmaBall` → `Fire`
+- `Necromorb` → `RedFlare` → `Magic`
+- `Psychorb` → `BlueFlare` → `Magic`
+- `Storm` → `ThinLightningControl` → `Lightning,Invisible`
+- `Succubus` → `BloodStar` → `Magic`
+- `Torchant` → `Fireball` → `Fire`
+
+**专属覆盖（会绕过通用表 ✗）**：
+
+- `SkeletonRanged` → `Arrow` → `Physical,Arrow`（**硬编码覆盖**，`Source/monster.cpp:2136`）
+- `Counselor` → `{Firebolt, ChargedBolt, LightningControl, Fireball}`（**硬编码覆盖**，`:2719-2721`）
+
+### E.2 各层段「需求类型 → 可准备反制」（名册 core × 上表；近战经 `ACP` 计入 ✓）
+
+| 层段 | 威胁族 | 需求类型 | **可准备反制数** | 反制族 |
+|---|---|---|---|---|
+| **L1-8** | 10 | Physical | **1** | ACP(Fine/Strong…) |
+| **L9-12** | 9 | Acid / Fire / Lightning / Physical | **4** | ACP(Fine/Strong…) ; FIRERES(Red/Crimson/Garnet/Ruby) ; LIGHTRES(Blue/Azure/Lapis/Cobalt/Sapphire) ; —(D1 无酸抗 ⚠) |
+| **L13-16** | 4 | Fire / Lightning / Physical | **3** | ACP(Fine/Strong…) ; FIRERES(Red/Crimson/Garnet/Ruby) ; LIGHTRES(Blue/Azure/Lapis/Cobalt/Sapphire) |
+| **L17-24** | 6 | Fire / Magic / Physical | **3** | ACP(Fine/Strong…) ; FIRERES(Red/Crimson/Garnet/Ruby) ; MAGICRES(White/Pearl/Ivory/Crystal/Diamond) |
+
+逐怪明细（可审计）：
+
+- **L1-8**：Bat→Physical；Fallen→Physical；Fat→Physical；GoatMelee→Physical；Rhino→Physical；Scavenger→Physical；SkeletonMelee→Physical；SkeletonRanged→Physical；Sneak→Physical；Zombie→Physical
+- **L9-12**：Acid→Acid；Fat→Physical；GoatRanged→Physical；Magma→Fire；Mega→Physical；Rhino→Physical；Snake→Physical；Sneak→Physical；Storm→Lightning
+- **L13-16**：Counselor→Fire/Lightning；Mega→Physical；SkeletonMelee→Physical；Snake→Physical
+- **L17-24**：ArchLich→Magic；FireBat→Fire；Lich→Magic；Scavenger→Physical；SkeletonMelee→Physical；Torchant→Fire
+
+### E.3 C1 守卫的定义（**由实测数据校准** ✓）
+
+1. **L1-8 显式豁免** ✗：现状**只有 1 种**可准备反制（`ACP` 护甲），它是**教学段** ⇒ 守卫对 L1-8 **不计入**；
+2. **L9-24 每段 ≥2 种可准备反制** ✓：现状 **L9-12＝4、L13-16＝3、L17-24＝3** ⇒ **现状即达标** ✓ ⇒ **A 腿的任务不是"增加需求类型"** ✗，而是**让已有需求变得咬合**（构成 / 放置 / 压力 ✓）；
+3. **只统计"可应答"的需求**：**酸伤无对应抗性**（`Acid` 伤害，D1 无酸抗族 ⚠）⇒ 酸**不计入**，并作为**已知缺口**记录；
+4. **显式排除 `*_CURSE` 族** ✗（`LIGHT_CURSE`＝`the dark`/`the night`、`MANA_CURSE`、`ACP_CURSE` ✓）；
+5. **近战经 `ACP`（`Fine`/`Strong`…）计入** ✓ —— 近战族不是"没有需求"，而是"经护甲/闪避应答" ✓。
+
+### E.4 unique 的类型（关闭最后一个 ⚠ ✓）
+
+| 层段 | unique 覆盖的类型 |
+|---|---|
+| **L1-8** | Acid, Fire, Lightning, Magic, Physical（53 个 unique） |
+| **L9-12** | Acid, Fire, Lightning, Magic, Physical（22 个 unique） |
+| **L13-16** | Fire, Lightning, Magic, Physical（21 个 unique） |
+| **L17-24** | Physical（4 个 unique） |
+
+（L13-16 的 unique 明细：Lachdanan(Lachdanan)->Physical；Warlord of Blood(Warlord)->Physical；Fangskin(SkeletonMelee)->Physical；Blackskull(SkeletonMelee)->Physical；Lord of the Pit(SkeletonMelee)->Physical；Rustweaver(SkeletonMelee)->Physical）
+
+⇒ 结论：**unique 未给任何层段补出新的"可应答"需求类型** ✓（类型仍是 Fire/Lightning/Magic/Physical ✓），G1 的强度不变 ✓。
