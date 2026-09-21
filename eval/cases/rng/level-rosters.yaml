@@ -1,12 +1,13 @@
 # 维护提醒（R35）：本 case 的 `expected.passed_min` 与 `output_contains` 里的
-# "[  PASSED  ] N tests." 是**硬编码的用例计数**。往 LevelRosterBaselineTest 里新增或删除用例后
+# "[  PASSED  ] N tests." 是**硬编码的用例计数**。往 LevelRosterBaselineTest 或 SquadPlacementTest 里新增或删除用例后
 # 必须同步这两处数字，否则门禁会静默失效（N 偏小 → 少跑也算过）或误红
-# （N 偏大 → 全绿也判失败）。当前值对应 10 个用例（Phase B Task 3 追加 5 个 SquadPlacementTest 用例，
+# （N 偏大 → 全绿也判失败）。当前值对应 11 个用例（2026-09-18 起含 SquadRateMatchesMeasuredBaseline）（Phase B Task 3 追加 5 个 SquadPlacementTest 用例，
 # 修复轮次 1 再追加具名用例 SquadMinionsKeepOwnAi → 9；Task 4 追加 SquadFormationRate → 10）。
 #
-# 阶段 A2 Task 2 说明（计数为何仍是 10）：同一二进制新增的 3 个 `HellfireLevelBaselineTest`
-# 用例**故意落在本 case 的 filter 之外**，因此本 case 的用例数未变、passed_min 与
-# "[  PASSED  ] N tests." 均无需同步。理由：那 3 条依赖 Hellfire 资产，无 HF 环境下
+# 阶段 A2 Task 2 说明（当时的计数理由，已被 2026-09-18 的 +1 覆盖）：同一二进制新增的 3 个 `HellfireLevelBaselineTest`
+# 用例**故意落在本 case 的 filter 之外**；但 SquadPlacementTest 内**仍在本 filter 内**的新增用例必须同步计数。
+# 当前计数 = 11（LevelRosterBaselineTest 3 + SquadPlacementTest 8；2026-09-18 起含
+# SquadRateMatchesMeasuredBaseline）。那 3 条依赖 Hellfire 资产的用例在无 HF 环境下
 # （CI 只有 spawn.mpq）会 `GTEST_SKIP`，把它们纳入本 filter 会让 "[  PASSED  ] 13 tests."
 # 这行硬编码断言在无 HF 环境恒假——即为了给守卫加一层 eval 可见性，反而制造一条
 # 环境相关的假红。它们由**全量门禁**（`tools/run_tests.py` 的 ctest 全跑，二进制已在
@@ -23,7 +24,7 @@ setup:
   mpq_required: true
   # U1（同类）：PlacedClassMix* 走真实建关放置，需 unique 怪染色 TRN（零售或 HF 提供）。
   retail_or_hf_required: true
-  # RB22 记账（Task 5，2026-09-17 实测）：本 case 单跑（10 个用例，10x 500-seed 的
+  # RB22 记账（Task 5，2026-09-17 实测）：本 case 单跑（当时 10 个用例，10x 500-seed 的
   # SquadFormationRate 占大头）实测约 475s，对 timeout=900 余量约 47%。
   # 若再往 LevelRosterBaselineTest/SquadPlacementTest 里加长用例（更多 seed、更多层），
   # 必须同步上调本 timeout，不要让余量被悄悄吃掉。
@@ -122,7 +123,7 @@ description: >
   处置：实测最低 99.890% 远高于计划下限 50%，**各层 squad_leashed 保持 1，本轮无任何层需要
   §4.3.4 回退**，`level_roster_params.tsv` 零改动（RB17 L14 冻结、RB14 class_floors 均未触碰）。
 
-  Phase B 最终修复轮（I1/I2/M1，**用例数不变，仍为 10**：本轮只加断言与输出行，不加用例）：
+  Phase B 最终修复轮（I1/I2/M1，**用例数不变（当时仍为 10；2026-09-18 后为 11）**：本轮只加断言与输出行，不加用例）：
   I1 —— `minionsOutsideLeash` 原判据 `dx > 4` 恒真（通过钳制的候选必然 dx <= 4），指不出
   什么改动会让它红。现改为具名常量 `kLeashedAxisBound = 4`（由钳制推导：接受条件
   `|xp-x1| < 4` → <=3，而 x1 是 leader 的邻格 → 3+1=4），并新增计数 `minionsAtLeashBound`
@@ -141,7 +142,7 @@ description: >
   改回 30 → `SquadsAreAbsentWhenTheTableDisablesThem` 判红，确认这一列就是该用例真正测的东西。
   出厂数据（assets/txtdata/**）与 `kRangedShareCeiling` / `kSquadFormationFloor` 阈值本轮零改动。
 
-  Phase B Task D（取消 L14 的 squad_chance 让步，**用例数不变，仍为 10**：本轮只改出厂数据与注释）：
+  Phase B Task D（取消 L14 的 squad_chance 让步，**用例数不变（当时仍为 10；2026-09-18 后为 11）**：本轮只改出厂数据与注释）：
   目标是在**不放宽任何守卫**（`kRangedShareCeiling` / `kSquadFormationFloor` / class_floors 一律不动）
   的前提下让 L14 也用统一的 `squad_chance=30`。结构判据：小队 partner 从**其他 core**抽取，
   所以 3 个 core 里有 2 个是远程会让每支小队都偏远程；而 L14 的 6 个 unique base 是
