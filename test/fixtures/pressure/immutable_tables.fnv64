@@ -1,3 +1,10 @@
 8ec20945772b90cb  assets/txtdata/monsters/monstdat.tsv
 11ee548e691bdffc  mods/hf/txtdata/monsters/monstdat.tsv
+408661f5315795f2  assets/txtdata/monsters/unique_monstdat.tsv
 49d488d667d6c722  assets/txtdata/items/itemdat.tsv
+d0d3256bd31da18d  assets/txtdata/items/unique_itemdat.tsv
+da661f63f11fe14b  mods/hf/txtdata/items/unique_itemdat.tsv
+a99b2ab8ea492bd0  assets/txtdata/items/item_prefixes.tsv
+6a7737d25a23cf73  assets/txtdata/items/item_suffixes.tsv
+dddf2ed41fd6275c  mods/hf/txtdata/items/item_prefixes.tsv
+45168e40f0f409d5  mods/hf/txtdata/items/item_suffixes.tsv

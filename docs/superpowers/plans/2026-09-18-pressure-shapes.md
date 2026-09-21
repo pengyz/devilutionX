@@ -237,12 +237,12 @@ TEST(PressureShapesTest, CounterPoolHasNoCursesAndNoAcidResistance)
 
 ## 任务 5：逐字节不变量（(g)）
 
-- [ ] **步骤 1：记录黄金哈希**（`test/fixtures/pressure/immutable_tables.sha256`）
+- [ ] **步骤 1：记录黄金哈希**（`test/fixtures/pressure/immutable_tables.fnv64`）
 
 覆盖：`assets/txtdata/monsters/monstdat.tsv`、`mods/hf/txtdata/monsters/monstdat.tsv`、`assets/txtdata/items/itemdat.tsv`、掉落相关表 ✓
 **更正**：**不存在**"`Source/stores.cpp` 的价格常量表" ✗（价格来自 `itemdat` 的 cost ✓）⇒ 该项删除 ✓；**不得**把 `level_roster_params.tsv` 放进不可变清单（本腿要改它 ✓）。文件后缀 `.sha256` ⇒ **CRLF** ✓。
 
-- [ ] **步骤 2：写测试**：逐文件比对 sha256 ✓（**合法改动必须显式更新该文件**，更新本身即"我越界了"的可见记录 ✓）
+- [ ] **步骤 2：写测试**：逐文件比对 **FNV-1a 64** 摘要（生成器 `tools/gen_pressure_goldens.py` ✓，覆盖 **10 张表** ✓） ✓（**合法改动必须显式更新该文件**，更新本身即"我越界了"的可见记录 ✓）
 - [ ] **步骤 3：反证**：改任一被覆盖文件的一行 ⇒ 红 ⇒ 恢复 ⇒ 绿 ✓
 - [ ] **步骤 4：提交**
 
