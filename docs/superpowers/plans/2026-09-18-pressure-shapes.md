@@ -120,68 +120,12 @@ git commit -m "feat(roster): give level 16 squad parameters and guard it"
 
 > **范围更正（2026-09-18 实测）**：本夹具（`SquadPlacementTest`）**缺 Hellfire 素材** ⇒ 生成 L17-24 时崩在 `DRLG_LPass3` ✗。
 > 故已测范围＝**L1-15**（比率 0.277–0.314，围绕配置的 `squad_chance=30` ✓），**L16 无参数行**（决定 (a) ✓）；**L17-24 待 HF 套件** ⚠（其夹具已显式挂载 `hellfire.mpq` ✓）。
-> **已知限制（未证成的反证）** ⚠：**"重调某层 `squad_chance` ⇒ 该层红"尚未证成** ✗ —— 篡改**源表**不可见（`LoadLevelRoster()` 读打包副本 ✓）；夹具路径 `LoadSquadParams(R"(txtdata\monsters\level_roster_params_squads_l9_5.tsv)")` 报
-> `Unable to load data from file …` ✗（roster 文件亦须在夹具目录内 ✓）。
-> **已证成的只有机制层** ✓：改黄金集 `squad_rates.txt`（L9→0.55）⇒ 测试**红**并报 "level 9 squad rate moved" ✓。
-> **N=100×15 层的实测代价＝约 63 s** ⚠（门禁会变慢 ✓）。
+> **能力已证成（复核实测 ✓）**：把某层 `squad_chance` 改小的覆盖件放进 **`build/test/fixtures/txtdata/monsters/`** ⇒ 本用例**红**（
+> `The difference between rate and expectedRate is … exceeds Tolerance` ＋ "level 9 squad rate moved" ✓）⇒ 守卫**不只能防黄金表被改，也能抓参数重调** ✓。
+> **真因（我此前归因错误 ✗）**：`PrefPath = BasePath()+"test/fixtures/"` 实为 **`build/test/fixtures/`**，`OverridePaths` 在 **`TestInitGame()` 内一次性快照**（`Source/engine/assets.cpp:746` ✓）⇒ 加载器只读 **build 侧**、**不读**受控 `test/fixtures/` ✓；"roster 文件亦须在夹具目录内"是**错的** ✗（roster 取自 `devilutionx.mpq` ✓）。
+> **持久修法（待办）**：`SetPrefPath(paths::BasePath() + "../test/fixtures/")` 放在 **`TestInitGame()` 之前** ✓。
+> **改进项（省时）**：并入既有无条件打印同指标 `rolls/eligible` 的 `ShippedSquadChanceRealisesSquadsOnEveryLevel`（N=50 ✓，+0 s ✓）可省本用例 **~63 s** ⚠（其报告不在 stdout，需先接出报告文件 ✓）。
 
-**文件**：`test/pressure_shapes_test.cpp`
-
-- [ ] **步骤 1：写测试（先跑通骨架，阈值先取现状基线）**
-
-**先读真实链（不得凭空取名 ✗）**：本仓**没有** `BuildLevelForShapeMeasurement` ✗（已核实 0 命中 ✓）。真实链在
-`test/level_roster_baseline_test.cpp`：`CreateDungeonForMeasurement(uint8_t,uint32_t)`（`:115` ✓）→ `GetLevelMTypes()` → `InitMonsters()`（`std::expected<void,std::string>`）；
-其 `RunLevel`（`:851`）与 `ShapeSquadObservation`（`:386`）是**该 TU 的文件内静态** ✗ ⇒ **新 TU 无法复用** ⇒ 本任务需**在新文件内复刻最小链**（或先把它们抽成共享头 ✓，二选一并在提交信息写明 ✓）。
-
-```cpp
-// 在本测试文件内复刻最小链（来源：test/level_roster_baseline_test.cpp:115/851）。
-// 注意：ShapeSquadObservation 是源 TU 的 static 类型 ⇒ 本文件自定义自己的承载结构 ✗
-struct ShapeSquadObservation { size_t eligibleCoreDraws; size_t rolls; };
-static std::optional<ShapeSquadObservation> BuildLevelForShapeMeasurement(uint8_t level, uint32_t seed);
-```
-```cpp
-TEST(PressureShapesTest, SquadRateMeetsBaselinePerLevel)
-{
-	if (missingMpqAssets_) // 与 baseline 同款保护（level_roster_baseline_test.cpp:867 ✓）
-		GTEST_SKIP() << "spawn.mpq assets unavailable";
-	constexpr int N = 100;                 // 作者决定 ✓
-	constexpr double Tolerance = 0.05;     // 容差；黄金值**只在** ExpectedSquadRateForLevel() 里（任务 6 步骤 3 ✓）
-	for (uint8_t level = 1; level <= 24; level++) {
-		ASSERT_NE(GetLevelRosterParams(level), nullptr) << "level " << static_cast<int>(level);
-		size_t eligible = 0, rolls = 0;
-		for (int seed = 0; seed < N; seed++) {
-			ASSERT_TRUE(GetLevelMTypes());            // 必须调用（复刻链的一环 ✓）
-			ASSERT_TRUE(InitMonsters());
-			const SquadRollCounters &stats = GetSquadRollStats();
-			eligible += stats.eligibleCoreDraws;
-			rolls += stats.rolls;
-		}
-		ASSERT_GT(eligible, 0u) << "level " << static_cast<int>(level) << " produced no eligible squad draws";
-		const double expected = ExpectedSquadRateForLevel(level); // 见任务 6 步骤 3 的黄金值表
-		EXPECT_GE(static_cast<double>(rolls) / static_cast<double>(eligible), expected - Tolerance)
-		    << "level " << static_cast<int>(level) << " squad rate below its pinned baseline";
-	}
-}
-```
-**聚合口径**：`sum(rolls)/sum(eligible)`（**不是**逐种子比值的均值 ✓，理由：与 `GenerateRnd(100)<chance` 的无偏 Bernoulli 口径一致 ✓，已由复核确认无系统性偏离 ✓）。
-
-- [ ] **步骤 2：运行（现状应 PASS：chance=30 ⇒ 约 0.30）**
-
-运行：`./build/pressure_shapes_test --gtest_filter='PressureShapesTest.SquadRateMeetsBaselinePerLevel'`
-预期：PASS ✓（若某层红 ⇒ 记录该层实测值，**先修正基线而不是放宽阈值** ✓）
-
-- [ ] **步骤 3：反证（**改 shipped 表**，不要用既有 fixture ✗）**
-
-**事实更正（复核实测 ✓）**：`test/fixtures/txtdata/monsters/level_roster_params_squads_{always,off,unleashed}.tsv` **只含 L1-15**、`chance=100/0` ✗（**没有 30，也没有 L16** ✓），且本测试经 `GetLevelRosterParams` 读的是**shipped** `assets/txtdata/monsters/level_roster_params.tsv` ⇒ **改 fixture 无效** ✗。
-反证做法：**临时**把 shipped 表某层 `squad_chance` 由 30 改成 5 ⇒ 该层**必须红** ✓ ⇒ `git checkout -- assets/txtdata/monsters/level_roster_params.tsv` 恢复 ⇒ 绿 ✓（两次输出内联记录 ✓）
-
-- [ ] **步骤 4：提交**
-
-```bash
-git commit -am "test(pressure): assert the per-level squad rate baseline"
-```
-
----
 
 ## 任务 3：类型等式 / 名册闭包 / 发射点白名单（(a)(b)(c)）
 

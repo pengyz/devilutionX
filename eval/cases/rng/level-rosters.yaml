@@ -37,8 +37,8 @@ run:
 expected:
   exit_code: 0
   failed: 0
-  passed_min: 10
-  skipped_max: 2
+  passed_min: 11
+  skipped_max: 1
   output_contains:
     - "[ MEASURED ] level 13 ranged share"
     - "[ MEASURED ] level 14 ranged share"
@@ -49,7 +49,7 @@ expected:
     - "[ SQUADFORM ]"
     - "[ SQUADLEASH ]"
     - "[ SQUADSIZE ]"
-    - "[  PASSED  ] 10 tests."
+    - "[  PASSED  ] 11 tests."
 
 description: >
   逐层名册 Phase A 的验收门禁：不看采样中间量，直接跑真实

@@ -1,5 +1,6 @@
 # Measured per-level squad rate: rolls / eligibleCoreDraws over N=100 dungeon builds.
-# Source: TEST_F(SquadPlacementTest, MeasureSquadRatesForShape) on 2026-09-18, shipped tables,
+# Source: measured by SquadPlacementTest.SquadRateMatchesMeasuredBaseline (its own loop over
+# N=100 dungeon builds per level, shipped tables) on 2026-09-18.
 # squad_chance=30 everywhere. These are pinned baselines, not derived values: retuning a level's
 # squad_chance is a conscious change that must update this table (otherwise the guard is
 # tautological). Coverage: levels 1-15. Level 16 has no parameter row (decision (a)); levels

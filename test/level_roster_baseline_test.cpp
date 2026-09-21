@@ -2307,6 +2307,7 @@ TEST_F(SquadPlacementTest, SquadRateMatchesMeasuredBaseline)
 		ASSERT_EQ(built, N) << "level " << level << " did not build every seed";
 		ASSERT_GE(eligible, 100u) << "level " << level << " produced too few eligible draws";
 		const double rate = static_cast<double>(rolls) / static_cast<double>(eligible);
-		EXPECT_NEAR(rate, expectedRate, Tolerance) << "level " << level << " squad rate moved";
+		EXPECT_NEAR(rate, expectedRate, Tolerance)
+		    << "level " << level << " squad rate moved (measured " << rate << ", baseline " << expectedRate << ")";
 	}
 }
