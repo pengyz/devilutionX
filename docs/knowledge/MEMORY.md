@@ -65,3 +65,4 @@
 
 - [`gotcha_pseudo_guards_and_assumed_state.md`](gotcha_pseudo_guards_and_assumed_state.md) — 三类"假验证"：假守卫 / 先测量后断言 / 没读准就断言（含修法与硬规则）
 - [`gotcha_build_concurrency_and_line_endings.md`](gotcha_build_concurrency_and_line_endings.md) — 构建并发与行尾五条硬规则：`job_kill` 只是请求 / build 单执行者 / `pgrep` 自匹配与兄弟匹配 / CRLF 最后归一化 / 漂移只认 `drift_ok`
+- [`pattern_decision_protocol.md`](pattern_decision_protocol.md) — 决策提问协议：按 artifact 面判定是否问作者 / ≤5 条批量带默认 / 五要素格式 / 不停等 + 待追认账本 / 反"以批准之名改设计"
