@@ -35,3 +35,19 @@ date: 2026-09-18
 
 **执行 → 独立复核 → 逐条实地核验 → 只采信被证实者 → 写回文档 → 记录失败** ✓
 （复核**作业失败 ≠ 复核通过**：本会话 codex 两连产品级失败，按"未复核"处理并改派 ✓）
+
+## 类型 4：空洞断言（集合为空即通过）—— 2026-09-18 新增（缺陷 D-1 修复过程中被抓出）
+
+**症状**：测试"遍历某个已加载的集合（`MonstersData`/`UniqueMonstersData`/`TownersDataEntries` …）并逐项断言"，
+但**没有对集合规模的下界做断言** ⇒ 一旦加载失败/数据被截断/解析返回空集，循环**零迭代**，
+测试**静默 PASS** —— 它是绿的，但它什么都没检查。
+
+**实例（本会话）**：
+- `test/ai_registry_test.cpp` 的 `DataReferencedAisAreImplemented`（修复后已补 `ASSERT_GE(size, 100u/20u)` ✓，
+  反证：把下界临时抬到 `100000u` ⇒ 红，消息 `... would be vacuous` ✓）；
+- **同类残留（已登记）**：`test/townerdat_test.cpp` 的 `TownerLongNamesPopulated`(:200)、
+  `GetNumTownerTypes`(:225)、`MultipleCowsOnlyOneType`(:243/254) 各自 `LoadTownerData()` 但未重复下界断言，
+  只有 `EXPECT_FALSE(empty())`/`EXPECT_GT(...,0u)` 这类**弱保护** ⚠。
+
+**修法**：任何"遍历集合"的测试，第一行必须是对该集合规模的**下界断言**（带"否则本检查是空洞的"失败信息），
+且该下界要有**余量**（本会话实测 `MonstersData.size()==138`，下界取 100 ⇒ 有 38 条余量 ✓，不会因合法内容改动误红 ✓）。
