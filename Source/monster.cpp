@@ -4648,7 +4648,18 @@ void ProcessMonsters()
 				// references it (the unique "Warpfire Hellspawn"). Guard the dispatch so a
 				// missing implementation can never call a null function pointer, and break the
 				// AI loop so the missing implementation cannot spin this loop.
-				if (AiFunction aiFunction = AiProc[static_cast<int8_t>(monster.ai)]; aiFunction != nullptr) {
+				const int8_t aiIndex = static_cast<int8_t>(monster.ai);
+				if (aiIndex < 0 || static_cast<size_t>(aiIndex) >= AiProc.size()) {
+					// Guards against the sentinel MonsterAIID::Invalid (-1) as well: indexing with
+					// a negative value converted to size_t would be out of bounds.
+					static bool loggedInvalidAi = false;
+					if (!loggedInvalidAi) {
+						loggedInvalidAi = true;
+						LogError("Monster AI index {} is out of range; the monster stands still", static_cast<int>(aiIndex));
+					}
+					break;
+				}
+				if (AiFunction aiFunction = AiProc[static_cast<size_t>(aiIndex)]; aiFunction != nullptr) {
 					aiFunction(monster);
 				} else {
 					static bool loggedMissingAi = false;
