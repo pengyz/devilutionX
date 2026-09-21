@@ -182,7 +182,7 @@ git commit -am "test(pressure): assert the per-level squad rate baseline"
 
 - [ ] **步骤 1：写生成器（(e)：表与黄金集必须脚本生成 ✓）**
 
-⚠ **两处补充**：①**必须同时扫 base 与 HF 的 misdat**（`assets/txtdata/missiles/misdat.tsv` **和** `mods/hf/txtdata/missiles/misdat.tsv` ✓——只扫 HF 会漏 base ✓）；②新 `.cpp`/TSV 必须 **CRLF** ✓、`.py/.json/.yaml/.md` 必须 **LF** ✓；`.sha256` 后缀**不在** `check_drift.py` 的 `LF_SUFFIXES` 也不在 `.editorconfig` 的 LF 例外 ⇒ **必须 CRLF** ✓（任务 5 同步 ✓）。
+⚠ **两处补充**：①**必须同时扫 base 与 HF 的 misdat**（`assets/txtdata/missiles/misdat.tsv` **和** `mods/hf/txtdata/missiles/misdat.tsv` ✓——只扫 HF 会漏 base ✓）；②新 `.cpp`/TSV 必须 **CRLF** ✓、`.py/.json/.yaml/.md` 必须 **LF** ✓；`.fnv64` 后缀**不在** `check_drift.py` 的 `LF_SUFFIXES` 也不在 `.editorconfig` 的 LF 例外 ⇒ **必须 CRLF** ✓（任务 5 同步 ✓）。
 
 生成器职责（**扫描而非手写** ✓）：①扫 `Source/monster.cpp` 的 `GetMissileType` 的 `case` 与各 `XxxAi` 内的 `StartRangedAttack/StartRangedSpecialAttack/AddMissile` 字面 `MissileID`（复现附录 E.1/E.1b 的口径 ✓）；②联 `mods/hf/.../misdat.tsv` 的 flags ⇒ AI→类型 ✓；③联 `level_rosters.tsv`×`monstdat`⇒ 各层段类型集合与反制数 ✓；④输出 `test/fixtures/pressure/ai_types.json`、`ai_emission_sites.json`、`segment_types.json` ✓；⑤并用同一份数据**重写规格附录 E/F/G 的表格**（禁止手抄 ✗）。
 
@@ -240,7 +240,7 @@ TEST(PressureShapesTest, CounterPoolHasNoCursesAndNoAcidResistance)
 - [ ] **步骤 1：记录黄金哈希**（`test/fixtures/pressure/immutable_tables.fnv64`）
 
 覆盖：`assets/txtdata/monsters/monstdat.tsv`、`mods/hf/txtdata/monsters/monstdat.tsv`、`assets/txtdata/items/itemdat.tsv`、掉落相关表 ✓
-**更正**：**不存在**"`Source/stores.cpp` 的价格常量表" ✗（价格来自 `itemdat` 的 cost ✓）⇒ 该项删除 ✓；**不得**把 `level_roster_params.tsv` 放进不可变清单（本腿要改它 ✓）。文件后缀 `.sha256` ⇒ **CRLF** ✓。
+**更正**：**不存在**"`Source/stores.cpp` 的价格常量表" ✗（价格来自 `itemdat` 的 cost ✓）⇒ 该项删除 ✓；**不得**把 `level_roster_params.tsv` 放进不可变清单（本腿要改它 ✓）。文件后缀 `.fnv64` ⇒ **CRLF** ✓。
 
 - [ ] **步骤 2：写测试**：逐文件比对 **FNV-1a 64** 摘要（生成器 `tools/gen_pressure_goldens.py` ✓，覆盖 **10 张表** ✓） ✓（**合法改动必须显式更新该文件**，更新本身即"我越界了"的可见记录 ✓）
 - [ ] **步骤 3：反证**：改任一被覆盖文件的一行 ⇒ 红 ⇒ 恢复 ⇒ 绿 ✓
