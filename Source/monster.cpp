@@ -4644,7 +4644,20 @@ void ProcessMonsters()
 
 		while (true) {
 			if ((monster.flags & MFLAG_SEARCH) == 0 || !AiPlanPath(monster)) {
-				AiProc[static_cast<int8_t>(monster.ai)](monster);
+				// Defect D-1: MonsterAIID::FireMan has no entry in AiProc, yet monster data
+				// references it (the unique "Warpfire Hellspawn"). Guard the dispatch so a
+				// missing implementation can never call a null function pointer, and break the
+				// AI loop so the missing implementation cannot spin this loop.
+				if (AiFunction aiFunction = AiProc[static_cast<int8_t>(monster.ai)]; aiFunction != nullptr) {
+					aiFunction(monster);
+				} else {
+					static bool loggedMissingAi = false;
+					if (!loggedMissingAi) {
+						loggedMissingAi = true;
+						LogError("Monster AI {} has no implementation; the monster stands still", static_cast<int>(monster.ai));
+					}
+					break;
+				}
 			}
 
 			if (!UpdateModeStance(monster))

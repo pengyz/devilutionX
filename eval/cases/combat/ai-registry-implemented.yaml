@@ -1,0 +1,30 @@
+# 维护提醒：本 case 的 expected.passed_min 与 output_contains 里的 "[  PASSED  ] N tests."
+# 是硬编码的用例计数（沿用 R35 约定）。往 AiRegistryTest 里增删用例后必须同步这两处，
+# 否则门禁会静默失效（N 偏小）或误红（N 偏大）。当前 N = 1（单用例、无素材依赖）。
+#
+# 背景（缺陷 D-1，2026-09-18）：MonsterAIID::FireMan 在 AiProc 中是 nullptr，而数据引用了它
+# （unique "Warpfire Hellspawn"）。本用例保护两件事：
+#   1) AiProc 中除显式"已知未实现"清单外，不得有 null 项（该清单当前仅含 FireMan）；
+#   2) 该清单被移除/扩大时必须显式改动 —— 反证方式：把 FireMan 移出清单，本用例会红
+#      （实测信息："AI type 17 has null function pointer"）。
+id: "ai-registry-implemented"
+name: "AI 注册表：除已知未实现清单外不得有空项（D-1 守卫）"
+category: "ai"
+difficulty: "easy"
+tags: ["ai", "registry", "guard", "defect-d1"]
+
+setup:
+  mpq_required: false
+  timeout: 60
+
+run:
+  backend: "gtest"
+  binary: "ai_registry_test"
+  filter: "AiRegistryTest.*"
+
+expected:
+  exit_code: 0
+  failed: 0
+  passed_min: 1
+  skipped_max: 0
+  output_contains: ["[  PASSED  ] 1 test."]
