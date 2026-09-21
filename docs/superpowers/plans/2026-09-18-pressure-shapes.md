@@ -17,7 +17,7 @@
 - 行尾：TSV/C++ **CRLF** ✓；`.md/.py/.yaml/.sh/.json` **LF** ✓；**所有编辑（含反证与恢复）完成后行尾归一化必须是最后一步** ✓
 - **提交前对"提交信息声称写入的每一处"做计数 grep** ✓；校验失败**必须非零退出**（`if not all(checks): sys.exit(1)` ✓）
 - **同一 `build/` 只能有一个执行者** ✓；杀进程后用 `ps` 验证归零再启动新构建 ✓
-- 门禁：`python3 tools/run_tests.py --json /tmp/ci.json`（**只看 `ctest.failed==0`、`passed_pct==100`、`drift.drift_ok==true`** ✓）+ `python3 -m tools.eval.backend --smoke`；push 后跟踪 CI 到终态 ✓
+- 门禁：`python3 tools/run_tests.py --json /tmp/ci.json` ⇒ **JSON 层级实为 `steps.ctest.failed` / `steps.ctest.passed_pct` / `steps.drift.drift_ok`** ✓（**必须带 `steps.` 前缀** ✗，否则照抄会 `KeyError` ✓）+ `python3 -m tools.eval.backend --smoke`；push 后跟踪 CI 到终态 ✓
 - 台账（`docs/superpowers/ledgers/**`）随提交进 git ✓
 
 ---
@@ -29,7 +29,8 @@
 | `assets/txtdata/monsters/level_roster_params.tsv` | **改**：补 **L16 行** ✓ + 按层段调 `squad_chance/squad_size/squad_leashed` |
 | `test/fixtures/txtdata/monsters/level_roster_params_squads_*.tsv` | **已有**（复核确认 ✓）：反证用的坏参数 fixture |
 | `test/pressure_shapes_test.cpp` | **新建**：守卫 (a)(b)(c)(d)(f)(f2)(g) |
-| `CMake/Tests.cmake` | **改**：注册 `pressure_shapes_test`（漂移 A/F 强制 ✓） |
+| `CMake/Tests.cmake` | **改**：注册 `pressure_shapes_test`（漂移 A ✓） |
+| `tools/run_tests.py` | **改**：把 `pressure_shapes_test` 加进硬编码的 `TEST_TARGETS`（`:42` ✓）——**漏改则漂移 F 必红** ✗（`check_drift.py:286-299` 会报"registered but TEST_TARGETS omits it" ✓） |
 | `tools/gen_pressure_tables.py` | **新建**：生成附录 E/F/G 的表与测试黄金集（(e) 要求"表由脚本生成" ✓） |
 | `test/fixtures/pressure/*.json` | **新建**：黄金集（类型集合、AI→类型映射、数值表哈希） |
 | `test/sampling_behavior_test.cpp` | **改**（T7）：输出"遭遇同时 ≥2 类型"比例 |
@@ -92,9 +93,10 @@ TEST(PressureShapesTest, EveryLevelHasSquadParameters)
 - [ ] **步骤 7：提交（原子 ✓）**
 
 ```bash
-git add assets/txtdata/monsters/level_roster_params.tsv test/pressure_shapes_test.cpp CMake/Tests.cmake
+git add assets/txtdata/monsters/level_roster_params.tsv test/pressure_shapes_test.cpp CMake/Tests.cmake tools/run_tests.py
 git commit -m "feat(roster): give level 16 squad parameters and guard it"
 ```
+（**四个文件缺一不可** ✗：漏 `tools/run_tests.py` ⇒ 漂移 F 红 ⇒ 半提交 ✓）
 
 ---
 
@@ -104,39 +106,49 @@ git commit -m "feat(roster): give level 16 squad parameters and guard it"
 
 - [ ] **步骤 1：写测试（先跑通骨架，阈值先取现状基线）**
 
+**先读真实链（不得凭空取名 ✗）**：本仓**没有** `BuildLevelForMeasurement` ✗（已核实 0 命中 ✓）。真实链在
+`test/level_roster_baseline_test.cpp`：`CreateDungeonForMeasurement(uint8_t,uint32_t)`（`:115` ✓）→ `GetLevelMTypes()` → `InitMonsters()`（`std::expected<void,std::string>`）；
+其 `RunLevel`（`:851`）与 `SquadObservation`（`:386`）是**该 TU 的文件内静态** ✗ ⇒ **新 TU 无法复用** ⇒ 本任务需**在新文件内复刻最小链**（或先把它们抽成共享头 ✓，二选一并在提交信息写明 ✓）。
+
+```cpp
+// 在本测试文件内复刻最小链（来源：test/level_roster_baseline_test.cpp:115/851；不得调用该 TU 的 static ✗）
+static std::optional<SquadObservation> BuildLevelForShapeMeasurement(uint8_t level, uint32_t seed);
+```
 ```cpp
 TEST(PressureShapesTest, SquadRateMeetsBaselinePerLevel)
 {
-	// Baseline fixture (spec appendix G): chance=30 on every level, so rolls/eligible >= 0.30.
-	// N=100 builds per level (author decision); L16 included now that it has a row.
-	constexpr int N = 100;
-	constexpr double Baseline = 0.30 - 0.05; // tolerance
+	if (missingMpqAssets_) // 与 baseline 同款保护（level_roster_baseline_test.cpp:867 ✓）
+		GTEST_SKIP() << "spawn.mpq assets unavailable";
+	constexpr int N = 100;                 // 作者决定 ✓
+	constexpr double Tolerance = 0.05;     // 容差（唯一黄金值来源，见任务 6 步骤 3）
 	for (uint8_t level = 1; level <= 24; level++) {
-		size_t eligible = 0;
-		size_t rolls = 0;
+		ASSERT_NE(GetLevelRosterParams(level), nullptr) << "level " << static_cast<int>(level);
+		size_t eligible = 0, rolls = 0;
 		for (int seed = 0; seed < N; seed++) {
-			ASSERT_TRUE(BuildLevelForMeasurement(level, seed)); // existing test helper
+			ASSERT_TRUE(GetLevelMTypes());            // 必须调用（复刻链的一环 ✓）
 			ASSERT_TRUE(InitMonsters());
 			const SquadRollCounters &stats = GetSquadRollStats();
 			eligible += stats.eligibleCoreDraws;
 			rolls += stats.rolls;
 		}
 		ASSERT_GT(eligible, 0u) << "level " << static_cast<int>(level) << " produced no eligible squad draws";
-		EXPECT_GE(static_cast<double>(rolls) / static_cast<double>(eligible), Baseline)
-		    << "level " << static_cast<int>(level) << " squad rate below baseline";
+		const double expected = ExpectedSquadRateForLevel(level); // 见任务 6 步骤 3 的黄金值表
+		EXPECT_GE(static_cast<double>(rolls) / static_cast<double>(eligible), expected - Tolerance)
+		    << "level " << static_cast<int>(level) << " squad rate below its pinned baseline";
 	}
 }
 ```
-（`BuildLevelForMeasurement` 是本仓既有测试的建关辅助；若签名不同，**照 `test/level_roster_baseline_test.cpp:844-858` 的 `RunLevel` 取真实写法** ✓，不得凭空取名 ✗。）
+**聚合口径**：`sum(rolls)/sum(eligible)`（**不是**逐种子比值的均值 ✓，理由：与 `GenerateRnd(100)<chance` 的无偏 Bernoulli 口径一致 ✓，已由复核确认无系统性偏离 ✓）。
 
 - [ ] **步骤 2：运行（现状应 PASS：chance=30 ⇒ 约 0.30）**
 
 运行：`./build/pressure_shapes_test --gtest_filter='PressureShapesTest.SquadRateMeetsBaselinePerLevel'`
 预期：PASS ✓（若某层红 ⇒ 记录该层实测值，**先修正基线而不是放宽阈值** ✓）
 
-- [ ] **步骤 3：反证（用既有 fixture ✓）**
+- [ ] **步骤 3：反证（**改 shipped 表**，不要用既有 fixture ✗）**
 
-把某层 `squad_chance` 由 30 改成 5（可在 fixture `level_roster_params_squads_*.tsv` 内做 ✓）⇒ 该层**必须红** ✓ ⇒ 恢复 ⇒ 绿 ✓
+**事实更正（复核实测 ✓）**：`test/fixtures/txtdata/monsters/level_roster_params_squads_{always,off,unleashed}.tsv` **只含 L1-15**、`chance=100/0` ✗（**没有 30，也没有 L16** ✓），且本测试经 `GetLevelRosterParams` 读的是**shipped** `assets/txtdata/monsters/level_roster_params.tsv` ⇒ **改 fixture 无效** ✗。
+反证做法：**临时**把 shipped 表某层 `squad_chance` 由 30 改成 5 ⇒ 该层**必须红** ✓ ⇒ `git checkout -- assets/txtdata/monsters/level_roster_params.tsv` 恢复 ⇒ 绿 ✓（两次输出内联记录 ✓）
 
 - [ ] **步骤 4：提交**
 
@@ -151,6 +163,8 @@ git commit -am "test(pressure): assert the per-level squad rate baseline"
 **文件**：`tools/gen_pressure_tables.py`（新建）、`test/fixtures/pressure/*.json`（新建）、`test/pressure_shapes_test.cpp`
 
 - [ ] **步骤 1：写生成器（(e)：表与黄金集必须脚本生成 ✓）**
+
+⚠ **两处补充**：①**必须同时扫 base 与 HF 的 misdat**（`assets/txtdata/missiles/misdat.tsv` **和** `mods/hf/txtdata/missiles/misdat.tsv` ✓——只扫 HF 会漏 base ✓）；②新 `.cpp`/TSV 必须 **CRLF** ✓、`.py/.json/.yaml/.md` 必须 **LF** ✓；`.sha256` 后缀**不在** `check_drift.py` 的 `LF_SUFFIXES` 也不在 `.editorconfig` 的 LF 例外 ⇒ **必须 CRLF** ✓（任务 5 同步 ✓）。
 
 生成器职责（**扫描而非手写** ✓）：①扫 `Source/monster.cpp` 的 `GetMissileType` 的 `case` 与各 `XxxAi` 内的 `StartRangedAttack/StartRangedSpecialAttack/AddMissile` 字面 `MissileID`（复现附录 E.1/E.1b 的口径 ✓）；②联 `mods/hf/.../misdat.tsv` 的 flags ⇒ AI→类型 ✓；③联 `level_rosters.tsv`×`monstdat`⇒ 各层段类型集合与反制数 ✓；④输出 `test/fixtures/pressure/ai_types.json`、`ai_emission_sites.json`、`segment_types.json` ✓；⑤并用同一份数据**重写规格附录 E/F/G 的表格**（禁止手抄 ✗）。
 
@@ -183,18 +197,22 @@ git commit -m "test(pressure): generate and assert the type, mapping and emissio
 
 - [ ] **步骤 1：写测试**
 
+**事实更正（复核实测 ✓）**：`AffixFamilyExists` / `CounterFamilies` **不存在** ✗（0 命中 ✓）；而且在 `Source/*.h` 新增"只有测试调用"的函数会触发漂移 **E** ✗（`check_drift.py:214-235` ✓，且 `CLAUDE.md` 禁止改 `E_ALLOWLIST` ✗）。
+**替代做法**：在测试/生成器内**直接解析 TSV 第 2 列族名** ✓（`assets/txtdata/items/item_prefixes.tsv`、`item_suffixes.tsv`，与附录 D 的口径一致 ✓）；`test/fixtures/txtdata/` 下**没有 items fixture** ✗ ⇒ 本任务只读 shipped 表 ✓。
+
 ```cpp
 TEST(PressureShapesTest, CounterPoolHasNoCursesAndNoAcidResistance)
 {
 	// (d) premise: curses are not counters; D1 has no acid resistance family (verified 2026-09-18).
-	// If either changes, the guard thresholds in the spec must be re-derived.
-	EXPECT_FALSE(AffixFamilyExists("ACIDRES"));
-	for (const auto &family : CounterFamilies())
+	// Families come from parsing the shipped affix TSVs (column 2), not from a new API.
+	const std::set<std::string> families = ReadAffixFamiliesFromTsv(); // 测试内本地实现 ✓
+	EXPECT_EQ(families.count("ACIDRES"), 0u) << "an acid resistance family appeared; re-derive the guard thresholds";
+	for (const std::string &family : families)
 		EXPECT_EQ(family.find("_CURSE"), std::string::npos) << family;
 }
 ```
 
-- [ ] **步骤 2：反证**：临时加一条 `ACIDRES` 到 fixture 词缀表 ⇒ 红 ⇒ 恢复 ⇒ 绿 ✓
+- [ ] **步骤 2：反证**：**临时**在 shipped `item_prefixes.tsv` 里加一条 `ACIDRES` 族 ⇒ 红 ⇒ `git checkout` 恢复 ⇒ 绿 ✓（无 items fixture，故改 shipped 表 ✓）
 - [ ] **步骤 3：提交**
 
 ---
@@ -203,7 +221,8 @@ TEST(PressureShapesTest, CounterPoolHasNoCursesAndNoAcidResistance)
 
 - [ ] **步骤 1：记录黄金哈希**（`test/fixtures/pressure/immutable_tables.sha256`）
 
-覆盖：`assets/txtdata/monsters/monstdat.tsv`、`mods/hf/txtdata/monsters/monstdat.tsv`、`assets/txtdata/items/itemdat.tsv`、掉落相关表、`Source/stores.cpp` 的价格常量所在表 ✓
+覆盖：`assets/txtdata/monsters/monstdat.tsv`、`mods/hf/txtdata/monsters/monstdat.tsv`、`assets/txtdata/items/itemdat.tsv`、掉落相关表 ✓
+**更正**：**不存在**"`Source/stores.cpp` 的价格常量表" ✗（价格来自 `itemdat` 的 cost ✓）⇒ 该项删除 ✓；**不得**把 `level_roster_params.tsv` 放进不可变清单（本腿要改它 ✓）。文件后缀 `.sha256` ⇒ **CRLF** ✓。
 
 - [ ] **步骤 2：写测试**：逐文件比对 sha256 ✓（**合法改动必须显式更新该文件**，更新本身即"我越界了"的可见记录 ✓）
 - [ ] **步骤 3：反证**：改任一被覆盖文件的一行 ⇒ 红 ⇒ 恢复 ⇒ 绿 ✓
@@ -223,7 +242,9 @@ TEST(PressureShapesTest, CounterPoolHasNoCursesAndNoAcidResistance)
 | L17-24 | 40 | 3 | 1 | 精英抉择（**以小队为主** ✓） |
 
 - [ ] **步骤 2：写 L1-8 可绕性断言**（(e) 的放置侧 ✓）：对该段每层采样，断言"至少存在一条不经过小队锚点的通路"（用既有地图遍历辅助；**若现有辅助不足，先停下报告**，不得自造判据 ✗）
-- [ ] **步骤 3：重跑任务 2 的 (f) 守卫并**按新基线重钉阈值** ✓（`0.30-0.05` → 按各层段实测值，逐层写死 ✓）
+- [ ] **步骤 3：重跑 (f) 并**重钉唯一黄金值**（**必须删除**任务 2 里的 `Baseline = 0.30-0.05` ✗）**
+
+**避免双黄金值** ✗（复核指出）：`ExpectedSquadRateForLevel(level)` 表成为**唯一**来源 ✓，并写明：①按**实测**逐层写死 ✓；②容差固定 **0.05** ✓；③N=100 与聚合口径 `sum/sum` 与任务 2 一致 ✓；④L1-8 若把 `chance` 调成 25，则其黄金值为 **0.25**、断言为 `≥0.25-0.05` ✓（**不得**再保留 0.30 的旧常量 ✗）。
 - [ ] **步骤 4：反证**：把 L13-16 的 `squad_chance` 调回 30 ⇒ 该段 (f) 断言**必须红** ✓ ⇒ 恢复 ⇒ 绿 ✓
 - [ ] **步骤 5：提交**
 
