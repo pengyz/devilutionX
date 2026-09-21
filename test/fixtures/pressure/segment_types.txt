@@ -1,0 +1,4 @@
+L1-8	Lightning,Physical
+L13-16	Fire,Lightning,Magic,Physical
+L17-24	Fire,Magic,Physical
+L9-12	Acid,Fire,Lightning,Physical

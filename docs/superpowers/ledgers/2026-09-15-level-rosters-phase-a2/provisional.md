@@ -13,6 +13,7 @@
 | P6 | **D-2 只登记不修**（HF 专属导弹在 base 数据下越界 ⚠） | 可逆 ✓ | **潜在可见**（越界读可能崩）⚠ ⇒ 若要立刻修，请说 ✓ | 立修 ✓ |
 | P7 | `docs/knowledge/` 的三条 gotcha 与索引更新 | 可逆 ✓ | 否 | 删/改 ✓ |
 
-**本轮自主决定 N = 9 项**（全部可一键回滚 ✓）。
+**本轮自主决定 N = 10 项**（全部可一键回滚 ✓）。
 | P8 | 逐字节不变量守卫的**哈希算法＝FNV-1a 64 位**（非 SHA-1：仓库只有分块 API ✗；也非提交表副本 ✗） | 可逆 ✓ | 否 | 改算法 + 重新生成 `immutable_tables.fnv64` ✓ |
 | P9 | 不变量守卫覆盖面由 **3 表扩到 10 表**（加 unique_monstdat、base+HF unique_itemdat、base+HF item_prefixes/suffixes） | 可逆 ✓ | 否 | 从 `tools/gen_pressure_goldens.py` 的清单里删行并重跑生成器 ✓ |
+| P10 | 黄金集用**纯文本**（非 JSON ✓，免 C++ JSON 依赖）；(a) 实时等式与 (c) 白名单由**门禁步骤** `run_tests.py::run_pressure_tables()` 强制（非 C++ 测试 ✓） | 可逆 ✓ | 否 | 改生成器输出格式/移除该门禁步骤 ✓ |

@@ -219,6 +219,21 @@ def run_drift_check() -> dict:
     return {"drift_ok": ok, "passes": passes, "output": result.stdout}
 
 
+def run_pressure_tables() -> dict:
+    """The pressure-shape golden tables must match a fresh scan of the source. Guards (a) live
+    equality and (c) the emission-site whitelist are enforced here, because only a Python scan
+    can read the C++ emission sites without duplicating that logic inside a C++ test."""
+    result = subprocess.run(
+        [sys.executable, str(REPO_ROOT / "tools" / "gen_pressure_tables.py"), "--check"],
+        cwd=REPO_ROOT, capture_output=True, text=True,
+    )
+    ok = result.returncode == 0
+    print(result.stdout, end="")
+    if not ok:
+        print(result.stderr, end="", file=sys.stderr)
+    return {"pressure_tables_ok": ok, "output": result.stdout}
+
+
 def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--build-dir", type=Path, default=DEFAULT_BUILD_DIR)
@@ -271,6 +286,7 @@ def main() -> int:
         report["steps"]["ctest"] = run_ctest(build_dir)
         if not args.skip_drift:
             report["steps"]["drift"] = run_drift_check()
+            report["steps"]["pressure_tables"] = run_pressure_tables()
 
     # Exit code: 0 if everything passed.
     ok = True
@@ -293,6 +309,8 @@ def main() -> int:
         if report["steps"]["filtered"]["failed_count"] > 0:
             ok = False
     if "drift" in report["steps"] and not report["steps"]["drift"]["drift_ok"]:
+        ok = False
+    if "pressure_tables" in report["steps"] and not report["steps"]["pressure_tables"]["pressure_tables_ok"]:
         ok = False
 
     if args.json:

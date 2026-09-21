@@ -1,7 +1,9 @@
 #include <gtest/gtest.h>
 
 #include <fstream>
+#include <optional>
 #include <set>
+#include <map>
 #include <vector>
 #include <utility>
 #include <iterator>
@@ -114,6 +116,127 @@ TEST(PressureShapesTest, ImmutableTablesUnchanged)
 		checked++;
 	}
 	EXPECT_EQ(checked, golden.size()) << "not every protected table was actually checked";
+}
+
+
+namespace {
+// Minimal TSV helpers: the guards below read the shipped tables directly (source tree), like the
+// affix-premise guard does.
+std::vector<std::vector<std::string>> ReadTsvRows(const std::string &relativePath, bool &opened)
+{
+	opened = false;
+	std::vector<std::vector<std::string>> rows;
+	std::ifstream file(paths::BasePath() + "../" + relativePath);
+	if (!file.is_open())
+		return rows;
+	opened = true;
+	std::string line;
+	while (std::getline(file, line)) {
+		if (!line.empty() && line.back() == '\r')
+			line.pop_back();
+		if (line.empty())
+			continue;
+		std::vector<std::string> fields;
+		size_t start = 0;
+		while (true) {
+			const size_t tab = line.find('\t', start);
+			if (tab == std::string::npos) {
+				fields.push_back(line.substr(start));
+				break;
+			}
+			fields.push_back(line.substr(start, tab - start));
+			start = tab + 1;
+		}
+		rows.push_back(std::move(fields));
+	}
+	return rows;
+}
+
+std::set<std::string> ReadGoldenLines(const std::string &name)
+{
+	std::set<std::string> lines;
+	std::ifstream file(paths::BasePath() + "../test/fixtures/pressure/" + name);
+	std::string line;
+	while (std::getline(file, line)) {
+		if (!line.empty() && line.back() == '\r')
+			line.pop_back();
+		if (!line.empty())
+			lines.insert(line);
+	}
+	return lines;
+}
+} // namespace
+
+TEST(PressureShapesTest, RosterAisMatchGolden)
+{
+	// (b) closure: every AI used as a roster core must be in the generated golden set, and the
+	// golden must not name an AI the roster no longer uses. A new roster AI therefore fails here
+	// until the generator is re-run, which keeps the damage-type model in sync with the data.
+	bool rowsOpened = false;
+	const auto roster = ReadTsvRows("assets/txtdata/monsters/level_rosters.tsv", rowsOpened);
+	bool monstdatOpened = false;
+	const auto monstdat = ReadTsvRows("mods/hf/txtdata/monsters/monstdat.tsv", monstdatOpened);
+	if (!rowsOpened || !monstdatOpened)
+		GTEST_SKIP() << "roster or monster table not available on disk";
+
+	// Column positions come from the headers: the AI column is not the second one, and
+	// hardcoding a position is exactly the kind of assumption that silently breaks a guard.
+	auto column = [](const std::vector<std::string> &header, const std::string &name) -> std::optional<size_t> {
+		for (size_t i = 0; i < header.size(); i++)
+			if (header[i] == name)
+				return i;
+		return std::nullopt;
+	};
+	const auto aiIdCol = column(monstdat[0], "_monster_id");
+	const auto aiCol = column(monstdat[0], "ai");
+	const auto rosterIdCol = column(roster[0], "monster_id");
+	const auto rosterRoleCol = column(roster[0], "role");
+	ASSERT_TRUE(aiIdCol && aiCol && rosterIdCol && rosterRoleCol) << "unexpected table header; the guard cannot run";
+
+	std::map<std::string, std::string> aiOf;
+	for (size_t i = 1; i < monstdat.size(); i++)
+		if (monstdat[i].size() > *aiCol)
+			aiOf[monstdat[i][*aiIdCol]] = monstdat[i][*aiCol];
+
+	std::set<std::string> live;
+	for (size_t i = 1; i < roster.size(); i++) {
+		if (roster[i].size() <= *rosterRoleCol || roster[i][*rosterRoleCol] != "core")
+			continue;
+		const auto it = aiOf.find(roster[i][*rosterIdCol]);
+		if (it != aiOf.end())
+			live.insert(it->second);
+	}
+
+	const std::set<std::string> golden = ReadGoldenLines("roster_ais.txt");
+	ASSERT_GE(golden.size(), 10u) << "golden roster AI list unexpectedly small";
+	for (const std::string &ai : live)
+		EXPECT_TRUE(golden.count(ai) != 0) << ai << " is a roster core but missing from the golden list";
+	for (const std::string &ai : golden)
+		EXPECT_TRUE(live.count(ai) != 0) << ai << " is in the golden list but no longer a roster core";
+}
+
+TEST(PressureShapesTest, EveryBandHasTwoAnswerableCounters)
+{
+	// C1 acceptance as a property of the generated table: each band must offer at least two
+	// demand types that an affix family can answer. Acid is excluded: D1 has no acid resistance.
+	const std::set<std::string> golden = ReadGoldenLines("segment_types.txt");
+	ASSERT_GE(golden.size(), 4u) << "segment type table unexpectedly small";
+	const std::set<std::string> answerable { "Fire", "Lightning", "Magic", "Physical" };
+	for (const std::string &line : golden) {
+		const size_t tab = line.find('\t');
+		ASSERT_NE(tab, std::string::npos) << line;
+		const std::string bandName = line.substr(0, tab);
+		const std::string types = line.substr(tab + 1);
+		size_t counters = 0;
+		std::stringstream stream(types);
+		std::string type;
+		while (std::getline(stream, type, ',')) {
+			EXPECT_TRUE(answerable.count(type) != 0 || type == "Acid") << bandName << " has unknown type " << type;
+			if (answerable.count(type) != 0)
+				counters++;
+		}
+		EXPECT_GE(counters, 2u) << bandName << " offers fewer than two answerable counters";
+	}
 }
 
 TEST(PressureShapesTest, Level16HasNoSquadParameterRow)
