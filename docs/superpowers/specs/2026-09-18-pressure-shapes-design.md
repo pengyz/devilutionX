@@ -230,3 +230,37 @@
 | 商店仅城内 | `Source/stores.cpp:2471/2658/2776` 均有 `leveltype == DTYPE_TOWN` |
 | 既有守卫 | `test/sampling_behavior_test.cpp`、`test/level_roster_baseline_test.cpp` |
 | 死亡/存档现状（D 腿） | 单机死亡不写档；死亡时 ESC 读旧档 `Source/diablo.cpp:524-532` |
+
+## 11. 附录 C：现状机械基线（2026-09-18 实测，原始输出未加工）
+
+> 来源：`./build/sampling_behavior_test --gtest_filter=SamplingBaselineTest.*`（既有守卫的实测输出 ✓）。
+> 用途：§6.4 要求先取基线；本表为**机械侧**基线（试玩侧基线仍待取 ⚠）。
+
+```
+[ CORESIZE ] level 1 cores 4
+[ CORESIZE ] level 2 cores 5
+[ CORESIZE ] level 3 cores 5
+[ CORESIZE ] level 4 cores 5
+[ CORESIZE ] level 5 cores 4
+[ CORESIZE ] level 6 cores 4
+[ CORESIZE ] level 7 cores 4
+[ CORESIZE ] level 8 cores 5
+[ CORESIZE ] level 9 cores 4
+[ CORESIZE ] level 10 cores 4
+[ CORESIZE ] level 11 cores 4
+[ CORESIZE ] level 12 cores 4
+[ CORESIZE ] level 13 cores 2
+[ CORESIZE ] level 14 cores 2
+[ CORESIZE ] level 15 cores 2
+[ CORESIZE ] level 16 cores 4
+[ CORESIZE ] level 17 cores 2
+[ CORESIZE ] level 18 cores 3
+[ CORESIZE ] level 19 cores 3
+[ CORESIZE ] level 20 cores 2
+[ CORESIZE ] level 21 cores 3
+[ CORESIZE ] level 22 cores 3
+[ CORESIZE ] level 23 cores 3
+[ CORESIZE ] level 24 cores 2
+```
+
+**说明**：以上为**逐层**现状值（核心规模 / 单局种类 / 占比 / 地板对照 ✓）。**尚未取**的基线：小队数、放置位置、精英构成、补给消耗、回城次数 ⚠（前三项需读放置代码或新增只读统计；后两项需试玩 ✓）。
