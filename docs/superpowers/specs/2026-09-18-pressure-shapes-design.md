@@ -507,7 +507,7 @@ EXPECT_EQ(GetLevelRosterParams(16), nullptr) << "L16 的 squad 参数行被补�
 **另注**：`HORKDMN`/`DEFILER` 与 `GetLevelMTypes()` 的 `AddMonsterType` **指向同一批怪** ⇒ v2 的"unique + 硬编码 boss"在 L19/L20 **重复计数** ✗，已删 ✓。
 **§4.2 的 L17-24 形态仍应以小队为主** ✓（因为 L21-L23 没有任何精英来源 ✓），但**不排除**在 L19/L20/L24 复用既有 boss ✓。
 （另注：本项此前在附录 D 的"待核验"里就标注过"L17-24 精英口径未核验 ⚠"，我却直接下了结论 ✗ —— 已按此修正 ✓。）
-（另有 6 个 `level=0` 的任务 unique 不参与分桶 ✓。）
+（另有 6 个 `level=0` 的任务 unique 不参与分桶 ✓；还有 1 行 **`level=28`（Doomlock）在 L1-24 之外** ✓——由短确认复核指出，不构成矛盾 ✓。）
 
 ### G.3 数量与放置结构
 
