@@ -27,9 +27,7 @@ std::set<std::string> ReadAffixFamiliesFromTsv(const std::string &relativePath, 
 	std::set<std::string> families;
 	std::ifstream file(paths::BasePath() + "../" + relativePath);
 	if (!file.is_open())
-		file.open(paths::BasePath() + relativePath);
-	if (!file.is_open())
-		return families;
+		return families; // no fallback: a missing source tree must SKIP, never read the build copy
 	opened = true;
 	std::string line;
 	bool first = true;
@@ -96,21 +94,33 @@ TEST(PressureShapesTest, CounterPoolPremisesHold)
 	if (!prefixesOpened || !suffixesOpened)
 		GTEST_SKIP() << "shipped affix tables not available on disk";
 	// Non-vacuity: a parse that yields nothing would make every check below meaningless.
-	// Bounds are the measured source values (prefixes 18, suffixes 32) minus margin; a parse
-	// that yields less means we are reading the wrong (stale, build-directory) copy.
-	ASSERT_GE(prefixes.size(), 15u) << "affix parse produced too few families; reading a stale copy?";
-	ASSERT_GE(suffixes.size(), 25u) << "affix parse produced too few families; reading a stale copy?";
+	// Exact goldens measured from the source tables on 2026-09-18. A loose bound cannot tell a
+	// stale or partial table from the real one (the build copy was identical), so this is an
+	// equality: any change here is a conscious data edit that must update this line.
+	ASSERT_EQ(prefixes.size(), 18u) << "prefix family count changed; update this golden consciously";
+	ASSERT_EQ(suffixes.size(), 32u) << "suffix family count changed; update this golden consciously";
 
 	// Premise 1: no acid resistance family exists (verified 2026-09-18); if one appears, the
 	// "answerable demand" arithmetic in appendix D must be re-derived.
 	EXPECT_EQ(prefixes.count("ACIDRES") + suffixes.count("ACIDRES"), 0u)
 	    << "an acid resistance family appeared; re-derive the guard thresholds";
 
-	// Premise 2: the counter pool used by the guard is exactly these families and none of them
-	// is a curse (curses lower a stat, they are not counterplay).
+	// Premise 2, stated precisely (the spec's original wording "families intersect curses is
+	// empty" is false: the shipped tables do contain curse families such as LIGHT_CURSE). The
+	// checkable claim is that the counter pool contains none of them, with the curse set derived
+	// from the data rather than hardcoded.
+	std::set<std::string> curseFamilies;
+	for (const std::string &family : prefixes)
+		if (family.ends_with("_CURSE"))
+			curseFamilies.insert(family);
+	for (const std::string &family : suffixes)
+		if (family.ends_with("_CURSE"))
+			curseFamilies.insert(family);
+	ASSERT_GT(curseFamilies.size(), 0u)
+	    << "no curse families found at all; the parse or the table shape changed";
 	const std::set<std::string> counterPool { "FIRERES", "LIGHTRES", "MAGICRES", "ALLRES", "LIGHT" };
 	for (const std::string &family : counterPool) {
-		EXPECT_EQ(family.find("_CURSE"), std::string::npos) << family;
+		EXPECT_EQ(curseFamilies.count(family), 0u) << family << " is a curse and must not be a counter";
 		EXPECT_EQ(prefixes.count(family) + suffixes.count(family), 1u)
 		    << family << " is missing from the shipped affix tables (rename or removal?)";
 	}
