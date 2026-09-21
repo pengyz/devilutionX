@@ -2,6 +2,10 @@
 
 #include <fstream>
 #include <set>
+#include <vector>
+#include <utility>
+#include <iterator>
+#include <cstdio>
 #include <sstream>
 #include <string>
 
@@ -50,6 +54,66 @@ std::set<std::string> ReadAffixFamiliesFromTsv(const std::string &relativePath, 
 	return families;
 }
 } // namespace
+
+
+
+namespace {
+// FNV-1a (64-bit) over the raw bytes. This is a change detector, not a cryptographic digest:
+// any single-byte edit to a protected table changes the value.
+uint64_t Fnv1a64(const std::vector<char> &data)
+{
+	uint64_t hash = 0xcbf29ce484222325ULL;
+	for (const unsigned char byte : data) {
+		hash ^= byte;
+		hash *= 0x100000001b3ULL;
+	}
+	return hash;
+}
+
+// Reads the generated golden list (test/fixtures/pressure/immutable_tables.fnv64). Regenerate
+// with: python3 - <<'PY' ... FNV-1a over the three tables ... PY  (see the ledger entry).
+std::vector<std::pair<std::string, std::string>> ReadGoldenList()
+{
+	std::vector<std::pair<std::string, std::string>> entries;
+	std::ifstream file(paths::BasePath() + "../test/fixtures/pressure/immutable_tables.fnv64");
+	if (!file.is_open())
+		return entries;
+	std::string line;
+	while (std::getline(file, line)) {
+		if (!line.empty() && line.back() == '\r')
+			line.pop_back(); // the golden list is CRLF; without this the path never opens
+		if (line.empty() || line[0] == '#')
+			continue;
+		const size_t sep = line.find("  ");
+		if (sep == std::string::npos)
+			continue;
+		entries.emplace_back(line.substr(0, sep), line.substr(sep + 2));
+	}
+	return entries;
+}
+} // namespace
+
+TEST(PressureShapesTest, ImmutableTablesUnchanged)
+{
+	// (g): the numeric, drop and price tables must not change as part of this leg.
+	const auto golden = ReadGoldenList();
+	ASSERT_GE(golden.size(), 3u) << "golden list unexpectedly small; the check would be vacuous";
+	size_t checked = 0;
+	for (const auto &[expected, relativePath] : golden) {
+		std::ifstream file(paths::BasePath() + "../" + relativePath, std::ios::binary);
+		if (!file.is_open())
+			continue;
+		const std::vector<char> data((std::istreambuf_iterator<char>(file)), std::istreambuf_iterator<char>());
+		ASSERT_GT(data.size(), 0u) << relativePath << " read as empty";
+		char actual[17];
+		std::snprintf(actual, sizeof(actual), "%016llx", static_cast<unsigned long long>(Fnv1a64(data)));
+		EXPECT_EQ(std::string(actual), expected)
+		    << relativePath << " changed; if intentional, regenerate the golden list consciously";
+		checked++;
+	}
+	if (checked == 0)
+		GTEST_SKIP() << "no protected table was available on disk";
+}
 
 TEST(PressureShapesTest, Level16HasNoSquadParameterRow)
 {
@@ -126,3 +190,5 @@ TEST(PressureShapesTest, CounterPoolPremisesHold)
 		    << family << " is missing from the shipped affix tables (rename or removal?)";
 	}
 }
+
+
