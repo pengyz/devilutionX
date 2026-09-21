@@ -18,9 +18,10 @@ namespace {
 //  - the counter pool contains no curse family.
 // They are read from the shipped affix tables, and the test skips (rather than passes
 // vacuously) when those tables are not present on disk.
-// BasePath() resolves to the build directory at test time, which holds a stale copy of the
-// data. A guard about the *shipped* tables must read the source tree, so the source-relative
-// path is tried first (build/../assets/...), and the build copy only as a fallback.
+// These guards are about the *shipped source* tables, so the reader opens the source tree
+// explicitly: BasePath() resolves to the build directory at test time, and the build copy is
+// not used here at all (it happens to be identical today, but it is not what we are guarding).
+// If the source table cannot be opened the test SKIPs rather than reading anything else.
 std::set<std::string> ReadAffixFamiliesFromTsv(const std::string &relativePath, bool &opened)
 {
 	opened = false;
