@@ -14,6 +14,12 @@
 #include "drlg_test.hpp"
 #include "tables/level_roster.h"
 #include "tables/monstdat.h"
+#include "levels/gendung.h"
+#include "levels/trigs.h"
+#include "monster.h"
+#include "engine/load_file.hpp"
+#include "engine/assets.hpp"
+#include "utils/str_cat.hpp"
 #include "utils/paths.h"
 
 using namespace devilution;
@@ -94,6 +100,7 @@ std::vector<std::pair<std::string, std::string>> ReadGoldenList()
 	return entries;
 }
 } // namespace
+
 
 TEST(PressureShapesTest, ImmutableTablesUnchanged)
 {
@@ -315,5 +322,3 @@ TEST(PressureShapesTest, CounterPoolPremisesHold)
 		    << family << " is missing from the shipped affix tables (rename or removal?)";
 	}
 }
-
-
