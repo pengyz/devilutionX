@@ -160,15 +160,33 @@ void SyncPlrKill(Player &player, DeathReason deathReason)
 
 	// 规格 §4.1①：单机的死亡必须**提交**（否则读档/退出重开可回到死前）。
 	// 只在本地玩家、仅单机触发；远端玩家由各自的客户端提交（避免重复写档）。
-	if (!gbIsMultiplayer && &player == MyPlayer) {
-		if (BeginDeathCommit("death")) {
-			SaveGame();              // 单机可用的完整保存（writeGameData=true，死亡态在其中）
-			CompleteDeathCommit();   // 提交成功后才撤销意图
-		}
+	// 规格 §4.1①⑤：单机死亡必须**提交**；提交必须 **fail-closed**——
+	// 只有在保存**确实成功**后才删除意图；任何一步失败都要 ①保留意图
+	// ②在本会话内禁用"读取旧档"入口 ③响亮记录。
+	// 触发范围：仅本地玩家、仅单机（远端由各自客户端提交，避免重复写档）。
+	if (gbIsMultiplayer || &player != MyPlayer)
+		return;
+	if (!BeginDeathCommit("death")) {
+		DisableLoadingOldSaveForThisSession(); // 任务 3 提供（内存态禁用）
+		LogError("Death commit could not be journalled; the old save must not be loaded");
+		return;
 	}
+	if (!SaveGameReporting()) {               // 步骤 3b：让存档**返回**成功与否
+		DisableLoadingOldSaveForThisSession();
+		LogError("Death commit save failed; keeping the intent so the old save stays unusable");
+		return;                               // 意图**保留** ⇒ 启动闸门会拒绝旧档
+	}
+	CompleteDeathCommit();                    // 仅保存成功后撤销意图
 }
 ```
 （`SaveGame()` 声明于 `Source/loadsave.h:42`，定义 `Source/loadsave.cpp:2948`：`gbValidSaveFile = true; pfile_write_hero(true); sfile_write_stash();` ✓）
+
+- [ ] **步骤 3b：让存档能报告成功（`SaveGameReporting()`）**
+
+现状**丢弃写结果**：`Source/loadsave.cpp:249-255 SaveHelper::~SaveHelper` 调用 `m_mpqWriter.WriteFile(...)` 且**不使用返回值** ✓；`SaveGame()` 亦无返回值 ✓。因此提交无法判断成败 ✗：
+1. 让 `SaveHelper` **记录**写结果（成员或 out 参数）；
+2. 新增 `bool SaveGameReporting()`，返回该结果；`SaveGame()` 保留原签名，内部委托（既有调用方不变 ✓，如 `Source/gamemenu.cpp:353`）；
+3. 失败注入测试：让写入失败 ⇒ `SaveGameReporting()` 必须返回 **false** ⇒ 意图保留 ⇒ 启动闸门继续拒绝旧档 ✓。
 
 - [ ] **步骤 4：重建并运行**
 
@@ -374,41 +392,44 @@ gh run watch -R pengyz/devilutionX <run-id> --exit-status
 
 ---
 
-## 可见性证明（本章专属，2026-09-18）
+## 可见性证明（本章专属，v2：经独立复核修正）
 
-**命题**：本改动**必然改变玩家看到的结局**，且该改变**可被机械证明**；而"是否更好玩"不在本章证明范围 ✗。
+**命题 A′（成立，范围已收窄）**：
+> **在"存在可加载旧档"且"玩家会在死亡后重载或重开"的条件下**，本改动**改变玩家可见的结局**，且该差异**可机械验证**。
+> 对"死亡后原地复活、且永不读档/退出"的玩家，本改动**不改变任何可见结局** ✗（现状下掉落与扣金已经发生 ✓ `Source/player.cpp:2733` ✓）。
 
-### ① 演绎（全部基于本会话已核验锚点）
+### ① 演绎（全部经本会话核验）
 
 | 事实 | 锚点 |
 |---|---|
-| 单机**死亡不写档** | `Source/player.cpp:2845 SyncPlrKill` → `:2672 StartPlayerKill`（无写档调用）✓ |
-| 单机**切层只写关卡、不写英雄** | `Source/interfac.cpp` ×8 → `Source/pfile.cpp pfile_save_level()` → `SaveLevel(saveWriter)` ✓（**无** `SavePlayer`/`pfile_write_hero` ✓） |
-| 单机的**英雄写档只有手动 `SaveGame()`** | `Source/gamemenu.cpp:353` ✓；`pfile_update` 单机首行 `return`（`Source/pfile.cpp:828-830`）✓；退出写档**仅多人**（`Source/init.cpp:116-118`）✓ |
+| 单机**死亡不写档**；且**死亡期间手动保存被禁用** | `Source/player.cpp:2845 SyncPlrKill` → `:2672 StartPlayerKill`（无写档）✓；`Source/gamemenu.cpp:341`（`PM_DEATH/MyPlayerIsDead` ⇒ `gamemenu_off()`）✓ |
+| 单机**切层只写 temp 关卡档、不写英雄** | `Source/interfac.cpp` ×8 → `pfile_save_level()` → `SaveLevel(saveWriter)`（写 `GetTempLevelNames()`，`Source/loadsave.cpp:1956` ✓；**无** `SavePlayer`/`pfile_write_hero` ✓） |
+| 单机的**英雄写档只有手动 `SaveGame()`**（另有建角与转档例外，均**非死亡路径**） | `Source/gamemenu.cpp:353` ✓；建角 `Source/pfile.cpp:746` ✓、HF/Diablo 转档载入 `Source/loadsave.cpp:2701` ✓（**例外已核验为非死亡路径** ✓）；`pfile_update` 单机首行 `return`（`Source/pfile.cpp:828-830`）✓；退出写档仅多人（`Source/init.cpp:116-118`）✓ |
+| **死亡时按 ESC 在单机直接读旧档**（一键撤销） | `Source/diablo.cpp:524-532`（`MyPlayerIsDead` + `SDLK_ESCAPE` + `!gbIsMultiplayer` + `gbValidSaveFile` ⇒ `gamemenu_load_game(false)`）✓ |
 
-**推论 1（死亡被撤销 ✗）**：单机死亡后，磁盘上的**英雄态仍是死前**（最后一次手动保存 / 建角时）⇒ 重载或"退出重开" ⇒ **装备穿在身上、金币回来了** ✗
-**推论 2（物品重复 ✗，这是缺陷而非口味）**：若死亡后发生过**切层**，`pfile_save_level()` 会把**掉在地上的那套装备**写进**关卡存档** ✓，而**英雄存档里那套仍穿在身上** ✓ ⇒ 重载后**同一件装备同时存在两份** ✗
-**改动后**：死亡提交写入含死亡态的完整存档（`SaveGame()` = `pfile_write_hero(/*writeGameData=*/true)` ✓，死亡态与掉落物都在 game data ✓）⇒ 重载得到 `PM_DEATH`/HP=0/装备**在死亡地点** ✓，且**英雄档与关卡档一致**（无重复 ✓）
+**结论（可直接观察的差异）**：现状 ⇒ **装备穿在身上、金币回来**（死亡被一键撤销 ✗）；改动后 ⇒ **装备在死亡地点、金币已扣**（死亡被兑现 ✓）。
 
-### ② 可失败断言（工程形式）
+### ② 被独立复核推翻的旧推论（已删除，留档）
 
-计划**任务 2 步骤 1** 的"先红后绿"就是它：**修复前必红、修复后必绿**，断言对象是**玩家可观测状态**（非实现细节 ✗）：
-1. 重载后 `_pmode == PM_DEATH`、HP == 0 ✓
-2. 重载后装备在**死亡地点**（不在身上）✓
-3. 死亡 → 退出重开 / 离开该层再回来 ⇒ 掉落**仍在原地** ✓
-4. **反证**：去掉提交 ⇒ 上述三条**必红** ✓
+- ~~"死后切层会让同一件装备重复"~~ ✗ **不成立**：死后切层写的是 **temp 关卡档**（`Source/loadsave.cpp:1956` ✓），而**读档与新开都会 `pfile_remove_temp_files()`**（`Source/loadsave.cpp:2510` ✓、`Source/interfac.cpp:331` ✓）⇒ 地面副本**不会**参与合并 ✓。
+  ⇒ 因此"**推论 2 是缺陷、无需口味实验**"的说法**也随之作废** ✗：能免于实验的只有"存档违反契约/时间线不一致"这类**机械正确性** ✓；**死亡惩罚强度仍必须由预注册实验判定** ✓。
 
-### ③ 人工对照（5 分钟，无需实现）
+### ③ 可失败断言（工程形式，**只保留能证明改动的那些**）
 
-| 操作 | 现状（可自查） | 修复后 |
-|---|---|---|
-| 死一次 → 直接退出 → 重开该角色 | **装备回来了、金币回来了** ✗（死亡被撤销） | 装备**只在死亡地点**、金币已扣 ✓ |
-| 死一次 → 走到下一层 → 退出 → 重开 | 可能**装备既在身上又在地上**（重复 ✗） | 无重复 ✓（英雄档与关卡档一致） |
+| 断言 | 是否证明本改动 |
+|---|---|
+| 重载后装备**在死亡地点**（不在身上）、金币已扣 | ✅ **直接可见 + 只由本改动产生** ✓ |
+| 死亡后**按 ESC / 退出重开** ⇒ 得到死亡态而非死前态 | ✅ 直接可见 ✓（现状该入口直接读旧档 ✓） |
+| 死亡提交后**英雄档与关卡档一致**（无"穿戴与地面并存"） | ✅ 机械正确性 ✓ |
+| ~~死因矩阵（怪/陷阱/玩家杀/镇上/多人例外）~~ | ❌ 修复前**也 PASS**（`Source/player.cpp:2683/2733/2766` ✓）⇒ **不构成改动的证据**，仅作回归护栏 ✓ |
+| ~~同会话"离开再回来掉落仍在"~~ | ❌ 修复前**也 PASS**（`Source/diablo.cpp:3163/3199` ✓）⇒ 仅作回归护栏 ✓ |
+| ~~`_pmode == PM_DEATH`、HP == 0~~ | ⚠️ 内部状态，**须给状态→呈现映射**（死亡动画/血条/无法行动）才可称"可见" ✓ |
 
-### ④ 边界（本章**不**主张的）
+### ④ 未列出的可见后果（v2 补）
 
-"**提升可玩性**"是设计假设 ✗，由**任务 6 的预注册实验**判定（保留/撤销规则事前写死 ✓）。
-但**推论 2 属缺陷修复** ✓：其修复**不依赖**口味实验即可成立 ✓（重复物品在任何口味下都是缺陷 ✓）。
+1. **菜单语义改变**：现状死亡时 ESC 直接读旧档（`Source/diablo.cpp:528` ✓）；改动后该入口必须指向**死亡态**，且在**提交失败**时该入口必须被**禁用** ✓（规格 §4.1⑤ ✓）。
+2. **窗口**：死亡发生到提交完成之间存在极短窗口，其间强杀进程仍可能规避 ⇒ 由**意图文件**在下次启动时兜底 ✓（规格 §4.1⑤ ✓），该窗口必须在验收里显式测试 ✓。
+3. **不改变的场景**：玩家不读档/不退出 ⇒ 无可见差异 ✓（已写入命题 A′ 的范围 ✓）。
 
 ## 执行交接
 
