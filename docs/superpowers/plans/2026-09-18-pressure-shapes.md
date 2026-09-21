@@ -118,6 +118,13 @@ git commit -m "feat(roster): give level 16 squad parameters and guard it"
 
 ## 任务 2：按层小队比率守卫（(f)，N=100）
 
+> **范围更正（2026-09-18 实测）**：本夹具（`SquadPlacementTest`）**缺 Hellfire 素材** ⇒ 生成 L17-24 时崩在 `DRLG_LPass3` ✗。
+> 故已测范围＝**L1-15**（比率 0.277–0.314，围绕配置的 `squad_chance=30` ✓），**L16 无参数行**（决定 (a) ✓）；**L17-24 待 HF 套件** ⚠（其夹具已显式挂载 `hellfire.mpq` ✓）。
+> **已知限制（未证成的反证）** ⚠：**"重调某层 `squad_chance` ⇒ 该层红"尚未证成** ✗ —— 篡改**源表**不可见（`LoadLevelRoster()` 读打包副本 ✓）；夹具路径 `LoadSquadParams(R"(txtdata\monsters\level_roster_params_squads_l9_5.tsv)")` 报
+> `Unable to load data from file …` ✗（roster 文件亦须在夹具目录内 ✓）。
+> **已证成的只有机制层** ✓：改黄金集 `squad_rates.txt`（L9→0.55）⇒ 测试**红**并报 "level 9 squad rate moved" ✓。
+> **N=100×15 层的实测代价＝约 63 s** ⚠（门禁会变慢 ✓）。
+
 **文件**：`test/pressure_shapes_test.cpp`
 
 - [ ] **步骤 1：写测试（先跑通骨架，阈值先取现状基线）**

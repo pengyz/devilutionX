@@ -1,0 +1,21 @@
+# Measured per-level squad rate: rolls / eligibleCoreDraws over N=100 dungeon builds.
+# Source: TEST_F(SquadPlacementTest, MeasureSquadRatesForShape) on 2026-09-18, shipped tables,
+# squad_chance=30 everywhere. These are pinned baselines, not derived values: retuning a level's
+# squad_chance is a conscious change that must update this table (otherwise the guard is
+# tautological). Coverage: levels 1-15. Level 16 has no parameter row (decision (a)); levels
+# 17-24 need Hellfire assets and are not measured by this fixture yet.
+1	0.306636
+2	0.307484
+3	0.277396
+4	0.293629
+5	0.282650
+6	0.302185
+7	0.292193
+8	0.314199
+9	0.302326
+10	0.312431
+11	0.298315
+12	0.299262
+13	0.305296
+14	0.288319
+15	0.304466

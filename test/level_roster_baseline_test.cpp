@@ -2256,3 +2256,57 @@ TEST_F(HellfireLevelBaselineTest, HellfirePerSeedVarietyHasAtLeastTwoCombination
 		}
 	}
 }
+
+TEST_F(SquadPlacementTest, SquadRateMatchesMeasuredBaseline)
+{
+	// Task 2 of the pressure leg: the realised squad rate must match the pinned baseline, so a
+	// mis-wired squad_chance (or a broken counter/placement path) shows up here. The baseline is
+	// a recorded measurement (test/fixtures/pressure/squad_rates.txt), not a value derived from
+	// the same table, otherwise retuning a level would silently pass.
+	if (missingMpqAssets_)
+		GTEST_SKIP() << "MPQ assets not found - skipping test";
+	gbIsSpawn = false;
+	paths::SetPrefPath(paths::BasePath() + "test/fixtures/");
+	TestInitGame();
+	LoadMonsterData();
+	LoadLevelRoster();
+
+	std::ifstream ratesFile(paths::BasePath() + "../test/fixtures/pressure/squad_rates.txt");
+	ASSERT_TRUE(ratesFile.is_open()) << "measured squad-rate baseline is missing";
+	std::map<int, double> expected;
+	std::string line;
+	while (std::getline(ratesFile, line)) {
+		if (!line.empty() && line.back() == '\r')
+			line.pop_back();
+		if (line.empty() || line[0] == '#')
+			continue;
+		const size_t tab = line.find('\t');
+		ASSERT_NE(tab, std::string::npos) << line;
+		expected[std::stoi(line.substr(0, tab))] = std::stod(line.substr(tab + 1));
+	}
+	ASSERT_EQ(expected.size(), 15u) << "measured baseline should cover levels 1-15";
+
+	constexpr int N = 100;
+	constexpr double Tolerance = 0.05;
+	for (const auto &[level, expectedRate] : expected) {
+		ASSERT_NE(GetLevelRosterParams(static_cast<uint8_t>(level)), nullptr) << "level " << level;
+		size_t eligible = 0, rolls = 0, built = 0;
+		for (uint32_t seed = 0; seed < N; seed++) {
+			CreateDungeonForMeasurement(static_cast<uint8_t>(level), seed);
+			const auto getTypesResult = GetLevelMTypes();
+			if (!getTypesResult.has_value())
+				continue;
+			const auto initResult = InitMonsters();
+			if (!initResult.has_value())
+				continue;
+			const SquadRollCounters &stats = GetSquadRollStats();
+			eligible += stats.eligibleCoreDraws;
+			rolls += stats.rolls;
+			built++;
+		}
+		ASSERT_EQ(built, N) << "level " << level << " did not build every seed";
+		ASSERT_GE(eligible, 100u) << "level " << level << " produced too few eligible draws";
+		const double rate = static_cast<double>(rolls) / static_cast<double>(eligible);
+		EXPECT_NEAR(rate, expectedRate, Tolerance) << "level " << level << " squad rate moved";
+	}
+}
