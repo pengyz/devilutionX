@@ -203,8 +203,9 @@ TEST(PressureShapesTest, RosterAisMatchGolden)
 		if (roster[i].size() <= *rosterRoleCol || roster[i][*rosterRoleCol] != "core")
 			continue;
 		const auto it = aiOf.find(roster[i][*rosterIdCol]);
-		if (it != aiOf.end())
-			live.insert(it->second);
+		ASSERT_TRUE(it != aiOf.end())
+		    << "roster core references a monster id that is not in the monster table: " << roster[i][*rosterIdCol];
+		live.insert(it->second);
 	}
 
 	const std::set<std::string> golden = ReadGoldenLines("roster_ais.txt");
