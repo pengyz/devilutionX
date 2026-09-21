@@ -51,6 +51,7 @@
 |---|---|
 | **死亡代价机制已实现（且单机已生效）** | `Source/player.cpp:2672 StartPlayerKill`；`const bool dropGold = !gbIsMultiplayer \|\| !(onLevel16 \|\| arena);` + `const bool dropItems = dropGold && deathReason == DeathReason::MonsterOrTrap;` ⇒ **单机为真** ⇒ `&player == MyPlayer` 分支执行 `for (Item &item : player.InvBody) DeadItem(player, item.pop(), ...)` ⇒ **装备已经掉在死亡地点周围** ✓。**`dropItems` 是函数内局部量，不是参数**（签名 `StartPlayerKill(Player&, DeathReason)`，`player.h:970` ✓） |
 | 死亡掉金币 | `Source/player.cpp:2683` `dropGold = !gbIsMultiplayer || !(onLevel16 \|\| arena)` ✓；`DropHalfPlayersGold(player)` ✓ |
+| **单机死亡不写档（本规格要补的真正缺口）** | 多人本地玩家死亡：`Source/msg.cpp:2077` → `pfile_update(true)`（**死亡即写档** ✓）；单机死亡：`Source/player.cpp:2845 SyncPlrKill` → `StartPlayerKill`，**无对应写档调用** ⇒ **读档可撤销死亡** ✗ |
 | **死亡即写档**（多人路径） | `Source/msg.cpp:2071 OnPlayerDeath` → 本地玩家 `pfile_update(true)` ✓ |
 | 尸体标记 / 死亡态 | `DungeonFlag::DeadPlayer`（`player.cpp:2712` 附近置位）✓；`MyPlayerIsDead`（`player.h:925`，`player.cpp:1058` 置位、`:2528` 清除＝复活）✓ |
 | **层持久**（重进不重生成） | `Source/diablo.cpp:3163` 的 `!myPlayer._pLvlVisited[currlevel]` 分支 ✓ ⇒ 掉落物会**留在原地** ✓ |
