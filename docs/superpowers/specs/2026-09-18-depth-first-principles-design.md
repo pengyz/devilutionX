@@ -49,7 +49,7 @@
 
 | 事实 | 锚点 |
 |---|---|
-| **死亡代价机制已实现** | `Source/player.cpp:2672 StartPlayerKill`；其体内 `if (dropItems) { for (Item &item : player.InvBody) DeadItem(player, item.pop(), ...) }` ⇒ **死亡掉落全部装备到尸体周围**，且带 `dropItems` 参数 ✓ |
+| **死亡代价机制已实现（且单机已生效）** | `Source/player.cpp:2672 StartPlayerKill`；`const bool dropGold = !gbIsMultiplayer \|\| !(onLevel16 \|\| arena);` + `const bool dropItems = dropGold && deathReason == DeathReason::MonsterOrTrap;` ⇒ **单机为真** ⇒ `&player == MyPlayer` 分支执行 `for (Item &item : player.InvBody) DeadItem(player, item.pop(), ...)` ⇒ **装备已经掉在死亡地点周围** ✓。**`dropItems` 是函数内局部量，不是参数**（签名 `StartPlayerKill(Player&, DeathReason)`，`player.h:970` ✓） |
 | 死亡掉金币 | `Source/player.cpp:2683` `dropGold = !gbIsMultiplayer || !(onLevel16 \|\| arena)` ✓；`DropHalfPlayersGold(player)` ✓ |
 | **死亡即写档**（多人路径） | `Source/msg.cpp:2071 OnPlayerDeath` → 本地玩家 `pfile_update(true)` ✓ |
 | 尸体标记 / 死亡态 | `DungeonFlag::DeadPlayer`（`player.cpp:2712` 附近置位）✓；`MyPlayerIsDead`（`player.h:925`，`player.cpp:1058` 置位、`:2528` 清除＝复活）✓ |
@@ -68,9 +68,9 @@
 |---|---|---|
 | **存档＝暂停** | 离开时写档、回来继续 ✓；**不提供"回滚到死前"** ✗（无开关；契约唯一） | 否（改写档时机与语义） |
 | **时间线唯一** | 单一连续时间线；**不新增多槽/自动备份** ✗ | 否 |
-| **死亡留痕** | 死亡时执行**已实现**的 `StartPlayerKill(dropItems=true)`：装备掉在**死亡地点** ✓、掉一半金币 ✓、尸体留 `DeadPlayer` 标记 ✓、层持久 ⇒ **掉落还在原地** ✓（回收＝走回去捡） | **否**（机制已在，只改调用点的 `dropItems` 与存档时机） |
+| **死亡留痕** | **单机已经执行**死亡掉落（`dropItems` 局部量为真 ✓）：装备掉在**死亡地点** ✓、掉一半金币 ✓、尸体留 `DeadPlayer` 标记 ✓、层持久 ⇒ **掉落还在原地** ✓（回收＝走回去捡）。本契约**唯一的实现改动**是：**单机死亡时也写档**（`pfile_update(true)`，与多人一致 ✓）——否则读档可撤销死亡 ✗ | **几乎否**（掉落机制全在；只补一次写档调用） |
 
-**为什么这不是"再加一条规则"**：它是 D1 **自己在多人模式里已经采用**的规则 ✓（同一份代码路径 ✓）——单机能读档是面向当年单机市场的让渡，不是设计核心。
+**为什么这不是"再加一条规则"**：死亡掉落在 D1 **单机里本来就已经生效** ✓（`dropItems` 在单机为真 ✓），多人额外做的只是"死亡即写档"（`pfile_update(true)` ✓）⇒ **本契约 = 把单机补成与多人同一语义**，零新概念、零新机制 ✓。单机之所以能撤销死亡，是**写档时机**的差异，不是设计意图的差异 ✓。
 
 **前置条件已具备**：作者已裁定**不保证存档格式兼容**（决策 34/35）⇒ 本契约只改**语义**，不改格式，无需迁移 ✓。
 
