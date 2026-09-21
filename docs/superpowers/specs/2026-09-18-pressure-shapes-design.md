@@ -459,7 +459,10 @@
 | L23 | 30 | 2 | 1 | 2 | Melee=1 |
 | L24 | 30 | 2 | 1 | 2 | Melee=2 |
 
-⇒ **`chance=30 / size=2 / leashed=1` 在所有层完全一致** ✗ —— 小队机制**已参数化，但未按层段塑形** ✓。
+⇒ **`chance=30 / size=2 / leashed=1` 在所有**已列出的**层完全一致** ✗ —— 小队机制**已参数化，但未按层段塑形** ✓。
+**⚠ 例外（v2，经独立复核指出）**：**L16 整行缺失** ✗（不是"同值"）⇒ 该层 `rosterParams == nullptr` ⇒ **名册侧小队机制被完全绕过** ✓。
+⇒ **后果**：任何"`rolls / eligibleCoreDraws ≥ 阈值`"的按层断言在 **L16 会恒真**（`eligibleCoreDraws` 恒 0）＝**伪断言** ✗
+⇒ 守卫**必须显式排除 L16**，或对 L16 断言"该层无 squad 参数"这一事实 ✓。
 **对 A 腿的含义**：§4.2 的"四种形态"＝**调这些既有参数 + 放置策略**（低成本 ✓），而不是新建机制 ✓✓。
 
 ### G.2 精英（unique）分布（实测）
@@ -471,7 +474,19 @@
 | L13-16 | 21 | **L13 = 9**（最多）；L15/L16 各 3 |
 | **L17-24** | **3** | **仅 L19=2、L20=1；L17/L18/L21-L24 全为 0** ✗✗ |
 
-⇒ **深层的"精英抉择"不能靠 unique** ✗（该层段只有 3 个）⇒ 必须由**拴系小队**承担 ✓（§4.2 的 L17-24 形态据此改写 ✓）。
+⇒ **深层的"精英抉择"确实不能只靠 `unique_monstdat`** ✓（该层段只有 3 个），**但"只能靠拴系小队"的结论不成立** ✗（v2 修正，经独立复核指出）：
+`GetLevelMTypes()` 里**硬编码**了 4 类 boss/精英来源（`Source/monster.cpp:463-479` ✓）：
+
+| 层 | 硬编码怪物 | 放置标志 |
+|---|---|---|
+| **L19** | `MT_HORKDMN`（Hork Demon ✓） | `PLACE_UNIQUE` |
+| **L20** | `MT_DEFILER`（The Defiler ✓） | `PLACE_UNIQUE` |
+| **L24** | `MT_ARCHLICH`（Arch Lich ✓） | `PLACE_SCATTER` |
+| **L24** | `MT_NAKRUL`（Na-Krul ✓） | `PLACE_SPECIAL` |
+
+⇒ **修正后的结论**：深层精英来源＝**unique(3) + 硬编码 boss（L19/L20/L24）+ 任务怪** ✓；
+**§4.2 的 L17-24 形态仍应以小队为主** ✓（因为 L21-L23 没有任何精英来源 ✓），但**不排除**在 L19/L20/L24 复用既有 boss ✓。
+（另注：本项此前在附录 D 的"待核验"里就标注过"L17-24 精英口径未核验 ⚠"，我却直接下了结论 ✗ —— 已按此修正 ✓。）
 （另有 6 个 `level=0` 的任务 unique 不参与分桶 ✓。）
 
 ### G.3 数量与放置结构
@@ -487,9 +502,23 @@
 - **`GetSquadRollStats()`** ✓（`Source/monster.cpp:3409` 访问器；`SquadRollStats` `:3405` 计数、`:3555` 重置）⇒ 可直接观测 `eligibleCoreDraws` / `rolls` ✓；
 - **尚缺** ⚠：真实"**遭遇同时出现 ≥2 种需求类型的比例**"需要一次测试扩展（在采样测试里读 `GetSquadRollStats()` + 每层类型集，输出/断言 ✓）。
 
+### G.4b 可失败阈值示例（采纳复核建议 ✓）
+
+```cpp
+// 每层跑 N 次建关，取均值；L16 必须排除（该层无 squad 参数，见 G.1）
+const auto &stats = GetSquadRollStats();
+const double rate = static_cast<double>(stats.rolls) / std::max<size_t>(1, stats.eligibleCoreDraws);
+EXPECT_GE(rate, 0.30 - 0.05) << "该层的 squad_chance 被改坏（现状 30）";
+```
+**反证**：把某层 `squad_chance` 由 30 改成 5 ⇒ 该断言**变红** ✓。
+**仪器字段**（`monster.h:596` ✓，非 static，`test/level_roster_baseline_test.cpp` 已在用 ✓）：
+`eligibleCoreDraws / rolls / leaderPlacementFailed / noPartnerAvailable / realised / formed` ✓；
+**重置时机**：`InitLevelMonsters()` 内 `:3555` ✓（每次建关调用 ✓）⇒ 可支撑按层断言 ✓。
+
 ### G.5 对 A 腿的直接结论
 
 1. **形态＝参数调优**（`squad_chance/size/leashed` 按层段 + 放置策略）✓ ⇒ 实现成本**低于**先前估计 ✓；
+   **但两个例外须计入工作量** ✗：**L16 无参数行**（要先补行或显式绕开 ✓）、**深层精英的 4 类硬编码来源**（改动若涉及 L19/L20/L24，需处理 `GetLevelMTypes()` 的硬编码分支 ✓）；
 2. **深层精英靠小队**（unique 只剩 3 个）✗ ⇒ §4.2 的 L17-24 形态据此改写 ✓；
 3. **守卫阈值统计化**：例如"L9-12 的 `rolls/eligibleCoreDraws` ≥ 现状值（chance=30）"✓ —— 由**现状基线**锁定，改坏参数即红 ✓；
 4. 守卫的两条判据（附录 F.3 的 (a)(c)）与本节基线结合后**可写成可失败断言** ✓。
