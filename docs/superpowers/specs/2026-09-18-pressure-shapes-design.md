@@ -461,8 +461,15 @@
 
 ⇒ **`chance=30 / size=2 / leashed=1` 在所有**已列出的**层完全一致** ✗ —— 小队机制**已参数化，但未按层段塑形** ✓。
 **⚠ 例外（v2，经独立复核指出）**：**L16 整行缺失** ✗（不是"同值"）⇒ 该层 `rosterParams == nullptr` ⇒ **名册侧小队机制被完全绕过** ✓。
-⇒ **后果**：任何"`rolls / eligibleCoreDraws ≥ 阈值`"的按层断言在 **L16 会恒真**（`eligibleCoreDraws` 恒 0）＝**伪断言** ✗
-⇒ 守卫**必须显式排除 L16**，或对 L16 断言"该层无 squad 参数"这一事实 ✓。
+⇒ **后果（方向更正 v3）**：L16 上 `rolls=0` 且 `max(1, eligibleCoreDraws)=1` ⇒ `rate=0.0` ⇒ 在固定阈值（`0.30-0.05`）下**会报假红（false red）** ✗ ——
+v2 写成"恒真＝伪断言"**方向写反** ✗（只有拿 L16 自身基线 0 当阈值才会恒真 ✓）。
+⇒ **守卫必须显式排除 L16，并且要断言这件事本身** ✓：
+```cpp
+// L16 无 squad 参数（名册仍保有该层 core，一旦有人补行，小队会真的开始出现）
+EXPECT_EQ(GetLevelRosterParams(16), nullptr) << "L16 的 squad 参数行被补上了，需同步守卫";
+```
+**为什么必须断言**：`IsCoreRosterMember` **直查名册表**（`monster.cpp:3347-3352` ⚠ 复核者引），而名册中仍保有 L16 的 core（复核者引 `level_rosters.tsv:60-63` ⚠）⇒ 一旦有人给 L16 补 params 行，**该层会真的开始出小队** ✗，而现有测试循环只到 L15（复核者引 `test/level_roster_baseline_test.cpp:1442` ⚠）⇒ **不会红** ✗ ⇒ 显式断言是唯一的防线 ✓。
+（另：`monster.cpp:3629-3637` 的注释称"无 params 回退覆盖 L17-24" ⚠ 复核者称已过期——实际 L17-24 均有行，该回退只覆盖 L16 ✓，待核 ⚠。）
 **对 A 腿的含义**：§4.2 的"四种形态"＝**调这些既有参数 + 放置策略**（低成本 ✓），而不是新建机制 ✓✓。
 
 ### G.2 精英（unique）分布（实测）
@@ -475,16 +482,29 @@
 | **L17-24** | **3** | **仅 L19=2、L20=1；L17/L18/L21-L24 全为 0** ✗✗ |
 
 ⇒ **深层的"精英抉择"确实不能只靠 `unique_monstdat`** ✓（该层段只有 3 个），**但"只能靠拴系小队"的结论不成立** ✗（v2 修正，经独立复核指出）：
-`GetLevelMTypes()` 里**硬编码**了 4 类 boss/精英来源（`Source/monster.cpp:463-479` ✓）：
+`GetLevelMTypes()`（**定义在 `Source/monster.cpp:3558`** ✓）里**硬编码**了 4 条 `AddMonsterType`（**`:3572`/`:3575`/`:3577`/`:3578`** ✓）——
+（**引用更正**：v2 写的 `:463-479` 实为 `PlaceQuestMonsters()` 内部，其定义在 `:458` ✗；已按独立复核实测更正 ✓）
 
 | 层 | 硬编码怪物 | 放置标志 |
 |---|---|---|
-| **L19** | `MT_HORKDMN`（Hork Demon ✓） | `PLACE_UNIQUE` |
-| **L20** | `MT_DEFILER`（The Defiler ✓） | `PLACE_UNIQUE` |
+| **L19** | `MT_HORKDMN`（Hork Demon ✓） | `PLACE_UNIQUE`（**该怪同时也是 L19 的 unique 行** `unique_monstdat.tsv:12`，`monsterPack=None` ✓ ⇒ **不是"额外的"精英** ✗） |
+| **L20** | `MT_DEFILER`（The Defiler ✓） | `PLACE_UNIQUE`（**同为 L20 的 unique 行** `:13`，`monsterPack=None` ✓ ⇒ 同上） |
 | **L24** | `MT_ARCHLICH`（Arch Lich ✓） | `PLACE_SCATTER` |
-| **L24** | `MT_NAKRUL`（Na-Krul ✓） | `PLACE_SPECIAL` |
+| **L24** | `MT_NAKRUL`（Na-Krul ✓） | `PLACE_SPECIAL`；**其"放置"走 `PlaceQuestMonsters` 的 boss 分支（复核者引 `:523-526` ⚠）**，`bosspacksize=0` ⇒ **0 随从** ✓ ⇒ 属任务路径而非小队 ✓ |
 
-⇒ **修正后的结论**：深层精英来源＝**unique(3) + 硬编码 boss（L19/L20/L24）+ 任务怪** ✓；
+| 层 | 怪物 | `unique_monstdat` | `monsterPack` | 随从 |
+|---|---|---|---|---|
+| **L19** | **Grimspike**（`MT_OBLORD`） | level=19 ✓（`:100`） | **Leashed** ✓ | **≤8**（**unique 侧拴系包** ✗ v2 遗漏） |
+| L19 | Hork Demon（`MT_HORKDMN`） | level=19 ✓（`:12`） | `None` ✓ | 0 |
+| L20 | The Defiler（`MT_DEFILER`） | level=20 ✓（`:13`） | `None` ✓ | 0 |
+| L24 | Na-Krul（`MT_NAKRUL`） | 无（走任务路径 ✓） | — | 0 |
+
+⇒ **修正后的结论（v3，去重后）**：深层精英来源＝
+①**`unique_monstdat` 的 3 条**（L19 Grimspike **带 Leashed 包 ≤8** ✗、L19 Hork Demon、L20 The Defiler ✓）；
+②**L24 的 Na-Krul 走 `PlaceQuestMonsters` 任务/boss 路径**（0 随从 ✓）；
+③**L16 有 `LoadDiabMonsts()` 注入的 `.dun` 嵌入式怪**（`monster.cpp:540`/`:3910` ✓）⇒ **L16 并非"无精英"** ✗（该层的问题只是**无 squad 参数** ✓）；
+④**L21-L23 确无精英** ✓（`SetMapMonsters` 其余调用仅 l1-l4 ✓、`MT_GOLEM` 是每层 `PLACE_SPECIAL` 非精英 ✓）。
+**另注**：`HORKDMN`/`DEFILER` 与 `GetLevelMTypes()` 的 `AddMonsterType` **指向同一批怪** ⇒ v2 的"unique + 硬编码 boss"在 L19/L20 **重复计数** ✗，已删 ✓。
 **§4.2 的 L17-24 形态仍应以小队为主** ✓（因为 L21-L23 没有任何精英来源 ✓），但**不排除**在 L19/L20/L24 复用既有 boss ✓。
 （另注：本项此前在附录 D 的"待核验"里就标注过"L17-24 精英口径未核验 ⚠"，我却直接下了结论 ✗ —— 已按此修正 ✓。）
 （另有 6 个 `level=0` 的任务 unique 不参与分桶 ✓。）
