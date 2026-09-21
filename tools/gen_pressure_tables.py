@@ -82,15 +82,43 @@ def counselor_array(src: str) -> list[str]:
 
 
 def emission_sites(src: str) -> dict[str, set[str]]:
-    current, sites = None, {}
-    for line in src.splitlines():
-        fn = re.match(r"void (\w+)\(Monster &monster\)", line)
-        if fn:
-            current = fn.group(1)
-        if current is None:
+    """Attribute each literal emission to the function whose body contains it.
+
+    Functions are located by their definition line and their matching closing brace, so an
+    emission before the first definition lands in "<file-scope>" instead of being dropped, and an
+    emission inside one function is never attributed to an earlier one.
+    """
+    lines = src.splitlines()
+    func_re = re.compile(r"^[A-Za-z_][\w:<>, ]*\s+(\w+)\([^;]*\)\s*$")
+    spans = []
+    i = 0
+    while i < len(lines):
+        stripped = lines[i].strip()
+        match = func_re.match(stripped)
+        if match and not stripped.endswith(";"):
+            depth, j, started = 0, i, False
+            while j < len(lines):
+                depth += lines[j].count("{") - lines[j].count("}")
+                if "{" in lines[j]:
+                    started = True
+                if started and depth <= 0:
+                    break
+                j += 1
+            spans.append((i, min(j, len(lines) - 1), match.group(1)))
+            i = j + 1
             continue
+        i += 1
+
+    def owner(index: int) -> str:
+        for start, end, name in spans:
+            if start <= index <= end:
+                return name
+        return "<file-scope>"
+
+    sites = {}
+    for idx, line in enumerate(lines):
         for call in re.finditer(r"(?:AddMissile|StartRangedAttack|StartRangedSpecialAttack)\([^;]*?MissileID::(\w+)", line):
-            sites.setdefault(current, set()).add(call.group(1))
+            sites.setdefault(owner(idx), set()).add(call.group(1))
     return sites
 
 
@@ -113,9 +141,11 @@ def build_tables() -> dict[str, list[str]]:
     for row in rrows:
         if len(row) <= ri["role"] or row[ri["role"]] != "core":
             continue
-        ai = ai_of.get(row[ri["monster_id"]])
+        monster_id = row[ri["monster_id"]]
+        ai = ai_of.get(monster_id)
         if not ai:
-            continue
+            raise SystemExit(f"roster core references a monster id that is not in the monster table: {monster_id}")
+        _ = monster_id
         roster_ais.add(ai)
         missiles = {generic[ai]} if ai in generic else set()
         missiles |= sites.get(ai_to_fn.get(ai, ""), set())

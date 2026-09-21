@@ -286,8 +286,8 @@ def main() -> int:
         report["steps"]["ctest"] = run_ctest(build_dir)
         if not args.skip_drift:
             report["steps"]["drift"] = run_drift_check()
-            report["steps"]["pressure_tables"] = run_pressure_tables()
-
+        report["steps"]["pressure_tables"] = run_pressure_tables()
+    
     # Exit code: 0 if everything passed.
     ok = True
     if "build" in report["steps"] and not report["steps"]["build"]["ok"]:

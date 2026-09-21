@@ -1,8 +1,8 @@
-AddDoppelganger	AcidPuddle
 BatAi	Lightning,Rhino
 CounselorAi	FlashBottom,FlashTop,Null
 HorkDemonAi	HorkSpawn
 MegaAi	InfernoControl
+MonsterDeath	AcidPuddle
 RhinoAi	Rhino
 SkeletonBowAi	Arrow
 SnakeAi	Rhino
