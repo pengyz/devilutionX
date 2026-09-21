@@ -274,12 +274,14 @@
 | 反制族 | 行数 | 样本名 |
 |---|---|---|
 | `FIRERES`（火抗） | 5 | ⚠ 名称未取（下轮补） |
-| `LIGHTRES`（**电**抗；`LIGHT`＝Lightning） | 5 | `Blue` / `Azure` / `Lapis` / `Cobalt` / `Sapphire` ✓ |
-| `MAGIC`（魔抗族） | 5 | ⚠ 名称未取（下轮补） |
+| `LIGHTRES`（**电**抗；`LIGHT`＝Lightning） | 5 | `Blue` / `Azure` / `Lapis` / `Cobalt` / `Sapphire` ✓（`:54-58`） |
+| **`MAGICRES`**（魔抗族）★v2 改名 | 5 | `White` / `Pearl` / `Ivory` / `Crystal` / `Diamond` ✓（`:59-63`） |
+| **`ALLRES`**（全抗性）★v2 补漏 | 5 | `Topaz` / `Amber` / `Jade` / `Obsidian` / `Emerald` ✓（`:64-68`） |
 | `LIGHT` / `LIGHT_CURSE`（**光照**及其诅咒） | 2 / 2 | `light`(+2) / `radiance`(+4) / `the dark`(−3) / `the night`(−2) ✓ |
 | 进攻类（非反制） | `FIRE` 4、`LIGHT_ARROWS` 3、`LIGHTDAM` 1 | — |
 
-⇒ **反制池充足** ✓（火/电/魔抗 + 光照，共 ≥4 族）⇒ "每层段 ≥2 种可准备反制"**在池子层面可满足** ✓。
+⇒ **反制池充足** ✓（**火抗 / 电抗 / 魔抗 / 全抗 / 光照**，共 **5** 族）⇒ "每层段 ≥2 种可准备反制"**在池子层面可满足** ✓。
+**★v2 修正（独立复核实测）**：① `MAGIC` 的真名是 **`MAGICRES`**（我写错 ✗）；② **`ALLRES` 5 行我完全漏计** ✗；③ **必须显式排除 `*_CURSE` 族**（`LIGHT_CURSE`＝`the dark`/`the night`、`MANA_CURSE` 等是**负面词缀**，**不是反制** ✗）。
 
 ### D.2 各层段的威胁族（名册 × `monstdat.ai`，实测）
 
@@ -292,8 +294,9 @@
 
 ### D.3 结论（两个真实缺口）
 
-- **G1（L13-16 需求过薄）** ✗：地狱段仅 **4 个威胁族**、施法/远程只有 **1** 个 ⇒ **类型化需求最弱的正是"地狱段"**，而 §4.2 草案却把它设成"近远交替的消耗战" ⇒ **草案与现状数据不符** ✗ ⇒ A 腿必须在该段**改构成**（其声明的杠杆 ✓）才能成立；
-- **G2（需求→反制的映射不在数据里）** ⚠：怪物的**伤害类型**由 **AI→导弹**决定，而该映射在**代码**里（`misdat.flags` 有 `Fire`/`Lightning`/`Physical` ✓，但怪物→导弹不在表中）⇒ "每层段 ≥2 种可准备反制"这条守卫需要**一份显式的 AI→伤害类型对照表**（来源待核验 ⚠，须写入规格后才能机械化断言 ✓）。
+- **G1（L13-16 威胁族最少）** ⚠→**已软化**：地狱段的**威胁族数确实最少（4）** ✓，但**伤害类型多样性并非最弱** ✗ —— `Counselor` 一个怪就**同时携带 Fire 与 Lightning**（`CounselorAi`：`MissileTypes[4] = {Firebolt, ChargedBolt, LightningControl, …}` ✓ `monster.cpp:2719-2721`；`Firebolt`/`Fireball`=`Fire` ✓、`ChargedBolt`/`LightningControl`=`Lightning` ✓ `misdat.tsv:3/8/9/54`）⇒ **§4.2 的"消耗战"表述可保留** ✓，但**论据必须改**（缺口是**族数**，不是**类型多样性**）；另：**近战族本身也是"可准备"的**（护甲/闪避 ✓），不能只数远程/施法 ✗。
+- **G2 ★v2 反转（原判被推翻 ✗）**：AI→伤害类型**可以机械导出** ✓✓，路径有**两条**：①通用表 `GetMissileType(MonsterAIID)`（`Source/monster.cpp:1903` ✓，被 `:1958/1987` 调用）；②**各专属 AI 函数覆盖通用表**（如 `CounselorAi` 的导弹表 ✓、`SkeletonBowAi` ⚠）：`SkeletonRanged` 实际发 **`Arrow`＝纯物理**（`misdat.tsv:2` ✓），**不是施法** ✗ ⇒ 对这两个族**通用表不适用** ✗。⇒ C1 的守卫**可自动化**（写一个静态扫描：`GetMissileType` 的 `case` + 各 `XxxAi` 里的 `StartRangedAttack` 调用 ✓），**无需人工维护表** ✓。
+- **仍未核验 ⚠**：`unique_monstdat`（unique 的技能/攻击，可能给 L13-16 补火/电，如 `MT_BALROG`）⇒ 未查，不得当结论 ✓。
 
 ### D.4 尚未取（下一项）
 
