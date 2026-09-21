@@ -178,7 +178,7 @@
 | (c) | **发射点白名单**：正则扫 `AddMissile(` / `StartRangedAttack(` / `StartRangedSpecialAttack(` 的**字面 `MissileID` 实参**，与白名单等值 | **新增硬编码施法** ✓ |
 | (d) | 前提：词缀族 ∩ `{*_CURSE} = ∅` 且**不存在 `ACIDRES` 族** | 有人加酸抗 / 把诅咒算作反制 ✓ |
 | (e) | 文档表（附录 E/F/G）**由脚本生成**，禁止手抄 | 手改文档表 ✓ |
-| (f) | **按层小队比率**：`rolls / max(1, eligibleCoreDraws) ≥ 0.30 - 0.05`（`GetSquadRollStats()` ✓，每层 **N = 100** 次建关取均值 ✓，**含 L16** ✓） | 把某层 `squad_chance` 由 30 改成 5 ✓（**既有 fixture `level_roster_params_squads_*.tsv`** 可直接用于反证 ✓） |
+| (f) | **按层小队比率**：`rolls / max(1, eligibleCoreDraws) ≥ ExpectedSquadRateForLevel(level) − 0.05`（**唯一黄金值来源** ✓，由实测逐层钉死 ✓；`GetSquadRollStats()` ✓；每层 **N = 100** 次建关、聚合口径 **sum/sum** ✓；**L16 按 §8.1-6 的裁决**：选 (a) ⇒ 该层无参数、不纳入 ✓；选 (b) ⇒ 纳入 ✓） | **临时改 shipped 表**某层 `squad_chance` 由 30 改成 5 ⇒ 该层红 ✓（既有 `squads_*.tsv` **只含 L1-15、100/0，且本测试读 shipped 表 ⇒ 不可用** ✗） |
 | (f2) | **L16 二选一（待改判 ⚠）**：选 (a) 不补行 ⇒ `EXPECT_EQ(GetLevelRosterParams(16), nullptr)` ✓；选 (b) 补行 ⇒ 须同时改早退并纳入 (f) ✓ | 有人**偷偷补行**（会改变 L16 构成却无人评审 ✗）／删掉该断言 ✓ |
 | (g) | **不变量**：`monstdat` 数值字段、掉落表、物价**逐字节未改** | 偷偷改数值/掉落/物价（红线 9 ✓）✓ |
 

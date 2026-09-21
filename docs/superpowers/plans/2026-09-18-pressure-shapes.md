@@ -12,6 +12,7 @@
 ## 全局约束
 
 - **不使用子 agent 实现**；每完成一项派**独立复核**（失败＝未复核，必须改派 ✓）
+**L16 待裁决** ⚠：任务 1 存在 (a)/(b) 两个互斥分支，**必须先有 §8.1-6 的裁决**才能开工该任务 ✓
 - **不改数值** ✗：`monstdat` 数值字段、掉落表、物价**逐字节不变**（由 (g) 守卫保证 ✓）
 - **L16 原子性**：补参数行与守卫改动**必须同一次提交** ✓（§4.2b 已决 ✓）
 - 行尾：TSV/C++ **CRLF** ✓；`.md/.py/.yaml/.sh/.json` **LF** ✓；**所有编辑（含反证与恢复）完成后行尾归一化必须是最后一步** ✓
@@ -27,7 +28,7 @@
 | 文件 | 职责 |
 |---|---|
 | `assets/txtdata/monsters/level_roster_params.tsv` | **改**：补 **L16 行** ✓ + 按层段调 `squad_chance/squad_size/squad_leashed` |
-| `test/fixtures/txtdata/monsters/level_roster_params_squads_*.tsv` | **已有**（复核确认 ✓）：反证用的坏参数 fixture |
+| `test/fixtures/txtdata/monsters/level_roster_params_squads_*.tsv` | **已有但本腿不可用** ✗（实测只含 **L1-15**、`chance=100/0` ✓）：反证须**临时改 shipped 表**（见任务 2 步骤 3 ✓） |
 | `test/pressure_shapes_test.cpp` | **新建**：守卫 (a)(b)(c)(d)(f)(f2)(g) |
 | `CMake/Tests.cmake` | **改**：注册 `pressure_shapes_test`（漂移 A ✓） |
 | `tools/run_tests.py` | **改**：把 `pressure_shapes_test` 加进硬编码的 `TEST_TARGETS`（`:42` ✓）——**漏改则漂移 F 必红** ✗（`check_drift.py:286-299` 会报"registered but TEST_TARGETS omits it" ✓） |
@@ -38,7 +39,7 @@
 
 ---
 
-## 任务 1：L16 参数行 + 守卫原子改动
+## 任务 1：L16 处置 + 守卫（**前置：等待 §8.1-6 裁决** ⚠）
 
 **文件**：`assets/txtdata/monsters/level_roster_params.tsv`、`test/pressure_shapes_test.cpp`（新建）、`CMake/Tests.cmake`
 
@@ -47,7 +48,21 @@
 运行：`awk -F'\t' '{print $1}' assets/txtdata/monsters/level_roster_params.tsv | tr '\n' ' '`
 预期：`level 1 2 … 15 17 … 24`（**无 16** ✓）
 
-- [ ] **步骤 2：写失败的测试（先证明 L16 缺失会红）**
+- [ ] **步骤 1b：按裁决选分支（(a) 与 (b) 互斥，只执行其一）**
+
+**(a) 不补行（提交者推荐 ✓）**：断言"L16 无参数行"，测试为
+```cpp
+EXPECT_EQ(GetLevelRosterParams(16), nullptr) << "L16 的参数行出现了，说明有人改了 L16 的入口，需重新评审";
+```
+预期 **PASS**（现状即如此 ✓）；反证：临时给 L16 补一行 ⇒ **红** ⇒ 恢复 ⇒ 绿 ✓；**不需要**改 `tools/run_tests.py` ✗（无新目标 ✓）。
+
+**(b) 补行 + 改早退**：须同时改 `GetLevelMTypes()` 的 `currlevel==16` 早退（`Source/monster.cpp:3561-3566` ✓）并新增目标注册 ✓；测试改为
+```cpp
+EXPECT_NE(GetLevelRosterParams(16), nullptr) << "level 16 has no squad parameter row";
+```
+预期：**补行前 FAIL** ✓ → 补行后 PASS ✓。
+
+- [ ] **步骤 2：写守卫测试（按上面选中的分支）**
 
 ```cpp
 #include <gtest/gtest.h>
@@ -76,7 +91,7 @@ TEST(PressureShapesTest, EveryLevelHasSquadParameters)
 
 在 `level_roster_params.tsv` 的 L15 与 L17 之间插入（列序：`level / max_image / tail_draw / class_floors / squad_chance / squad_size / squad_leashed`）：
 ```
-16	6000	1	Melee=2	30	2	1
+16	6000	1	Melee=2	30	2	1   # ← 仅分支 (b) 需要 ⚠（分支 (a) 不补行）
 ```
 （`tail_draw=1`、`class_floors=Melee=2` 沿用 L19/L20 的深层口径 ✓；**数值字段一律不动** ✗）
 
@@ -93,7 +108,8 @@ TEST(PressureShapesTest, EveryLevelHasSquadParameters)
 - [ ] **步骤 7：提交（原子 ✓）**
 
 ```bash
-git add assets/txtdata/monsters/level_roster_params.tsv test/pressure_shapes_test.cpp CMake/Tests.cmake tools/run_tests.py
+git add test/pressure_shapes_test.cpp CMake/Tests.cmake   # 分支 (a)
+# 分支 (b) 另加：assets/txtdata/monsters/level_roster_params.tsv tools/run_tests.py
 git commit -m "feat(roster): give level 16 squad parameters and guard it"
 ```
 （**四个文件缺一不可** ✗：漏 `tools/run_tests.py` ⇒ 漂移 F 红 ⇒ 半提交 ✓）
@@ -106,13 +122,15 @@ git commit -m "feat(roster): give level 16 squad parameters and guard it"
 
 - [ ] **步骤 1：写测试（先跑通骨架，阈值先取现状基线）**
 
-**先读真实链（不得凭空取名 ✗）**：本仓**没有** `BuildLevelForMeasurement` ✗（已核实 0 命中 ✓）。真实链在
+**先读真实链（不得凭空取名 ✗）**：本仓**没有** `BuildLevelForShapeMeasurement` ✗（已核实 0 命中 ✓）。真实链在
 `test/level_roster_baseline_test.cpp`：`CreateDungeonForMeasurement(uint8_t,uint32_t)`（`:115` ✓）→ `GetLevelMTypes()` → `InitMonsters()`（`std::expected<void,std::string>`）；
-其 `RunLevel`（`:851`）与 `SquadObservation`（`:386`）是**该 TU 的文件内静态** ✗ ⇒ **新 TU 无法复用** ⇒ 本任务需**在新文件内复刻最小链**（或先把它们抽成共享头 ✓，二选一并在提交信息写明 ✓）。
+其 `RunLevel`（`:851`）与 `ShapeSquadObservation`（`:386`）是**该 TU 的文件内静态** ✗ ⇒ **新 TU 无法复用** ⇒ 本任务需**在新文件内复刻最小链**（或先把它们抽成共享头 ✓，二选一并在提交信息写明 ✓）。
 
 ```cpp
-// 在本测试文件内复刻最小链（来源：test/level_roster_baseline_test.cpp:115/851；不得调用该 TU 的 static ✗）
-static std::optional<SquadObservation> BuildLevelForShapeMeasurement(uint8_t level, uint32_t seed);
+// 在本测试文件内复刻最小链（来源：test/level_roster_baseline_test.cpp:115/851）。
+// 注意：ShapeSquadObservation 是源 TU 的 static 类型 ⇒ 本文件自定义自己的承载结构 ✗
+struct ShapeSquadObservation { size_t eligibleCoreDraws; size_t rolls; };
+static std::optional<ShapeSquadObservation> BuildLevelForShapeMeasurement(uint8_t level, uint32_t seed);
 ```
 ```cpp
 TEST(PressureShapesTest, SquadRateMeetsBaselinePerLevel)
@@ -120,7 +138,7 @@ TEST(PressureShapesTest, SquadRateMeetsBaselinePerLevel)
 	if (missingMpqAssets_) // 与 baseline 同款保护（level_roster_baseline_test.cpp:867 ✓）
 		GTEST_SKIP() << "spawn.mpq assets unavailable";
 	constexpr int N = 100;                 // 作者决定 ✓
-	constexpr double Tolerance = 0.05;     // 容差（唯一黄金值来源，见任务 6 步骤 3）
+	constexpr double Tolerance = 0.05;     // 容差；黄金值**只在** ExpectedSquadRateForLevel() 里（任务 6 步骤 3 ✓）
 	for (uint8_t level = 1; level <= 24; level++) {
 		ASSERT_NE(GetLevelRosterParams(level), nullptr) << "level " << static_cast<int>(level);
 		size_t eligible = 0, rolls = 0;
@@ -242,7 +260,7 @@ TEST(PressureShapesTest, CounterPoolHasNoCursesAndNoAcidResistance)
 | L17-24 | 40 | 3 | 1 | 精英抉择（**以小队为主** ✓） |
 
 - [ ] **步骤 2：写 L1-8 可绕性断言**（(e) 的放置侧 ✓）：对该段每层采样，断言"至少存在一条不经过小队锚点的通路"（用既有地图遍历辅助；**若现有辅助不足，先停下报告**，不得自造判据 ✗）
-- [ ] **步骤 3：重跑 (f) 并**重钉唯一黄金值**（**必须删除**任务 2 里的 `Baseline = 0.30-0.05` ✗）**
+- [ ] **步骤 3：重跑 (f) 并**重钉唯一黄金值**（（任务 2 中**不存在**扁平基线常量 ✗；此处只需钉 `ExpectedSquadRateForLevel` 表 ✓））**
 
 **避免双黄金值** ✗（复核指出）：`ExpectedSquadRateForLevel(level)` 表成为**唯一**来源 ✓，并写明：①按**实测**逐层写死 ✓；②容差固定 **0.05** ✓；③N=100 与聚合口径 `sum/sum` 与任务 2 一致 ✓；④L1-8 若把 `chance` 调成 25，则其黄金值为 **0.25**、断言为 `≥0.25-0.05` ✓（**不得**再保留 0.30 的旧常量 ✗）。
 - [ ] **步骤 4：反证**：把 L13-16 的 `squad_chance` 调回 30 ⇒ 该段 (f) 断言**必须红** ✓ ⇒ 恢复 ⇒ 绿 ✓
@@ -278,7 +296,7 @@ TEST(PressureShapesTest, CounterPoolHasNoCursesAndNoAcidResistance)
 
 | 规格条目 | 任务 |
 |---|---|
-| §4.2b 四形态落实（含 L16 已决 ✓） | 任务 1（L16 行）+ 任务 6（分带参数 + 可绕性） |
+| §4.2b 四形态落实（**L16 待改判** ⚠） | 任务 1（L16 分支 (a)/(b)）+ 任务 6（分带参数 + 可绕性） |
 | §6.1b (a)(b)(c) 类型/闭包/发射点 | 任务 3 |
 | §6.1b (d) 前提（无 `*_CURSE`/无 `ACIDRES`） | 任务 4 |
 | §6.1b (e) 表由脚本生成 | 任务 3 步骤 1 |
@@ -289,7 +307,7 @@ TEST(PressureShapesTest, CounterPoolHasNoCursesAndNoAcidResistance)
 | §6.2/§6.3 试玩与撤销 | **不在本计划**（需人执行 ✓，随规格 §6.2 单独进行） |
 
 **2. 占位符扫描**：无 `TBD/TODO`；任务 2/6/7 的**阈值与参数为"先测后钉"**（明确写了"先记录基线，再钉阈值"✓，不是占位符 ✓）。
-**3. 类型一致性**：`GetLevelRosterParams(uint8_t)` ✓、`GetSquadRollStats()` ✓、`SquadRollCounters` 字段名以 `monster.h:544/548/553/555/568` 为准 ✓；测试辅助 `BuildLevelForMeasurement` 若不存在则**照 `test/level_roster_baseline_test.cpp:844-858` 取真实写法** ✓（不得凭空取名 ✗）。
+**3. 类型一致性**：`GetLevelRosterParams(uint8_t)` ✓、`GetSquadRollStats()` ✓、`SquadRollCounters` 字段名以 `monster.h:544/548/553/555/568` 为准 ✓；测试辅助 `BuildLevelForShapeMeasurement` 若不存在则**照 `test/level_roster_baseline_test.cpp:844-858` 取真实写法** ✓（不得凭空取名 ✗）。
 
 ---
 
