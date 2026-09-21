@@ -17,8 +17,14 @@ expected:
   exit_code: 0
   failed: 0
   passed_min: 1
-  skipped_max: 5
-  output_contains: ["[  PASSED  ]"]
+  skipped_max: 0
+  # 维护提醒（R35 同款）：计数与 AiRegistryTest 的用例数绑定；增删用例后必须同步这里，
+  # 否则门禁会静默失效（N 偏小）或误红（N 偏大）。当前 N = 1。
+  output_contains: ["[  PASSED  ] 1 test."]
 
 description: >
-  AI 派发注册表尺寸保护。
+  AI 派发注册表保护（含缺陷 D-1 守卫，2026-09-18）：AiProc 中除显式"已知未实现"清单
+  （当前仅 MonsterAIID::FireMan）外不得有空项；该清单被移除/扩大时必须显式改动。
+  反证方式：把 FireMan 移出清单，本用例即红（实测信息："AI type 17 has null function pointer"）。
+  配套：monster.cpp 的派发点已做判空兜底（缺失实现时怪物静止 + 一次性日志 + 跳出 AI 循环），
+  因此"漏实现"最坏是静止而不再是空指针调用。
