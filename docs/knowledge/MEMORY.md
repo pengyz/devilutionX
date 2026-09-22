@@ -67,3 +67,4 @@
 - [`gotcha_build_concurrency_and_line_endings.md`](gotcha_build_concurrency_and_line_endings.md) — 构建并发与行尾五条硬规则：`job_kill` 只是请求 / build 单执行者 / `pgrep` 自匹配与兄弟匹配 / CRLF 最后归一化 / 漂移只认 `drift_ok`
 - [`pattern_decision_protocol.md`](pattern_decision_protocol.md) — 决策提问协议：按 artifact 面判定是否问作者 / ≤5 条批量带默认 / 五要素格式 / 不停等 + 待追认账本 / 反"以批准之名改设计"
 - [`gotcha_data_changes_need_asset_rebuild.md`](gotcha_data_changes_need_asset_rebuild.md) — 改 txtdata 源表却"无效果"：定向构建不刷新数据资产（需 `ninja -C build devilutionx_mpq`）；`OverridePaths` 在 `TestInitGame()` 内快照，夹具覆盖件须放 build 侧
+- [`decision_contract_baselines_are_measurements_not_targets.md`](decision_contract_baselines_are_measurements_not_targets.md) — 契约守卫变红时：基线是"实测"不可抬高；正确做法是回调机制（本案 L4 越顶 ⇒ 回归规格的 L1-8 30/2）
