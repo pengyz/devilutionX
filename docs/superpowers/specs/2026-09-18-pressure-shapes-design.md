@@ -610,4 +610,11 @@ EXPECT_GE(rate, 0.30 - 0.05) << "该层的 squad_chance 被改坏（现状 30）
 
 **范围与限制（如实 ✓）**：①**L17-24 未纳入本腿实测** ⚠（缺 Hellfire 素材 ⇒ 生成时崩在 `DRLG_LPass3` ✓；由 roster 套件的 HF 分支覆盖 ✓）；②**可绕性断言撤下** ✓（测试/引擎两侧皆无可达性判据 ✗ ⇒ 按作者裁决 **(b)** 交由预注册试玩 ✓，若日后要做须先定义"可绕"✓）；③**"重调某层 `squad_chance` ⇒ 该层红"已证成** ✓（复核实测：把覆盖件放进 **build 侧**夹具 ⇒ 红 ✓）；持久修法（`SetPrefPath("../test/fixtures/")` 置于 `TestInitGame()` 之前 ✓）仍为待办 ⚠。
 
+**终态认证（2026-09-18 ✓）**：
+- **本地全量门禁**：`ctest failed: 0` ✓、`passed_pct: 100` ✓、`drift_ok: true`（**6/6** ✓）、**`pressure_tables_ok: true`** ✓（新增门禁步骤 ✓）；
+- **eval smoke**：`exit 0` ✓（`data 6/6` / `render 2/2` / `combat 5/5` / `utility 9/9` ✓）；
+- **CI**（`gh -R pengyz/devilutionX` ✓）：`run 35685793297` @ `2d66288cf` **success** ✓、`run 35730943787` @ `a0ec4185d` **success** ✓（最新动源码提交 ✓）；docs-only 提交无运行（`paths-ignore: docs/**` ✓）。
+
+**eval 结构（顺序敏感性收口 ✓）**：三个 rng case 各自独立进程 ⇒ 确定性 ✓ —— `rng-squad-rate`（1/1 ✓）、`rng-encounter-types`（1/1 ✓）、`level-rosters`（**10/10** ✓，filter 负向排除前述两者 ✓，计数由 12 回 **10** ✓）。**已知且已文档化的限制** ⚠：两个状态敏感仪器在**同进程全量**运行时会漂移（L2 0.54→0.46/0.47 ✗、L7 0.43→0.51 ✗；显式 `SetRndSeed` 重置**无效** ✗，shipped 素材路径重置让 L7 恢复 ✓ 而 L2 仍受**任务状态**影响 ✗）；**ctest 逐用例隔离** ✓ 与**独占 eval filter** ✓ 均规避之 ✓，尝试与结果如实写在黄金表头 ✓。
+
 **过程教训（已沉淀 ✓）**：①改 txtdata 后**必须** `ninja -C build devilutionx_mpq`（否则测试读旧副本、断言照旧通过 ✗ —— 本会话骗过我三次 ✓）；②**契约基线是实测不是目标** ✗；③**漂移作为提交硬前置**（本会话两次拦下 CRLF 误改 ✓）；④**每条"实测"断言必须有同一条命令的输出佐证** ✓（本会话共 6 次过度声明 ✗，均据此更正 ✓）。
