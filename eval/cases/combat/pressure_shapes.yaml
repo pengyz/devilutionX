@@ -1,0 +1,44 @@
+id: "combat-pressure_shapes"
+name: "压力形态守卫套件（前提 / 不变量 / 名册闭包 / 层段反制）"
+category: "combat"
+difficulty: "medium"
+tags: ["pressure", "roster", "invariants"]
+
+setup:
+  # 本套件只读**源树**里的表（词缀表、参数表、黄金集），不经 MPQ 加载 ⇒ 与素材无关。
+  mpq_required: false
+  timeout: 60
+
+run:
+  backend: "gtest"
+  binary: "pressure_shapes_test"
+  filter: "PressureShapesTest.*"
+
+expected:
+  exit_code: 0
+  failed: 0
+  passed_min: 5
+  skipped_max: 0
+  # 维护提醒（R35 同款）：计数与 PressureShapesTest 的用例数绑定；增删用例后必须同步这里，
+  # 否则门禁会静默失效（N 偏小）或误红（N 偏大）。当前 N = 5（2026-09-18）：
+  # ImmutableTablesUnchanged / RosterAisMatchGolden / EveryBandHasTwoAnswerableCounters
+  # / Level16HasNoSquadParameterRow / CounterPoolPremisesHold。
+  # 注：另有两条守卫由**门禁脚本**而非本二进制强制（只有 python 扫描能读 C++ 发射点）：
+  # `tools/run_tests.py` 的 pressure_tables 步骤运行 `tools/gen_pressure_tables.py --check`
+  # ⇒ 覆盖层段类型的实时等式 (a) 与发射点白名单 (c)。
+  output_contains: ["[  PASSED  ] 5 tests."]
+
+description: >
+  压力形态（A 腿）的机械守卫套件。五个用例分别守：①逐字节不变量（10 张承载数值/掉落/物价的表，
+  FNV-1a 黄金集；缺表或改一字节都硬失败，不再静默降覆盖）；②名册闭包（名册 core 的 AI 集合与黄金集**双向**相等，
+  未知名册怪 id 为硬失败）；③层段反制性质（每层段 ≥2 种**可应答**需求类型，酸不计——D1 无酸抗族）；
+  ④L16 处置（作者确认 (a) 不补行：源表不得出现 16 行；运行时那一半注明不可被数据文件证伪）；
+  ⑤词缀前提（无 ACIDRES 族；咒族由数据推导且反制池内不得含咒族）。
+
+  反证方式（均已实测为红，恢复后绿）：给源词缀表加一条 `ACIDRES`；把 `Red\tFIRERES` 改名为 `FIRERES_RENAMED`；
+  源参数表追加 `16\t6000\t1\tMelee=2\t30\t2\t1`；给任一受保护表追加一个字节；名册里加一行未知怪 id。
+  门禁侧两条：在某 `Ai*` 函数里加一行字面 `AddMissile(..., MissileID::X, ...)`，或把某施法者 core 的 `ai` 改成近战类
+  ⇒ `tools/gen_pressure_tables.py --check` 非零（STALE）。
+
+  范围与限制（如实记录）：层段 L17-24 的**实测**成队率需 Hellfire 素材，由 roster 基线套件覆盖，本套件不含；
+  逐字节清单明确**不含** `level_roster_params.tsv` / `level_rosters.tsv`（本腿要改它们）。

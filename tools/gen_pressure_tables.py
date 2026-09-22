@@ -160,10 +160,22 @@ def build_tables() -> dict[str, list[str]]:
             found.add("Physical")  # melee: answered by armour (ACP)
         per_band.setdefault(band(int(row[ri["level"]])), set()).update(found)
 
+    # Per-AI demand types, so the C++ instrument can look up a monster's type instead of
+    # re-deriving the AI -> missile -> damage-type model a second time.
+    ai_types = {}
+    for ai in roster_ais:
+        missiles = {generic[ai]} if ai in generic else set()
+        missiles |= sites.get(ai_to_fn.get(ai, ""), set())
+        if ai == "Counselor":
+            missiles |= set(counselor)
+        found = {t for missile in missiles for t in TYPES if t in flags.get(missile, "")}
+        ai_types[ai] = sorted(found or {"Physical"})
+
     return {
         "segment_types.txt": [f"{b}\t{','.join(sorted(per_band[b]))}" for b in sorted(per_band)],
         "roster_ais.txt": sorted(roster_ais),
         "emission_sites.txt": [f"{fn}\t{','.join(sorted(ids))}" for fn, ids in sorted(sites.items())],
+        "ai_types.txt": [f"{ai}\t{','.join(ai_types[ai])}" for ai in sorted(ai_types)],
     }
 
 
