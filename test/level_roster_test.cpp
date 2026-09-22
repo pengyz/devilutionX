@@ -649,7 +649,7 @@ protected:
 	void SetUp() override
 	{
 		LevelRosterFixtureLoadTestBase::SetUp();
-		paths::SetAssetsPath(paths::BasePath() + "test/fixtures/");
+		paths::SetAssetsPath(paths::BasePath() + "../test/fixtures/");
 	}
 };
 

@@ -252,7 +252,7 @@ TEST(PressureShapesTest, Level16HasNoSquadParameterRow)
 	// Preamble copied from test/level_roster_baseline_test.cpp:535-544 (the production order):
 	// PrefPath -> TestInitGame -> LoadMonsterData -> LoadLevelRoster. Calling LoadLevelRoster()
 	// alone aborts with "roster row names unknown monster id" because monster data is not loaded.
-	paths::SetPrefPath(paths::BasePath() + "test/fixtures/");
+	paths::SetPrefPath(paths::BasePath() + "../test/fixtures/");
 	TestInitGame();
 	LoadMonsterData();
 	LoadLevelRoster();

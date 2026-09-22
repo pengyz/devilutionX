@@ -638,7 +638,7 @@ protected:
 	void SetUp() override
 	{
 		savedAssetsPath_ = paths::AssetsPath();
-		paths::SetAssetsPath(paths::BasePath() + "test/fixtures/");
+		paths::SetAssetsPath(paths::BasePath() + "../test/fixtures/");
 	}
 
 	void TearDown() override
@@ -1778,7 +1778,7 @@ protected:
 		// PARAMETERISED path with the parameterised cap and stayed green while
 		// measuring the wrong branch. Both now measure the branch they name.
 		const std::string savedAssetsPath = paths::AssetsPath();
-		paths::SetAssetsPath(paths::BasePath() + "test/fixtures/");
+		paths::SetAssetsPath(paths::BasePath() + "../test/fixtures/");
 		LoadLevelRosterFromFiles(
 		    "txtdata\\monsters\\level_rosters_no_hf.tsv",
 		    "txtdata\\monsters\\level_roster_params_no_hf.tsv");

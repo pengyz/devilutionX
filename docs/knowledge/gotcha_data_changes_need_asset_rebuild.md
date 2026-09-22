@@ -11,7 +11,7 @@ date: 2026-09-18
 # 根因（三处叠加）
 1. 测试经 `LoadLevelRoster()` / `LoadMonsterData()` 等**生产加载路径**读数据 ⇒ 读的是 **`build/` 侧的解包副本 / `*.mpq`**，**不是**受版本控制的 `assets/` 源表 ✗；
 2. 定向构建测试目标**不会**刷新数据资产 ⇒ 必须显式 `ninja -C build devilutionx_mpq`（输出形如 `Copying assets/...` + `Building devilutionx.mpq` ✓）；
-3. 更隐蔽的一层：`PrefPath`/`OverridePaths` 在 **`TestInitGame()` 内一次性快照**（`Source/engine/assets.cpp:746` ✓）⇒ 之后 `SetPrefPath` **不再生效**，夹具覆盖件必须放在 **`build/test/fixtures/**`** 才会被读到 ✓。
+3. ~~更隐蔽的一层：夹具覆盖件必须放在 `build/test/fixtures/**`~~ **（已于 2026-09-18 修复 ✓）**：`PrefPath`/`OverridePaths` 在 **`TestInitGame()` 内一次性快照**（`Source/engine/assets.cpp:746` ✓）⇒ 之后 `SetPrefPath` 不生效 ✓；**修法**＝把测试里的 `SetPrefPath/SetAssetsPath` 目标由 `BasePath() + "test/fixtures/"`（实为 build 侧 ✗）改为 **`BasePath() + "../test/fixtures/"`**（源树 ✓）—— **12 处**，含共享落点 `test/drlg_test.hpp` ✓。**验证** ✓：只在**源树**放 L9=5 覆盖件 ⇒ 比率守卫红（`measured 0.0446, baseline 0.3466` ✓）。
 
 # 识别信号（今天三次踩坑的共同指纹）
 - 改了数据 ⇒ 断言**仍然通过**、实测值与基线**逐位相同** ✗；

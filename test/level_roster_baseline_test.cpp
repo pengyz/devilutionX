@@ -533,7 +533,7 @@ protected:
 
 		// 建关过程中可能触发任务专属 set-piece（如 rnd6.dun），这些文件只作为测试夹具存在于
 		// test/fixtures/levels/ 下，需在 TestInitGame 之前设置 PrefPath 使其通过覆盖路径解析。
-		paths::SetPrefPath(paths::BasePath() + "test/fixtures/");
+		paths::SetPrefPath(paths::BasePath() + "../test/fixtures/");
 		TestInitGame();
 		LoadMonsterData();
 		// GetLevelMTypes() 现在按逐层名册采样（core 预加 + 有界尾池），生产侧在
@@ -772,7 +772,7 @@ protected:
 		if (missingMpqAssets_)
 			return;
 		savedAssetsPath_ = paths::AssetsPath();
-		paths::SetAssetsPath(paths::BasePath() + "test/fixtures/");
+		paths::SetAssetsPath(paths::BasePath() + "../test/fixtures/");
 		LoadLevelRosterFromFiles("txtdata\\monsters\\level_rosters_out_of_range.tsv",
 		    "txtdata\\monsters\\level_roster_params_out_of_range.tsv");
 		paths::SetAssetsPath(savedAssetsPath_);
@@ -844,7 +844,7 @@ protected:
 	// itself is never overridden - only the params table's squad columns differ.
 	static void LoadSquadParams(std::string_view paramsFile)
 	{
-		paths::SetAssetsPath(paths::BasePath() + "test/fixtures/");
+		paths::SetAssetsPath(paths::BasePath() + "../test/fixtures/");
 		LoadLevelRosterFromFiles("txtdata\\monsters\\level_rosters.tsv", paramsFile);
 		paths::SetAssetsPath(paths::BasePath() + "assets/");
 	}
@@ -1654,7 +1654,7 @@ protected:
 		// so LoadLevelRoster() below validates L17-24 in full rather than skipping
 		// them - which is precisely the scoping this task added.
 		gbIsHellfire = true;
-		paths::SetPrefPath(paths::BasePath() + "test/fixtures/");
+		paths::SetPrefPath(paths::BasePath() + "../test/fixtures/");
 		TestInitGame(/*fullQuests=*/true, /*originalCathedral=*/true, /*hellfire=*/true);
 		// TestInitGame() mounts the hf MOD archive (mods/hf), which supplies the L17-24
 		// monstdat overlay - but NOT the Nest/Crypt graphics: nlevels\\l6data\\l6.til and
@@ -1770,7 +1770,7 @@ protected:
 	 */
 	static void LoadPreA2Tables()
 	{
-		paths::SetAssetsPath(paths::BasePath() + "test/fixtures/");
+		paths::SetAssetsPath(paths::BasePath() + "../test/fixtures/");
 		LoadLevelRosterFromFiles(
 		    "txtdata\\monsters\\level_rosters_no_hf.tsv",
 		    "txtdata\\monsters\\level_roster_params_no_hf.tsv");
@@ -2273,7 +2273,7 @@ TEST_F(SquadPlacementTest, SquadRateMatchesMeasuredBaseline)
 	// at the fixtures, which would make LoadLevelRoster() read a fixture roster instead of the
 	// shipped one and silently change the measured mix.
 	paths::SetAssetsPath(paths::BasePath() + "assets/");
-	paths::SetPrefPath(paths::BasePath() + "test/fixtures/");
+	paths::SetPrefPath(paths::BasePath() + "../test/fixtures/");
 	TestInitGame();
 	LoadMonsterData();
 	LoadLevelRoster();
@@ -2343,7 +2343,7 @@ if (missingMpqAssets_)
 	// at the fixtures, which would make LoadLevelRoster() read a fixture roster instead of the
 	// shipped one and silently change the measured mix.
 	paths::SetAssetsPath(paths::BasePath() + "assets/");
-	paths::SetPrefPath(paths::BasePath() + "test/fixtures/");
+	paths::SetPrefPath(paths::BasePath() + "../test/fixtures/");
 	TestInitGame();
 	LoadMonsterData();
 	LoadLevelRoster();

@@ -608,7 +608,7 @@ EXPECT_GE(rate, 0.30 - 0.05) << "该层的 squad_chance 被改坏（现状 30）
 
 **新增仪器（任务 7 ✓）**：`EncounterHasTwoDemandTypes` —— 同时活跃怪中出现 **≥2 种需求类型**的层-种子比例 ✓（N=100 ✓，类型查 `ai_types.txt` ✓）。**实测与发现** ⚠：`L1 = 0.00` ✗（该层每种子都是单类型 ✓）、`L5 = 0.18` ⚠、`L2/L4/L6/L7 = 0.54/0.68/0.65/0.43` ✓、`L3 与 L8-15 = 1.00` ✓。两条低值**已记录未粉饰** ✓（是否要把 L1 做成双类型＝玩家可见改动 ⇒ 待作者裁决 ⚠，默认"接受并记录" ✓）。
 
-**范围与限制（如实 ✓）**：①**L17-24 未纳入本腿实测** ⚠（缺 Hellfire 素材 ⇒ 生成时崩在 `DRLG_LPass3` ✓；由 roster 套件的 HF 分支覆盖 ✓）；②**可绕性断言撤下** ✓（测试/引擎两侧皆无可达性判据 ✗ ⇒ 按作者裁决 **(b)** 交由预注册试玩 ✓，若日后要做须先定义"可绕"✓）；③**"重调某层 `squad_chance` ⇒ 该层红"已证成** ✓（复核实测：把覆盖件放进 **build 侧**夹具 ⇒ 红 ✓）；持久修法（`SetPrefPath("../test/fixtures/")` 置于 `TestInitGame()` 之前 ✓）仍为待办 ⚠。
+**范围与限制（如实 ✓）**：①**L17-24 未纳入本腿实测** ⚠（缺 Hellfire 素材 ⇒ 生成时崩在 `DRLG_LPass3` ✓；由 roster 套件的 HF 分支覆盖 ✓）；②**可绕性断言撤下** ✓（测试/引擎两侧皆无可达性判据 ✗ ⇒ 按作者裁决 **(b)** 交由预注册试玩 ✓，若日后要做须先定义"可绕"✓）；③**"重调某层 `squad_chance` ⇒ 该层红"已证成** ✓（复核实测：把覆盖件放进 **build 侧**夹具 ⇒ 红 ✓）；**持久修法 ✅ 已完成（2026-09-18）**：测试侧 `SetPrefPath/SetAssetsPath` 统一改为 `BasePath() + "../test/fixtures/"`（**源树** ✓），共 **12 处**（含共享落点 `test/drlg_test.hpp` ✓；`level_roster_baseline_test` 7 ✓、`pressure_shapes_test` 1 ✓、`sampling_behavior_test` 2 ✓、`level_roster_test` 1 ✓；build 侧残留 **0** ✓）⇒ 源树夹具即权威 ✓。**验证** ✓：只在源树放 L9=5 覆盖件 ⇒ 比率守卫**红**（`measured 0.0446, baseline 0.3466` ✓）；夹具依赖用例 **3/3** ✓；`level_roster_test` **41/41** ✓；`sampling_behavior_test` **39/39** ✓；smoke **exit 0** ✓。
 
 **终态认证（2026-09-18 ✓）**：
 - **本地全量门禁**：`ctest failed: 0` ✓、`passed_pct: 100` ✓、`drift_ok: true`（**6/6** ✓）、**`pressure_tables_ok: true`** ✓（新增门禁步骤 ✓）；

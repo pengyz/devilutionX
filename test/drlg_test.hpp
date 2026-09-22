@@ -45,7 +45,7 @@ std::unique_ptr<uint16_t[]> DunData;
 void LoadExpectedLevelData(const char *fixture)
 {
 	// Set look up path to the location to load set pieces from later:
-	paths::SetPrefPath(paths::BasePath() + "test/fixtures/");
+	paths::SetPrefPath(paths::BasePath() + "../test/fixtures/");
 	LoadModArchives({});
 	DunData = LoadFileInMem<uint16_t>(fixture);
 	ASSERT_NE(DunData, nullptr) << "Unable to load test fixture " << fixture;
