@@ -129,6 +129,23 @@ git commit -m "feat(save): add the durable death-commit intent"
 
 ---
 
+> **执行前更正（2026-09-18 实测 ✓，务必先读）**
+>
+> 1. **依赖不是线性** ✗：任务 2 正文用到 `DisableLoadingOldSaveForThisSession()`（**任务 3** 才提供 ✗）与
+>    **`SaveGameReporting()`**（**步骤 3b** ✗）⇒ 必须先做 **3b（让存档能报告成功）** 与 **任务 3**，
+>    再做任务 2；否则无法 **fail-closed**（不知道保存是否成功就删意图 ✗ = 违反规格 §4.1⑤ ✗）。
+> 2. **漂移 E 会挡住单独落地任务 1** ✗✓：`check_drift.py` 的 E 检查扫**工作树**，新生产函数
+>    `BeginDeathCommit` 若只有测试调用 ⇒ `FAIL E "has test callers but no production caller"` ✓
+>    （实测 ✓，提交被拦 ✓）。⇒ **任务 1 必须与任务 2 的生产调用点一起落地** ✓（同一次提交 ✓），
+>    不可先提交"只有接口 + 测试"的版本 ✗。CLAUDE.md 亦禁止"写未实现内容" ✓。
+> 3. **任务 1 的实现已完成并已验证，暂存于 `/tmp/task1_parked/`** ✓（`save_commit.h` / `save_commit.cpp` /
+>    `save_commit_test.cpp` / `commit-intent.yaml` ✓）：编译通过 ✓、测试 **2 passed** ✓、
+>    **两处可失败性反证已实测为红并恢复** ✓（去掉 `RemoveFile` ⇒ "must remove the intent" ✓；
+>    `HasPendingDeathCommit` 恒假 ⇒ 断言红 ✓）。落回仓库时需**同时**改 `Source/CMakeLists.txt`
+>    （**显式列表非 glob** ✗）✓ + `CMake/Tests.cmake` ✓ + `tools/run_tests.py::TEST_TARGETS` ✓。
+> 4. `SyncPlrKill` 是**唯一死亡漏斗** ✓（`Source/player.cpp`，6+ 调用点 ✓）；多人标志真实名＝
+>    **`gbIsMultiplayer`** ✓（`Source/game_mode.hpp:41` ✓）；`LogError` **首参必须是 `LogCategory`** ✓。
+
 ## 任务 2：单机死亡触发提交
 
 **文件：** 修改 `Source/player.cpp`（`SyncPlrKill`，`:2845`）、`Source/loadsave.h`（无需新增，`SaveGame()` 已声明）
