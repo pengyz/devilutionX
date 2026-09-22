@@ -47,6 +47,8 @@
 运行：`grep -n "RenameFile\|fsync\|FlushFileBuffers\|OpenFile" Source/utils/file_util.cpp Source/utils/file_util.h | head -20`
 把确认到的真实函数名记进本任务注释（**不要凭空取名**）。
 
+**实测结论（2026-09-18 ✓）**：`file_util.h` 可用者为 `FileExists` ✓ / `FileExistsAndIsWriteable` ✓ / `RenameFile(from,to)` ✓（内部 `std::filesystem::rename` ✓）/ `RemoveFile` ✓ / `OpenFile` ✓；**不存在** `fsync`/`FlushFileBuffers`/`_commit` 封装 ✗（`Source/`+`3rdParty/` 全仓 0 命中 ✓），`MpqWriter`（`Source/mpq/mpq_writer.hpp` ✓）只有 `WriteFile`/`RenameFile`/`HasFile` 等 ✓、无落盘屏障 ✗。⇒ 本计划的"复用既有持久化封装"假设**不成立** ✗，需作者在 (i)/(ii) 间裁决 ✓。
+
 - [ ] **步骤 2：写接口与最小实现（意图文件 + 原子替换）**
 
 ```cpp
@@ -94,8 +96,14 @@ bool BeginDeathCommit(std::string_view reason)
 	out << reason;
 	out.flush();
 	// 关键：必须落到磁盘，否则崩溃后意图丢失、旧档仍可加载（规格 §4.1⑤）
-	// 实现时用本仓库已有的 fsync/FlushFileBuffers 封装（任务 1 步骤 1 已确认名字）
-	return FlushFileToDisk(DeathCommitIntentPath());
+	// ⚠ 更正（2026-09-18 步骤 1 实测 ✓）：本仓**没有**任何 fsync / FlushFileBuffers / _commit
+	// 封装（全仓 0 命中 ✗；file_util 只有 FileExists / RenameFile / RemoveFile / OpenFile ✓），
+	// 存档栈（MpqWriter / SDL_RWops）也只有**重命名式原子替换** ✓、无落盘屏障 ✗。
+	// 故这里**不能**调用 FlushFileToDisk（该名字不存在 ✗）。两条路（待作者裁决 ✓）：
+	//   (i)  新增可移植的 FlushFileToDisk（POSIX open+fsync+目录 fsync / Windows FlushFileBuffers）
+	//        ⇒ 忠实规格 §4.1⑤，但引入平台代码面；
+	//   (ii) 先只写意图文件（不保证崩溃级持久化）⇒ 仍防"保存失败后旧档可加载"，掉电/崩溃不保证。
+	// 在本任务完成前，**不得**假装已持久化 ✗。
 }
 
 bool CompleteDeathCommit()
