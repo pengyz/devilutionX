@@ -68,3 +68,4 @@
 - [`pattern_decision_protocol.md`](pattern_decision_protocol.md) — 决策提问协议：按 artifact 面判定是否问作者 / ≤5 条批量带默认 / 五要素格式 / 不停等 + 待追认账本 / 反"以批准之名改设计"
 - [`gotcha_data_changes_need_asset_rebuild.md`](gotcha_data_changes_need_asset_rebuild.md) — 改 txtdata 源表却"无效果"：定向构建不刷新数据资产（需 `ninja -C build devilutionx_mpq`）；`OverridePaths` 在 `TestInitGame()` 内快照，夹具覆盖件须放 build 侧
 - [`decision_contract_baselines_are_measurements_not_targets.md`](decision_contract_baselines_are_measurements_not_targets.md) — 契约守卫变红时：基线是"实测"不可抬高；正确做法是回调机制（本案 L4 越顶 ⇒ 回归规格的 L1-8 30/2）
+- [`gotcha_ci_is_the_terminal_authority_check_after_every_push.md`](gotcha_ci_is_the_terminal_authority_check_after_every_push.md) — `gh` 须 `-R <fork>`；本地绿≠CI绿（缺 `missingRetailTrn_` 守卫的用例在 spawn-only CI 会照常运行并红）；每次 push 后都看 CI

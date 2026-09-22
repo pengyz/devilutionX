@@ -2266,6 +2266,8 @@ TEST_F(SquadPlacementTest, SquadRateMatchesMeasuredBaseline)
 	// the same table, otherwise retuning a level would silently pass.
 	if (missingMpqAssets_)
 		GTEST_SKIP() << "MPQ assets not found - skipping test";
+	if (missingRetailTrn_)
+		GTEST_SKIP() << "retail/HF TRN (monsters\monsters\genrl.trn) not available - skipping test";
 	gbIsSpawn = false;
 	paths::SetPrefPath(paths::BasePath() + "test/fixtures/");
 	TestInitGame();
@@ -2322,6 +2324,8 @@ TEST_F(SquadPlacementTest, EncounterHasTwoDemandTypes)
 	// -> damage-type model is never re-derived here.
 	if (missingMpqAssets_)
 		GTEST_SKIP() << "MPQ assets not found - skipping test";
+	if (missingRetailTrn_)
+		GTEST_SKIP() << "retail/HF TRN (monsters\monsters\genrl.trn) not available - skipping test";
 	gbIsSpawn = false;
 	paths::SetPrefPath(paths::BasePath() + "test/fixtures/");
 	TestInitGame();
