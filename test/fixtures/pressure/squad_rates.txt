@@ -5,14 +5,14 @@
 # squad_chance is a conscious change that must update this table (otherwise the guard is
 # tautological). Coverage: levels 1-15. Level 16 has no parameter row (decision (a)); levels
 # 17-24 need Hellfire assets and are not measured by this fixture yet.
-1	0.255034
-2	0.261929
-3	0.235932
-4	0.250597
-5	0.242595
-6	0.266017
-7	0.246356
-8	0.236790
+1	0.306636
+2	0.307484
+3	0.277396
+4	0.293629
+5	0.282650
+6	0.302185
+7	0.292193
+8	0.314199
 9	0.346588
 10	0.358459
 11	0.348681
