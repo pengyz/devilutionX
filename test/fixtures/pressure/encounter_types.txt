@@ -5,7 +5,11 @@
 # fails if it ever starts offering a second type.
 # Findings recorded, not silently accepted: L1 = 0.00 and L5 = 0.18 are the two lowest; the rest
 # of the band is 0.43-1.00 and levels 3 and 8-15 are always two-type.
-# Coverage: levels 1-15. Level 16 has no squad parameters and levels 17-24 need Hellfire assets.
+# Coverage: levels 1-15.
+# Order sensitivity (measured 2026-09-18): run in the same process AFTER LevelRosterBaselineTest.*
+# the L2 value shifts to 0.46-0.47 and L7 to 0.51; an explicit SetRndSeed reset and a shipped asset
+# root restore bring L7 back but not L2, which is also affected by quest state. ctest isolates every
+# gtest case, and the eval case for this instrument runs it alone, so both gates are deterministic. Level 16 has no squad parameters and levels 17-24 need Hellfire assets.
 1	0.000000
 2	0.540000
 3	1.000000

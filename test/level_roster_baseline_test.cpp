@@ -2269,6 +2269,10 @@ TEST_F(SquadPlacementTest, SquadRateMatchesMeasuredBaseline)
 	if (missingRetailTrn_)
 		GTEST_SKIP() << "retail/HF TRN (monsters\monsters\genrl.trn) not available - skipping test";
 	gbIsSpawn = false;
+	// Force the shipped asset root: an earlier case in this binary may have left it pointing
+	// at the fixtures, which would make LoadLevelRoster() read a fixture roster instead of the
+	// shipped one and silently change the measured mix.
+	paths::SetAssetsPath(paths::BasePath() + "assets/");
 	paths::SetPrefPath(paths::BasePath() + "test/fixtures/");
 	TestInitGame();
 	LoadMonsterData();
@@ -2322,11 +2326,23 @@ TEST_F(SquadPlacementTest, EncounterHasTwoDemandTypes)
 	// player's level and report the per-level ratio of seeds where at least two demand types are
 	// present. A monster's type is looked up in the generated ai_types table, so the AI -> missile
 	// -> damage-type model is never re-derived here.
-	if (missingMpqAssets_)
+		// Check the tables BEFORE any skip: a missing table must fail loudly even in an
+	// asset-limited environment, where the rest of the test is skipped.
+	{
+		std::ifstream aiCheck(paths::BasePath() + "../test/fixtures/pressure/ai_types.txt");
+		ASSERT_TRUE(aiCheck.is_open()) << "per-AI type table missing; run tools/gen_pressure_tables.py";
+		std::ifstream pinnedCheck(paths::BasePath() + "../test/fixtures/pressure/encounter_types.txt");
+		ASSERT_TRUE(pinnedCheck.is_open()) << "pinned encounter table missing";
+	}
+if (missingMpqAssets_)
 		GTEST_SKIP() << "MPQ assets not found - skipping test";
 	if (missingRetailTrn_)
 		GTEST_SKIP() << "retail/HF TRN (monsters\monsters\genrl.trn) not available - skipping test";
 	gbIsSpawn = false;
+	// Force the shipped asset root: an earlier case in this binary may have left it pointing
+	// at the fixtures, which would make LoadLevelRoster() read a fixture roster instead of the
+	// shipped one and silently change the measured mix.
+	paths::SetAssetsPath(paths::BasePath() + "assets/");
 	paths::SetPrefPath(paths::BasePath() + "test/fixtures/");
 	TestInitGame();
 	LoadMonsterData();
@@ -2371,7 +2387,17 @@ TEST_F(SquadPlacementTest, EncounterHasTwoDemandTypes)
 		size_t withTwo = 0;
 		size_t monstersSeen = 0;
 		for (uint32_t seed = 0; seed < N; seed++) {
-			RunLevel(level, seed);
+			// Same explicit reset the sibling test uses: without it the result depends on how much
+			// of the global RNG stream earlier tests consumed, which made the pinned values order-dependent.
+			InitLevelMonsters();
+			SetRndSeed(41000 + seed);
+			CreateDungeonForMeasurement(level, seed);
+			{
+				const auto getTypesResult = GetLevelMTypes();
+				ASSERT_TRUE(getTypesResult.has_value());
+				const auto initResult = InitMonsters();
+				ASSERT_TRUE(initResult.has_value());
+			}
 			std::set<std::string> seen;
 			for (size_t i = 0; i < ActiveMonsterCount; i++) {
 				const Monster &monster = Monsters[ActiveMonsters[i]];

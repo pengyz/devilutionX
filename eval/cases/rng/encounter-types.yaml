@@ -1,0 +1,32 @@
+id: "rng-encounter-types"
+name: "遭遇同时 ≥2 需求类型的比例与钉值一致（独立进程）"
+category: "rng"
+difficulty: "medium"
+tags: ["pressure", "encounter", "types"]
+
+setup:
+  mpq_required: true
+  timeout: 300
+
+run:
+  backend: "gtest"
+  binary: "level_roster_baseline_test"
+  # 独占 filter 的原因（重要 ✓）：该指标取"同时活跃怪的 AI 类型集合"，对**同进程内前序用例
+  # 留下的全局状态**敏感（实测：与 LevelRosterBaselineTest.* 同进程跑时 L2 由 0.54 → 0.46/0.47 ✗，
+  # L7 由 0.43 → 0.51 ✗；已加 SetRndSeed 重置与 shipped 素材路径重置，L7 恢复 ✓、L2 仍受任务状态影响 ✗）。
+  # ctest 逐用例隔离与"独占 filter"都规避了它 ✓；故本用例必须单跑 ✓。
+  filter: "SquadPlacementTest.EncounterHasTwoDemandTypes"
+
+expected:
+  exit_code: 0
+  failed: 0
+  passed_min: 1
+  skipped_max: 1
+  output_contains: ["[ ENCOUNTER ] level 1 withTwo 0 ratio 0 monsters"]
+
+description: >
+  压力腿任务 7：一次建关后取同时活跃怪，计算"存在 ≥2 种需求类型"的层-种子比例（N=100×L1-15），
+  与 test/fixtures/pressure/encounter_types.txt 双侧一致（容差 0.05；连 L1=0.00 也非空洞——一旦
+  该层出现第二种类型即红 ✓）。类型查 ai_types.txt（唯一来源＝生成器 ✓，C++ 不重算 ✓）；
+  表缺失为**硬失败**（检查前置到 SKIP 之前 ✓）。缺素材时与兄弟用例一致 SKIP（skipped_max: 1 ✓）。
+  实测发现（已记录未粉饰 ✓）：L1=0.00 ✗、L5=0.18 ⚠、L3 与 L8-15=1.00 ✓。

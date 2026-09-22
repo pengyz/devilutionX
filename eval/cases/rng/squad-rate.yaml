@@ -1,0 +1,29 @@
+id: "rng-squad-rate"
+name: "按层小队比率与钉值一致（独立进程）"
+category: "rng"
+difficulty: "medium"
+tags: ["pressure", "squad", "rate"]
+
+setup:
+  mpq_required: true
+  timeout: 300
+
+run:
+  backend: "gtest"
+  binary: "level_roster_baseline_test"
+  # 独占 filter：该用例对**同进程内的前序状态**敏感（见 encounter-types.yaml 的说明 ✓）
+  # ⇒ 必须单跑，才能保证钉值稳定 ✓。
+  filter: "SquadPlacementTest.SquadRateMatchesMeasuredBaseline"
+
+expected:
+  exit_code: 0
+  failed: 0
+  passed_min: 1
+  skipped_max: 1
+  output_contains: ["[ SQUADRATE ] level 1 measured"]
+
+description: >
+  压力腿任务 2：逐层实测成队率（rolls / eligibleCoreDraws，N=100×L1-15）与
+  test/fixtures/pressure/squad_rates.txt 的钉值双侧一致（容差 0.05）。缺零售/地狱火素材时
+  与同套件兄弟用例一致 SKIP（skipped_max: 1 ✓）。反证：改黄金集（如 L9→0.55）⇒ 红并报
+  "level 9 squad rate moved" ✓；复核实测：把 L9 squad_chance=5 的覆盖件放进 build 侧夹具 ⇒ 红 ✓。
