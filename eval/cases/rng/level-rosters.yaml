@@ -1,7 +1,7 @@
 # 维护提醒（R35）：本 case 的 `expected.passed_min` 与 `output_contains` 里的
 # "[  PASSED  ] N tests." 是**硬编码的用例计数**。往 LevelRosterBaselineTest 或 SquadPlacementTest 里新增或删除用例后
 # 必须同步这两处数字，否则门禁会静默失效（N 偏小 → 少跑也算过）或误红
-# （N 偏大 → 全绿也判失败）。当前值对应 11 个用例（2026-09-18 起含 SquadRateMatchesMeasuredBaseline）（Phase B Task 3 追加 5 个 SquadPlacementTest 用例，
+# （N 偏大 → 全绿也判失败）。当前值对应 12 个用例（2026-09-18 起含 SquadRateMatchesMeasuredBaseline）（Phase B Task 3 追加 5 个 SquadPlacementTest 用例，
 # 修复轮次 1 再追加具名用例 SquadMinionsKeepOwnAi → 9；Task 4 追加 SquadFormationRate → 10）。
 #
 # 阶段 A2 Task 2 说明（当时的计数理由，已被 2026-09-18 的 +1 覆盖）：同一二进制新增的 3 个 `HellfireLevelBaselineTest`
@@ -38,7 +38,7 @@ run:
 expected:
   exit_code: 0
   failed: 0
-  passed_min: 11
+  passed_min: 12
   skipped_max: 1
   output_contains:
     - "[ MEASURED ] level 13 ranged share"
@@ -50,7 +50,7 @@ expected:
     - "[ SQUADFORM ]"
     - "[ SQUADLEASH ]"
     - "[ SQUADSIZE ]"
-    - "[  PASSED  ] 11 tests."
+    - "[  PASSED  ] 12 tests."
 
 description: >
   逐层名册 Phase A 的验收门禁：不看采样中间量，直接跑真实

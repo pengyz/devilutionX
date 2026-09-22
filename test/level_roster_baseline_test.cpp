@@ -1,4 +1,5 @@
 #include <gtest/gtest.h>
+#include <magic_enum/magic_enum.hpp>
 
 #include <algorithm>
 #include <array>
@@ -2310,5 +2311,82 @@ TEST_F(SquadPlacementTest, SquadRateMatchesMeasuredBaseline)
 		std::cout << "[ SQUADRATE ] level " << level << " measured " << rate << " baseline " << expectedRate << std::endl;
 		EXPECT_NEAR(rate, expectedRate, Tolerance)
 		    << "level " << level << " squad rate moved (measured " << rate << ", baseline " << expectedRate << ")";
+	}
+}
+
+TEST_F(SquadPlacementTest, EncounterHasTwoDemandTypes)
+{
+	// Task 7: after a build, take the monsters active on the
+	// player's level and report the per-level ratio of seeds where at least two demand types are
+	// present. A monster's type is looked up in the generated ai_types table, so the AI -> missile
+	// -> damage-type model is never re-derived here.
+	if (missingMpqAssets_)
+		GTEST_SKIP() << "MPQ assets not found - skipping test";
+	gbIsSpawn = false;
+	paths::SetPrefPath(paths::BasePath() + "test/fixtures/");
+	TestInitGame();
+	LoadMonsterData();
+	LoadLevelRoster();
+
+	std::map<std::string, std::set<std::string>> typesOf;
+	std::ifstream typeFile(paths::BasePath() + "../test/fixtures/pressure/ai_types.txt");
+	ASSERT_TRUE(typeFile.is_open()) << "per-AI type table missing; run tools/gen_pressure_tables.py";
+	std::string typeLine;
+	while (std::getline(typeFile, typeLine)) {
+		if (!typeLine.empty() && typeLine.back() == '\r')
+			typeLine.pop_back();
+		const size_t tab = typeLine.find('\t');
+		if (tab == std::string::npos)
+			continue;
+		std::set<std::string> types;
+		std::stringstream stream(typeLine.substr(tab + 1));
+		std::string type;
+		while (std::getline(stream, type, ','))
+			types.insert(type);
+		typesOf[typeLine.substr(0, tab)] = types;
+	}
+	ASSERT_GE(typesOf.size(), 15u) << "per-AI type table unexpectedly small";
+
+	std::map<int, double> expectedRatio;
+	std::ifstream pinnedFile(paths::BasePath() + "../test/fixtures/pressure/encounter_types.txt");
+	ASSERT_TRUE(pinnedFile.is_open()) << "pinned encounter table missing";
+	std::string pinnedLine;
+	while (std::getline(pinnedFile, pinnedLine)) {
+		if (!pinnedLine.empty() && pinnedLine.back() == '\r')
+			pinnedLine.pop_back();
+		if (pinnedLine.empty() || pinnedLine[0] == '#')
+			continue;
+		const size_t tab = pinnedLine.find('\t');
+		ASSERT_NE(tab, std::string::npos) << pinnedLine;
+		expectedRatio[std::stoi(pinnedLine.substr(0, tab))] = std::stod(pinnedLine.substr(tab + 1));
+	}
+	ASSERT_EQ(expectedRatio.size(), 15u) << "pinned encounter table should cover levels 1-15";
+
+	constexpr int N = 100;
+	for (uint8_t level = 1; level <= 15; level++) {
+		size_t withTwo = 0;
+		size_t monstersSeen = 0;
+		for (uint32_t seed = 0; seed < N; seed++) {
+			RunLevel(level, seed);
+			std::set<std::string> seen;
+			for (size_t i = 0; i < ActiveMonsterCount; i++) {
+				const Monster &monster = Monsters[ActiveMonsters[i]];
+				monstersSeen++;
+				const auto it = typesOf.find(std::string(magic_enum::enum_name(monster.ai)));
+				if (it == typesOf.end())
+					continue;
+				seen.insert(it->second.begin(), it->second.end());
+			}
+			if (seen.size() >= 2)
+				withTwo++;
+		}
+		const double ratio = static_cast<double>(withTwo) / static_cast<double>(N);
+		std::cout << "[ ENCOUNTER ] level " << static_cast<int>(level) << " withTwo " << withTwo
+		          << " ratio " << ratio << " monsters " << monstersSeen << std::endl;
+		const auto expected = expectedRatio.find(static_cast<int>(level));
+		ASSERT_TRUE(expected != expectedRatio.end()) << "level " << static_cast<int>(level) << " missing from the pinned table";
+		EXPECT_NEAR(ratio, expected->second, 0.05)
+		    << "level " << static_cast<int>(level) << " encounter type mix moved (measured " << ratio
+		    << ", pinned " << expected->second << ")";
 	}
 }

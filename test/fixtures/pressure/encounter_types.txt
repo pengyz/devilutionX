@@ -1,0 +1,23 @@
+# Measured share of seeds whose encounter (monsters active on the player's level) contains at
+# least two demand types. N=100 builds per level, shipped tables, measured by
+# SquadPlacementTest.EncounterHasTwoDemandTypes on 2026-09-18. These are pinned measurements, so
+# the assertion is two-sided: even level 1 (measured 0.00, a single-type encounter every seed)
+# fails if it ever starts offering a second type.
+# Findings recorded, not silently accepted: L1 = 0.00 and L5 = 0.18 are the two lowest; the rest
+# of the band is 0.43-1.00 and levels 3 and 8-15 are always two-type.
+# Coverage: levels 1-15. Level 16 has no squad parameters and levels 17-24 need Hellfire assets.
+1	0.000000
+2	0.540000
+3	1.000000
+4	0.680000
+5	0.180000
+6	0.650000
+7	0.430000
+8	1.000000
+9	1.000000
+10	1.000000
+11	1.000000
+12	1.000000
+13	1.000000
+14	1.000000
+15	1.000000
