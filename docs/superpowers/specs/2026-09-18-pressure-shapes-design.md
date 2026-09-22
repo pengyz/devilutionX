@@ -580,3 +580,32 @@ EXPECT_GE(rate, 0.30 - 0.05) << "该层的 squad_chance 被改坏（现状 30）
 2. **深层精英靠小队**（unique 只剩 3 个）✗ ⇒ §4.2 的 L17-24 形态据此改写 ✓；
 3. **守卫阈值统计化**：例如"L9-12 的 `rolls/eligibleCoreDraws` ≥ 现状值（chance=30）"✓ —— 由**现状基线**锁定，改坏参数即红 ✓；
 4. 守卫的两条判据（附录 F.3 的 (a)(c)）与本节基线结合后**可写成可失败断言** ✓。
+
+## 实施记录（A 腿，2026-09-18）
+
+**形态参数终态**（`assets/txtdata/monsters/level_roster_params.tsv` ✓，L16 无行 ✓）：
+
+| 层段 | chance | size | leashed | 实测成队率（N=100 ✓） |
+|---|---|---|---|---|
+| **L1-8** | **30**（维持原值 ✓） | 2 | 1 | ≈0.277–0.314 |
+| **L9-12** | **35** | 2 | 1 | ≈0.343–0.347 |
+| **L13-16** | **45** | 3 | 1 | ≈0.456–0.466 |
+| **L17-24** | **40** | 3 | 1 | 未测（缺 HF 素材 ⚠，由 roster 套件覆盖） |
+
+**为什么 L1-8 维持 30/2** ✓：取 25 时 **L4** 的远程占比越顶 vanilla 契约（`0.188055 > 0.186861` ✓，仅 +0.12pp ✗）；契约的 vanilla 基线是**实测**而非目标 ⇒ **回调机制**（回归规格值 ✓），而非抬高基线 ✗。详见 `docs/knowledge/decision_contract_baselines_are_measurements_not_targets.md` ✓。
+
+**机械守卫落地**（8 项 ✓）：
+1. **(a) 层段类型实时等式** —— 门禁步骤 `run_tests.py::run_pressure_tables()` 运行 `tools/gen_pressure_tables.py --check` ✓（只有 python 能扫 C++ 发射点 ✓）；
+2. **(b) 名册闭包** —— `PressureShapesTest.RosterAisMatchGolden`（双向 ✓；未知名册怪 id **硬失败** ✓）；
+3. **(c) 发射点白名单** —— 同 (a) 的门禁步骤 ✓（按**行区间**归属真实宿主 ✓，文件作用域单列 ✓）；
+4. **(d) 词缀前提** —— `CounterPoolPremisesHold`（无 `ACIDRES` ✓；咒族由数据推导且反制池内不得含咒族 ✓）；
+5. **(f) 按层小队比率** —— `SquadPlacementTest.SquadRateMatchesMeasuredBaseline`（N=100×L1-15 ✓，双侧 0.05 ✓，黄金表 `test/fixtures/pressure/squad_rates.txt` ✓）；
+6. **(f2) L16 处置** —— `Level16HasNoSquadParameterRow`（**作者确认 (a)** ✓：源表不得有 16 行 ✓）；
+7. **(g) 逐字节不变量** —— `ImmutableTablesUnchanged`（**10 张表** FNV-1a ✓；缺表**硬失败** ✓ 不静默降覆盖 ✓）；
+8. **C1 验收性质** —— `EveryBandHasTwoAnswerableCounters`（每层段 ≥2 种**可应答**反制 ✓，酸不计 ✓）。
+
+**新增仪器（任务 7 ✓）**：`EncounterHasTwoDemandTypes` —— 同时活跃怪中出现 **≥2 种需求类型**的层-种子比例 ✓（N=100 ✓，类型查 `ai_types.txt` ✓）。**实测与发现** ⚠：`L1 = 0.00` ✗（该层每种子都是单类型 ✓）、`L5 = 0.18` ⚠、`L2/L4/L6/L7 = 0.54/0.68/0.65/0.43` ✓、`L3 与 L8-15 = 1.00` ✓。两条低值**已记录未粉饰** ✓（是否要把 L1 做成双类型＝玩家可见改动 ⇒ 待作者裁决 ⚠，默认"接受并记录" ✓）。
+
+**范围与限制（如实 ✓）**：①**L17-24 未纳入本腿实测** ⚠（缺 Hellfire 素材 ⇒ 生成时崩在 `DRLG_LPass3` ✓；由 roster 套件的 HF 分支覆盖 ✓）；②**可绕性断言撤下** ✓（测试/引擎两侧皆无可达性判据 ✗ ⇒ 按作者裁决 **(b)** 交由预注册试玩 ✓，若日后要做须先定义"可绕"✓）；③**"重调某层 `squad_chance` ⇒ 该层红"已证成** ✓（复核实测：把覆盖件放进 **build 侧**夹具 ⇒ 红 ✓）；持久修法（`SetPrefPath("../test/fixtures/")` 置于 `TestInitGame()` 之前 ✓）仍为待办 ⚠。
+
+**过程教训（已沉淀 ✓）**：①改 txtdata 后**必须** `ninja -C build devilutionx_mpq`（否则测试读旧副本、断言照旧通过 ✗ —— 本会话骗过我三次 ✓）；②**契约基线是实测不是目标** ✗；③**漂移作为提交硬前置**（本会话两次拦下 CRLF 误改 ✓）；④**每条"实测"断言必须有同一条命令的输出佐证** ✓（本会话共 6 次过度声明 ✗，均据此更正 ✓）。
